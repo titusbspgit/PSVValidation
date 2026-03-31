@@ -1,88 +1,91 @@
 Index,SS / Module,Test Case Name,Test Description,Speed,Mode,Memory Start Offset,Memory End Offset,Remarks,Test Steps / Procedure,Impacted Registers,Validation / Acceptance Criteria,Gap Analysis,Code Generation (Required/Not)
-1,GPIO,gpio_reg_wr_rd_test,"Register default-value verification and masked write/read compliance across the address list defined for the GPIO block.",NA,NA,NA,NA,"Addresses with read_mask_array[i]==0 or write_mask_array[i]==0 are explicitly skipped; addresses flagged in skip_rst_array[]/skip_array[] are skipped.","Environment and setup:
-- Use arrays and constants from test_define.c: addr_array[], default_value_array[], read_mask_array[], write_mask_array[], skip_rst_array[], skip_array[], and CNT (count of registers).
-Initialization:
-- Reset failure counters for default-value mismatches and write-read mismatches to zero.
-Default-value verification (for each index i from 0 to CNT-1):
-- Determine the register address from addr_array[i].
-- If skip_rst_array[i] equals 1, skip this register.
-- If read_mask_array[i] equals 0x00000000, skip reading for this register.
-- Read the register and apply a mask of 0xFFFFFFFE to the read value.
-- Compare the masked read value against default_value_array[i]; record a default-value failure on mismatch.
-Patterned writes (six patterns in this order): 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000.
-- For each pattern and for each index i from 0 to CNT-1:
-  - Determine the register address from addr_array[i].
-  - If skip_array[i] equals 1, skip this register.
-  - If write_mask_array[i] equals 0x00000000, skip writing for this register.
-  - Write the pattern masked by write_mask_array[i] to the register.
-Readback and verification (same index order):
-- For each index i from 0 to CNT-1:
-  - If skip_array[i] equals 1, skip this register.
-  - If write_mask_array[i] equals 0x00000000 or read_mask_array[i] equals 0x00000000, skip verification for this register.
-  - Read the register and apply read_mask_array[i] to the value.
-  - Derive the expected value by combining: bits written by the current pattern limited by both read_mask_array[i] and write_mask_array[i], plus the preserved default bits limited by read_mask_array[i] where the write mask is zero.
-  - If the read value does not match the expected value, record a write-read failure.
-Cleanup and termination:
-- If any default-value or write-read failures were recorded, terminate with failure; otherwise, terminate with success.","NA","PASS when both counters are zero at termination (no default-value mismatches and no write-read mismatches). Any recorded mismatch leads to failure.","No negative tests (e.g., invalid addresses) and no error-retry strategy; registers marked non-readable/non-writable are skipped without alternative verification.",
-2,GPIO,test_gpio_negedge_intr_en,"Negative-edge interrupt enable and handling for GPIO pads 8–39; verifies per-pin enable, group status set, per-pin/raw clear, and system IRQ clear.",NA,Interrupt,0xA0243FFC,0xA0243FFC,"Conditional build selects GPIO0 (IRQ 87) or GPIO1 (IRQ 88) paths; per-pin configuration uses bit positions 20, 18, and 16; uses int_pend as a run-loop gate with a timeout of 5000 iterations.","Environment and setup:
-- Enable platform interrupt: IRQ 87 if GPIO0 is defined; IRQ 88 if GPIO1 is defined.
-- Enable system-register output by writing MIZAR_LSS_SYSREG_INTR_EN1 with either LSS_SYSREG_INTR_EN1_GPIO0_INTR or LSS_SYSREG_INTR_EN1_GPIO1_INTR.
-Initialization and configuration:
-- Drive all GPIO pads high by writing 0xFFFFFFFF to address 0xA0243FFC.
-- For each pad index i from 0 to 31 (corresponding to pads 8–39):
-  - Program the per-pad register at (MIZAR_GPIO_GP0_GPIO_8 + i*4) to set bit20, bit18, and bit16 to 1.
-  - Delay 10 time units after each configuration write.
-Per-pad stimulus and arming (loop i from 0 to 31):
-- Prepare a one-hot mask for the selected pad (bit i).
-- Clear the per-pad raw status by writing the mask to MIZAR_GPIO_GPIO_INTR_RAW_STCLR1.
-- Enable the pad’s group interrupt by writing the same mask to MIZAR_GPIO_GP0_INTR1_INTR_EN1; delay 10 time units.
-- Arm the run-loop gate by setting int_pend to 1.
-- Generate a falling edge for the selected pad by first writing 0xFFFFFFFF to 0xA0243FFC, delaying 30 time units, and then writing a value with bit i cleared and all other bits set to 1 to 0xA0243FFC.
-Runtime handling and timeout:
-- Poll int_pend with a timeout counter initialized to 5000; in each poll, delay 10 time units and decrement the counter.
-- If the counter reaches zero before int_pend clears, record a timeout error for that pad.
-Interrupt service routine behavior (Default_IRQHandler):
-- Clear the run-loop gate by setting int_pend to 0.
-- Restore all pads high by writing 0xFFFFFFFF to 0xA0243FFC.
-- Read the per-pad register at (MIZAR_GPIO_GP0_GPIO_8 + i*4) and verify:
-  - Bit0 equals 0; any non-zero indicates error.
-  - Bit1 equals 1; if set, read MIZAR_GPIO_GP0_INTR1_INTR_STS1 and ensure the bit corresponding to pad i is set; otherwise, record an error.
-- Reprogram the per-pad register at (MIZAR_GPIO_GP0_GPIO_8 + i*4) to set bit20 and bit16 to 1 (clears posedge enable while keeping configuration consistent).
-- Clear the per-pad raw status by writing the one-hot mask for pad i to MIZAR_GPIO_GPIO_INTR_RAW_STCLR1.
-- Verify the group status register MIZAR_GPIO_GP0_INTR1_INTR_STS1 becomes 0 after the clear; any non-zero indicates error.
-- Clear the system raw interrupt by writing the appropriate bit (LSS_SYSREG_RAW_STCR1_GPIO0_INTR or LSS_SYSREG_RAW_STCR1_GPIO1_INTR) to MIZAR_LSS_SYSREG_RAW_STCR1, and clear the platform IRQ (87 or 88).
-Cleanup and termination:
-- After all pads are exercised, terminate with success if no errors were recorded; otherwise, terminate with failure.","MIZAR_LSS_SYSREG_INTR_EN1, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, 0xA0243FFC","- No timeouts during polling for any pad (32 iterations).
-- In the ISR: per-pad status bit1 is set on entry; the corresponding group status bit is set on entry and becomes 0 after raw clear.
-- System raw interrupt in MIZAR_LSS_SYSREG_RAW_STCR1 is cleared; platform IRQ (87 or 88) is cleared.
-- Overall: error counter remains 0 at termination.","No explicit negative tests (e.g., spurious or simultaneous interrupts); no debounce/noise robustness checks; relies on a shared iteration index i inside the ISR without concurrency protection.",
-3,GPIO,test_gpio_pedge_all_pads_en,"Positive-edge interrupt enable across all pads 8–39; verifies group status set, raw-per-pin clear, sysreg clear, and re-enable for next iteration.",NA,Interrupt,0xA0243FFC,0xA0243FFC,"Conditional build selects GPIO0 (IRQ 87) or GPIO1 (IRQ 88); per-pad posedge enable uses 0x00020000; int_pend is a volatile gate with a timeout of 2000 iterations.","Environment and setup:
-- Enable platform interrupt: IRQ 87 if GPIO0 is defined; IRQ 88 if GPIO1 is defined.
-- Enable system-register output by writing MIZAR_LSS_SYSREG_INTR_EN1 with either LSS_SYSREG_INTR_EN1_GPIO0_INTR or LSS_SYSREG_INTR_EN1_GPIO1_INTR.
-Configuration:
-- For each pad index i from 0 to 31 (pads 8–39), enable positive-edge detection by writing 0x00020000 to (MIZAR_GPIO_GP0_GPIO_8 + i*4).
-- Delay 10 time units.
-- Configure IO control groups for input mode by writing 0x000000FF to each of: MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, GROUP2, GROUP3, and GROUP4.
-- Delay 10 time units.
-- Enable group interrupt output by writing 0xFFFFFFFF to MIZAR_GPIO_GP0_INTR1_INTR_EN1.
-Stimulus per iteration (loop i from 0 to 31):
-- Drive all pads low by writing 0x00000000 to 0xA0243FFC; delay 10 time units.
-- Arm the run-loop gate by setting int_pend to 1.
-- Generate a rising edge by writing 0xFFFFFFFF to 0xA0243FFC.
-Runtime handling and timeout:
-- Poll int_pend with a timeout set to 2000 iterations; in each poll, delay 10 time units.
-- On timeout expiry, record an error and stop further iterations.
-- After servicing, drive pads low again (0x00000000 to 0xA0243FFC) and delay 10 time units to prepare for the next iteration.
-Interrupt service routine behavior (Default_IRQHandler):
-- Form a one-hot mask for the current pad (bit i); clear the run-loop gate by setting int_pend to 0.
-- Read the group status register MIZAR_GPIO_GP0_INTR1_INTR_STS1 and temporarily mask group output by writing 0x00000000 to MIZAR_GPIO_GP0_INTR1_INTR_EN1.
-- If the group status is non-zero on entry, treat as success; otherwise, record an error.
-- Clear raw per-pad status for all pads by writing 0x00010000 to each per-pad register at (MIZAR_GPIO_GP0_GPIO_8 + j*4) for j from 0 to 31; delay 2 time units.
-- Verify that MIZAR_GPIO_GP0_INTR1_INTR_STS1 equals 0 after raw clears; record an error if not.
-- Clear the system raw interrupt in MIZAR_LSS_SYSREG_RAW_STCR1 using the appropriate bit (GPIO0 or GPIO1); read back the same register and record an error if the bit remains set.
-- Re-enable group interrupt output by writing 0xFFFFFFFF to MIZAR_GPIO_GP0_INTR1_INTR_EN1; clear platform IRQ (87 or 88).
-Cleanup and termination:
-- After iterating through all 32 pads, terminate with success if no errors were recorded; otherwise, terminate with failure.","MIZAR_LSS_SYSREG_INTR_EN1, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_LSS_SYSREG_RAW_STCR1, 0xA0243FFC","- No timeout events occur during any of the 32 iterations.
-- Group interrupt status (MIZAR_GPIO_GP0_INTR1_INTR_STS1) is non-zero on entry to the ISR and becomes 0 after raw clears.
-- System raw status in MIZAR_LSS_SYSREG_RAW_STCR1 clears and remains cleared after readback; platform IRQ is cleared.
-- Overall: the error counter equals 0 at termination.","No explicit negative tests (e.g., spurious triggers, simultaneous edges); raw clear is broadcast to all pads without per-pad isolation check; no debounce/noise robustness checks.",
+1,GPIO,gpio_reg_wr_rd_test,"Register default-value verification and write-read validation across GPIO GP0 per-pin registers (GPIO_8..GPIO_39) and GPIO group I/O, DOUT, DIN, and interrupt registers using provided read/write masks and skip lists.",NA,NA,NA,NA,"- Default-value check masks off bit0 (0xFFFFFFFE) before compare.
+- VRRW-class and reset-skipped registers are omitted per skip arrays.
+- Note: comment indicates DIN may read as 1 by default; forcing 0 can affect bit-level select, causing mismatch.","Setup
+- Initialize failure counters for default-value and write-read mismatches to zero.
+- Load arrays: register addresses, expected defaults, read masks, write masks, skip controls.
+
+Default-value verification (for all indices 0..CNT-1)
+- Select target register address from the address array.
+- If reset-skip is asserted for the index, skip default compare.
+- If read mask equals 0x00000000, treat as non-readable and skip.
+- Read register; AND with 0xFFFFFFFE; compare against expected default value for the index.
+- On mismatch, increment default-fail counter and record the address and values.
+
+Patterned write/readback (for patterns: FFFFFFFF, AAAAAAAA, 55555555, F5F5F5F5, A5A5A5A5, FFFF0000)
+- For each address index:
+  - If skip is asserted, skip write/read for this address.
+  - If write mask is 0x00000000, skip write; otherwise write (pattern AND write mask) to the address.
+- For each address index:
+  - If skipped, or write mask is 0x00000000, or read mask is 0x00000000, skip compare.
+  - Read register; AND with read mask.
+  - Compute expected: (pattern AND read mask AND write mask) OR ((bitwise NOT of write mask) AND read mask AND default value).
+  - If readback differs from expected, increment write-fail counter and log address and values.
+
+Finish
+- If any failure counter is non-zero, mark test failure; otherwise mark success.","MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_GPIO_GP0_INTR2_INTR_EN1,MIZAR_GPIO_GP0_INTR2_INTR_STS1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GPIO_DOUT_GROUP1,MIZAR_GPIO_GPIO_DOUT_GROUP2,MIZAR_GPIO_GPIO_DOUT_GROUP3,MIZAR_GPIO_GPIO_DOUT_GROUP4,MIZAR_GPIO_GPIO_DIN_GROUP1,MIZAR_GPIO_GPIO_DIN_GROUP2,MIZAR_GPIO_GPIO_DIN_GROUP3,MIZAR_GPIO_GPIO_DIN_GROUP4","- All readable registers match expected defaults after masking bit0.
+- For each pattern and each address with read/write capability, readback equals the computed expected value.
+- Overall pass if both failure counters remain zero; otherwise fail.","- LSB behavior (bit0) deliberately excluded from default check.
+- VRRW and reset-skipped addresses are not exercised.
+- No dedicated negative tests beyond mismatch detection.",
+2,GPIO,test_gpio_negedge_intr_en,"Negative-edge interrupt enable and servicing across GPIO[8..39]; includes system interrupt enable, per-pin configuration, raw status clear, group status verification, and system/GIC clears.",NA,Interrupt,0xA0243ffc,0xA0243ffc,NA,"Environment and system enables
+- If built with GPIO0: enable IRQ 87 and enable GPIO0 interrupt in system interrupt enable register.
+- If built with GPIO1: enable IRQ 88 and enable GPIO1 interrupt in system interrupt enable register.
+
+Per-pin configuration (for indices 0..31 mapping to GPIO[8..39])
+- For each per-pin register at base plus (index * 4): set bits 20, 18, and 16 to configure acknowledge/clear and interrupt mode per block definition; apply a brief wait.
+
+Per-pin stimulus and wait (for indices 0..31)
+- Compute wr_val as a one-hot for the current index.
+- Clear any pending raw status by writing wr_val to the raw status clear register (write-one-to-clear semantics).
+- Enable the corresponding group interrupt bit by writing wr_val to the group enable register; brief wait.
+- Arm the test by setting the interrupt-pending flag.
+- Drive pad control at 0xA0243FFC to all ones; wait; then drive to bitwise NOT of wr_val, creating a high-to-low transition on the selected pad.
+- Poll the interrupt-pending flag with a timeout of 5000 iterations, waiting briefly each time; on timeout, log an error for this pad.
+
+Interrupt service routine
+- On entry, clear the interrupt-pending flag.
+- Read the per-pin register for the current index; if the level bit indicates high, record an error for expected low after a negedge.
+- If the per-pin status bit indicates an interrupt cause:
+  - Read group interrupt status and verify the corresponding one-hot bit is set; else record error.
+  - Acknowledge per-pin by writing bits 20 and 16 to the per-pin register.
+  - Clear raw group status by writing the one-hot to the raw status clear register.
+  - Read group status again and expect 0x0; else record error.
+- Clear system-level raw status for the active GPIO instance and clear the GIC IRQ (87 for GPIO0, 88 for GPIO1).","MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_LSS_SYSREG_RAW_STCR1,0xA0243FFC","- No timeout while polling for ISR on any index 0..31.
+- In ISR: per-pin level indicates expected low after negedge; group status shows the one-hot bit set on entry and becomes 0 after clears.
+- System-level raw status is cleared; GIC IRQ is cleared per instance.
+- Overall pass if test_err remains zero at finish; otherwise fail.","- No explicit negative/error-path tests beyond timeout.
+- Does not validate DIN group reads.
+- Enable mask remains active during ISR except for explicit masking in service (not present here).",
+3,GPIO,test_gpio_pedge_all_pads_en,"Positive-edge interrupt enable and servicing across GPIO[8..39]; includes system/group interrupt configuration, I/O control setup, per-pin raw clear, group status deassertion, and system/GIC clears.",NA,Interrupt,0xA0243ffc,0xA0243ffc,NA,"Environment and system enables
+- If built with GPIO0: enable IRQ 87 and enable GPIO0 interrupt in system interrupt enable register.
+- If built with GPIO1: enable IRQ 88 and enable GPIO1 interrupt in system interrupt enable register.
+
+Per-pin posedge configuration
+- For indices 0..31: write 0x00020000 to per-pin registers to enable posedge detection (bit17=1); brief wait.
+
+I/O control configuration
+- Write 0x000000FF to each I/O control group register 1..4 to configure pads; brief wait.
+
+Group interrupt enable
+- Write 0xFFFFFFFF to the group interrupt enable register.
+
+Per-pin stimulus and wait (for indices 0..31)
+- Drive pad control at 0xA0243FFC low (0x00000000); brief wait.
+- Arm by setting the interrupt-pending flag to 1 before generating the edge.
+- Drive pad control high (0xFFFFFFFF) to create a rising edge.
+- Poll the interrupt-pending flag with a timeout of 2000 iterations; on timeout, log error and break.
+- Drive low again and wait to prepare for the next index.
+
+Interrupt service routine
+- Clear the interrupt-pending flag and compute one-hot for the current index.
+- Read group status; temporarily mask group output by writing 0 to the group enable during service.
+- If any bit set, treat as valid entry; otherwise record error.
+- Clear per-pin raw status by writing 0x00010000 to each per-pin register (j=0..31); brief wait.
+- Read group status; expect 0x0; else record error.
+- Clear system-level raw status for the active instance and verify the bit is cleared by readback; re-enable group enable for next iteration; clear the GIC IRQ (87/88).","MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_LSS_SYSREG_RAW_STCR1,0xA0243FFC","- No timeout while polling for ISR on any index 0..31.
+- Group interrupt status asserted on ISR entry and deasserted to 0x0 after per-pin and group clears.
+- System-level raw status bit cleared by write and confirmed by readback; GIC IRQ cleared.
+- Overall pass if test_err remains zero at finish; otherwise fail.","- No explicit negative/error-path tests beyond timeout.
+- Per-pin status not inspected individually after bulk clear.
+- Debounce/noise behavior not exercised.",
