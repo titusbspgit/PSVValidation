@@ -1,0 +1,6 @@
+FOLDERS:
+gpio_reg_wr_rd_test | TestRepo/gpio/gpio_reg_wr_rd_test
+test_gpio_negedge_intr_en | TestRepo/gpio/test_gpio_negedge_intr_en
+test_gpio_pedge_all_pads_en | TestRepo/gpio/test_gpio_pedge_all_pads_en
+
+FILES:
