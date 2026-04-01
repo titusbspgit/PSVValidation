@@ -1,191 +1,120 @@
 #include "test_define.c"
 
-/*
-  Test: GPIO posedge interrupt on all pads (8..39)
-  Summary:
-    - Configure per-pin posedge detection for pads 8..39.
-    - Configure GPIOs 8..39 as inputs via group IO control.
-    - Enable group interrupt for all bits.
-    - For each pad, generate a single rising edge using external drive register (0xA0243ffc).
-    - Wait for ISR with bounded timeout; in ISR, verify group status non-zero, clear per-pin raw across pads,
-      verify group clear, clear system RAW_STCR1 for instance, re-enable group interrupt, and clear GIC IRQ.
-    - Test passes if no timeouts/errors occur (finish(0)); otherwise finish(1).
-
-  Notes:
-    - Uses only symbolic register names/macros assumed to be provided by included project headers.
-    - External drive at 0xA0243ffc is used to generate edges as per test plan.
-    - Optional logs under DEBUG_DISPLAY.
-*/
-
-static volatile int test_err = 0;
-static volatile int int_pend = 0;
-static volatile unsigned int g_idx = 0; /* Current pad index [0..31] corresponding to pads 8..39 */
-
-/* Configure posedge detect on pads 8..39 (PEIE=1) */
-static void cfg_pedge_all_pads(void)
-{
-    unsigned int i;
-    for (i = 0; i < 32; i++) {
-        /* Per-pin control register: MIZAR_GPIO_GP0_GPIO_8 + i*4
-           Field: PEIE (posedge interrupt enable) assumed at bit[17] per platform headers.
-           Value 0x00020000 used per test description to enable posedge detection.
-           TODO: Field positioning is provided by platform headers. */
-        write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4U), 0x00020000U);
-    }
-}
-
-/* Configure group IO control for inputs on pads 8..39 via GROUP1..4 */
-static void cfg_group_io_as_inputs(void)
-{
-    /* Each GROUPx controls a set of 8 pads; 0x000000FF selects input mode per platform definition. */
-    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FFU);
-    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FFU);
-    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FFU);
-    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FFU);
-}
-
-void Default_IRQHandler(void)
-{
-    /* Service group interrupt: validate status, clear per-pin raw, verify clear, clear sysreg, and unmask */
-    unsigned int rdata_grp;
-    unsigned int j;
-
-    int_pend = 0;
-
-#ifdef DEBUG_DISPLAY
-    printf("[ISR] Enter (g_idx=%u)\n", g_idx);
-#endif
-
-    /* Read group status */
-    rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
-
-    /* Mask group interrupt during service to avoid re-entry */
-    write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000U);
-
-    if (rdata_grp == 0U) {
-#ifdef DEBUG_DISPLAY
-        printf("[ISR][ERR] Group status is zero; expected non-zero on posedge.\n");
-#endif
-        test_err++;
-        /* Attempt to recover: fall-through to final steps */
-    } else {
-#ifdef DEBUG_DISPLAY
-        printf("[ISR] Group status: 0x%08X\n", rdata_grp);
-#endif
-    }
-
-    /* Clear per-pin raw across pads 8..39 (ICLR=1) */
-    for (j = 0; j < 32; j++) {
-        /* Field ICLR (interrupt clear) assumed at bit[16] per platform headers.
-           Value 0x00010000 used per test description to write-one-to-clear. */
-        write_reg(MIZAR_GPIO_GP0_GPIO_8 + (j * 4U), 0x00010000U);
-        wait_on(2);
-    }
-
-    /* Verify group clear */
-    rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
-    if (rdata_grp != 0U) {
-#ifdef DEBUG_DISPLAY
-        printf("[ISR][ERR] Group status not cleared: 0x%08X\n", rdata_grp);
-#endif
-        test_err++;
-    }
-
-    /* Clear system RAW_STCR1 for the selected GPIO instance(s), if defined */
-#ifdef LSS_SYSREG_RAW_STCR1_GPIO0_INTR
-    write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR);
-    GIC_ClearIRQ(87);
-#endif
-#ifdef LSS_SYSREG_RAW_STCR1_GPIO1_INTR
-    write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR);
-    GIC_ClearIRQ(88);
-#endif
-
-    /* Re-enable group interrupt */
-    write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFFU);
-
-#ifdef DEBUG_DISPLAY
-    printf("[ISR] Exit (errors=%d)\n", test_err);
-#endif
-}
+// GPIO posedge interrupt on all pads (8..39)
+// High-level flow derived from CSV Test Steps / Procedure:
+// 1) Enable LSS SYSREG interrupt outputs for GPIO instances.
+// 2) Configure per-pin posedge detection: write 0x00020000 to each pin register (GPIO_8 + i*4).
+// 3) Configure GPIOs 8..39 as inputs using group IO control registers (0x000000FF each group).
+// 4) Enable group interrupt for all pads.
+// 5) For i=0..31: drive a rising edge via PAD_DRIVER_ADDR and poll group status with timeout.
+// 6) On assertion, mask group enable, clear per-pin raw for all pads, verify group clear,
+//    clear LSS SYSREG RAW_STCR1, re-enable group interrupt.
+// 7) Overall pass/fail based on absence of timeouts or verification errors.
 
 void test_case(void)
 {
-    unsigned int i;
-
-    test_err = 0;
-    int_pend = 0;
-    g_idx = 0;
+    unsigned int errors = 0u;
 
 #ifdef DEBUG_DISPLAY
-    printf("[TEST] Start: test_gpio_pedge_all_pads_en\n");
+    printf("[GPIO] Start: test_gpio_pedge_all_pads_en\n");
 #endif
 
-    /* Enable platform IRQ line(s) for GPIO instance(s), if defined */
-#ifdef LSS_SYSREG_INTR_EN1_GPIO0_INTR
-    GIC_EnableIRQ(87);
-    write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);
-#endif
-#ifdef LSS_SYSREG_INTR_EN1_GPIO1_INTR
-    GIC_EnableIRQ(88);
-    write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);
+    // 1) Enable LSS SYSREG interrupt outputs (both instances if present)
+    // Using CSV-listed bits; details are provided by platform headers.
+    write_reg(MIZAR_LSS_SYSREG_INTR_EN1,
+              (unsigned int)(LSS_SYSREG_INTR_EN1_GPIO0_INTR | LSS_SYSREG_INTR_EN1_GPIO1_INTR));
+#ifdef DEBUG_DISPLAY
+    DBG_PRINTF("[DBG] SYSREG INTR_EN1 set\n");
 #endif
 
-    /* Configure per-pin posedge detection */
-    cfg_pedge_all_pads();
+    // 2) Configure per-pin posedge detection for pads 8..39
+    for (unsigned int i = 0u; i < 32u; ++i) {
+        write_reg(gpio_pin_addr(i), GPIO_POSEDGE_EN_VAL);
+    }
     wait_on(10);
+#ifdef DEBUG_DISPLAY
+    DBG_PRINTF("[DBG] Per-pin posedge detection configured\n");
+#endif
 
-    /* Configure GPIOs 8..39 as inputs via group IO control */
-    cfg_group_io_as_inputs();
+    // 3) Configure GPIOs 8..39 as inputs via group IO control registers
+    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, GPIO_GROUP_IO_IN_MASK);
+    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, GPIO_GROUP_IO_IN_MASK);
+    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, GPIO_GROUP_IO_IN_MASK);
+    write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, GPIO_GROUP_IO_IN_MASK);
     wait_on(10);
+#ifdef DEBUG_DISPLAY
+    DBG_PRINTF("[DBG] IO_CTRL groups configured for input\n");
+#endif
 
-    /* Enable group interrupt for all bits */
-    write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFFU);
+    // 4) Enable group interrupt for all bits
+    write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, GPIO_INT_EN_ALL);
+#ifdef DEBUG_DISPLAY
+    DBG_PRINTF("[DBG] Group interrupt enabled for all pads\n");
+#endif
 
-    /* Test each pad: generate a single rising edge and wait for ISR */
-    for (i = 0; i < 32; i++) {
-        int timeout = 2000;
-
-        /* Drive all low (prepare for rising edge) */
-        write_reg(0xA0243ffcU, 0x00000000U);
+    // 5) Iterate across pads and generate posedge, then verify via group status
+    for (unsigned int i = 0u; i < 32u; ++i) {
+        // Drive known low, then rising edge
+        write_reg(PAD_DRIVER_ADDR, 0x00000000u);
         wait_on(10);
+        write_reg(PAD_DRIVER_ADDR, 0xFFFFFFFFu);
 
-        /* Arm ISR wait and record index */
-        g_idx = i;
-        int_pend = 1;
-
-#ifdef DEBUG_DISPLAY
-        printf("[TEST] Pad %u: generate rising edge\n", (unsigned)(8U + i));
-#endif
-
-        /* Generate rising edge on all pads (environment will assert matching group status) */
-        write_reg(0xA0243ffcU, 0xFFFFFFFFU);
-
-        /* Bounded wait for ISR to clear int_pend */
-        while (int_pend && --timeout > 0) {
+        // Poll with timeout for group status assertion
+        unsigned int timeout = 2000u;
+        unsigned int grp_sts = 0u;
+        while (timeout-- > 0u) {
+            grp_sts = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+            if (grp_sts != 0u) break;
             wait_on(10);
         }
-
-        if (timeout <= 0) {
+        if (grp_sts == 0u) {
 #ifdef DEBUG_DISPLAY
-            printf("[ERR] Timeout waiting for ISR on pad %u\n", (unsigned)(8U + i));
+            printf("[ERR] Timeout waiting for group INT STS (pad=%u)\n", (i + 8u));
 #endif
-            test_err++;
-            break; /* Stop on first timeout to avoid long loops */
+            errors++;
+            break; // break out; further pads likely to fail similarly
+        }
+#ifdef DEBUG_DISPLAY
+        DBG_PRINTF("[OK ] Group INT STS asserted (pad=%u, sts=0x%08x)\n", (i + 8u), grp_sts);
+#endif
+
+        // Mask group enable during service
+        write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000u);
+
+        // Clear per-pin raw for all pads, then verify group clear
+        for (unsigned int j = 0u; j < 32u; ++j) {
+            write_reg(gpio_pin_addr(j), GPIO_PERPIN_RAW_ICLR_VAL);
+            wait_on(2);
+        }
+        unsigned int grp_sts_after = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+        if (grp_sts_after != 0u) {
+#ifdef DEBUG_DISPLAY
+            printf("[ERR] Group INT STS not cleared after per-pin raw clear (0x%08x)\n", grp_sts_after);
+#endif
+            errors++;
+        } else {
+            DBG_PRINTF("[OK ] Group INT STS cleared after per-pin raw clear\n");
         }
 
-        /* Return to low for next iteration */
-        write_reg(0xA0243ffcU, 0x00000000U);
+        // Clear LSS SYSREG RAW status for GPIO instances
+        write_reg(MIZAR_LSS_SYSREG_RAW_STCR1,
+                  (unsigned int)(LSS_SYSREG_RAW_STCR1_GPIO0_INTR | LSS_SYSREG_RAW_STCR1_GPIO1_INTR));
+
+        // Re-enable group interrupt for next iteration
+        write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, GPIO_INT_EN_ALL);
+
+        // Drive low for next iteration
+        write_reg(PAD_DRIVER_ADDR, 0x00000000u);
         wait_on(10);
     }
 
 #ifdef DEBUG_DISPLAY
-    if (test_err == 0) {
-        printf("[TEST] PASS: test_gpio_pedge_all_pads_en\n");
+    if (errors == 0u) {
+        printf("[GPIO] PASS\n");
     } else {
-        printf("[TEST] FAIL: errors=%d\n", test_err);
+        printf("[GPIO] FAIL: errors=%u\n", errors);
     }
 #endif
 
-    finish(test_err ? 1 : 0);
+    finish(errors ? 1 : 0);
 }
