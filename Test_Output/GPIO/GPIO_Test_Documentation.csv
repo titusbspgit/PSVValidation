@@ -1,0 +1,115 @@
+Index,SS / Module,Test Case Name,Test Description,Speed,Mode,Memory Start Offset,Memory End Offset,Remarks,Test Steps / Procedure,Impacted Registers,Validation / Acceptance Criteria,Gap Analysis,Code Generation (Required/Not)
+1,GPIO,gpio_reg_wr_rd_test,"Checks default reset values and write-read behavior for GPIO registers listed in addr_array using per-register read/write masks and skip lists; reports mismatches.",NA,NA,NA,NA,"- SKIPPING VRRW registers (per comment in test_define.c)
+- When reading default values the DIN value is becoming 1 automatically if we don't force any value; if we force zero to DIN, bit-level SEL becomes high, causing mismatch (per comment).","Runtime execution order:
+- Entry: test_case()
+  1) Call chk_rst_val():
+     - For i = 0..CNT-1:
+       - addr = addr_array[i]
+       - If skip_rst_array[i] == 1: skip this address
+       - If read_mask_array[i] == 0x00000000: skip (not readable)
+       - data_rd = read_reg(addr)
+       - data = (data_rd & 0xFFFFFFFE) // mask off bit0 before compare
+       - If data == default_value_array[i]: pass; else { def_fail_cnt++ ; printf mismatch }
+  2) Call chk_rd_wr():
+     - For each write pattern j in [0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000]:
+       2.1) Write phase:
+            - For i = 0..CNT-1:
+              - addr = addr_array[i]
+              - If skip_array[i] == 1: skip
+              - If write_mask_array[i] == 0x00000000: skip (not writable)
+              - Else: write_reg(addr, (pattern & write_mask_array[i]))
+       2.2) Read/verify phase:
+            - For i = 0..CNT-1:
+              - addr = addr_array[i]
+              - If skip_array[i] == 1: skip
+              - If write_mask_array[i] == 0x00000000: skip
+              - If read_mask_array[i] == 0x00000000: skip
+              - Else:
+                - data_rd = (read_reg(addr) & read_mask_array[i])
+                - wr_n   = (write_mask_array[i] ^ 0xFFFFFFFF)
+                - exp_val = ((pattern & read_mask_array[i] & write_mask_array[i])
+                             | (wr_n & read_mask_array[i] & default_value_array[i]))
+                - If data_rd == exp_val: pass; else { wr_fail_cnt++ ; printf mismatch }
+  3) Completion:
+     - If (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0)
+- Delays: No wait_on() calls within chk_rst_val() or chk_rd_wr().",NA,"- Default value check: For each address where readable and not skipped, masked read equals default_value_array[i] with bit0 cleared in comparison.
+- Write/Read check: For each pattern and address where R/W enabled and not skipped, read-back value equals computed exp_val combining written bits (masked) and preserved default bits; wr_fail_cnt remains 0.
+- Overall: finish(0) indicates pass; any mismatch increments counters and results in finish(1).","No negative tests; No error handling",
+2,GPIO,test_gpio_negedge_intr_en,"Verifies GPIO negedge interrupt per pin (GPIOs 8..39): configures input + negedge detect, generates a falling edge on each pin by toggling pad driver at 0xA0243FFC, waits with timeout, and validates in ISR that DIN is low, raw and group statuses set and cleared correctly.",NA,Interrupt,0xA0243ffc,0xA0243ffc,"- Bounded wait used instead of infinite loop; timeout comment suggests it may need adjustment to simulation time base.
+- Pad driver register 0xA0243FFC is used to create edges.","Runtime execution order:
+- Entry: test_case()
+  1) Initialize:
+     - test_err = 0
+     - If GPIO0: GIC_EnableIRQ(87)
+     - If GPIO1: GIC_EnableIRQ(88)
+     - If GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR)
+     - If GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR)
+     - Drive all pads high: write_reg(0xA0243FFC, 0xFFFFFFFF)
+  2) Per-pin configuration loop (i = 0..31):
+     - addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4)
+     - write_reg(addr1, (1<<20) | (1<<18) | (1<<16)) // doe=1, neie=1, iclr=1
+     - wait_on(10)
+  3) Test loop over pins (i = 0..31):
+     - wr_val = (1u << i)
+     - Pre-clear group raw: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val)
+     - Enable only this pin: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val)
+     - wait_on(10)
+     - Arm wait: int_pend = 1
+     - Create falling edge: write_reg(0xA0243FFC, 0xFFFFFFFF); wait_on(30); write_reg(0xA0243FFC, ~wr_val)
+     - Bounded wait: timeout = 5000; while (int_pend && timeout--) { wait_on(10) }
+     - If (timeout == 0) { printf timeout error; test_err++ }
+  4) Completion: finish(test_err)
+- Interrupt service: Default_IRQHandler()
+  A) local_wr = (1u << i) // compute mask
+  B) int_pend = 0
+  C) Return pads high: write_reg(0xA0243FFC, 0xFFFFFFFF)
+  D) raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); rdata = read_reg(raddr)
+  E) DIN check for negedge: if ((rdata & 0x1) != 0) { test_err++ }
+  F) Raw bit check: if ((rdata & 0x2) != 0x0) {
+       - rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)
+       - If ((rdata_grp & local_wr) == 0) { test_err++ }
+       - Clear per-pin raw + keep doe: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), (1<<20)|(1<<16))
+       - Clear group raw: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr)
+       - Verify group clear: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp != 0x0) { test_err++ }
+       - If GPIO0: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); GIC_ClearIRQ(87)
+       - If GPIO1: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); GIC_ClearIRQ(88)
+     } else { test_err++ }
+",0xA0243ffc,"- No timeout occurs in the wait loop for any pin.
+- In ISR: DIN bit low after falling edge; per-pin raw condition met (rdata & 0x2 != 0); group status bit set for current pin; after clears, group status reads 0x0; sysreg raw cleared; test_err remains 0; finish(0).","No negative tests",
+3,GPIO,test_gpio_pedge_all_pads_en,"Verifies GPIO posedge interrupt across all pads (GPIOs 8..39): enables posedge detection per pin, configures input mode via group IO_CTRL, enables group interrupts, then for each pin iteration creates a rising edge using 0xA0243FFC while ISR masks, clears, and validates group/raw and sysreg status with timeouts to avoid hangs.",NA,Interrupt,0xA0243ffc,0xA0243ffc,"- Group interrupt is masked during service to avoid re-entry; re-enabled after clearing.
+- Bounded wait with timeout used per iteration; edges synthesized via 0xA0243FFC.","Runtime execution order:
+- Entry: test_case()
+  1) Enable IRQ lines:
+     - If GPIO0: GIC_EnableIRQ(87)
+     - If GPIO1: GIC_EnableIRQ(88)
+  2) Enable sysreg interrupt output:
+     - If GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR)
+     - If GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR)
+  3) Per-pin posedge enable (i = 0..31): write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00020000) // peie=1
+  4) wait_on(10)
+  5) Configure input mode via group IO_CTRL: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1..4, 0x000000FF each)
+  6) wait_on(10)
+  7) Enable group interrupts: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF)
+  8) For i = 0..31 (test iterations):
+     - Drive low: write_reg(0xA0243FFC, 0x00000000); wait_on(10)
+     - Arm: int_pend = 1
+     - Create posedge: write_reg(0xA0243FFC, 0xFFFFFFFF)
+     - Bounded wait: timeout = 2000; while (int_pend == 1 && --timeout > 0) { wait_on(10) }
+     - If timeout == 0: printf timeout; test_err++; break
+     - Prep next: write_reg(0xA0243FFC, 0x00000000); wait_on(10)
+  9) Completion: finish(test_err)
+- Interrupt service: Default_IRQHandler()
+  A) wr_val = (1 << i); int_pend = 0
+  B) Read group status: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)
+  C) Mask group interrupt during service: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000)
+  D) If (rdata_grp & 0xFFFFFFFF) != 0: success else { printf error; test_err++ }
+  E) Clear per-pin raw for all: for j=0..31 write_reg(MIZAR_GPIO_GP0_GPIO_8 + (j*4), 0x00010000); wait_on(2)
+  F) Verify group clear: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) success else { printf error; test_err++ }
+  G) Clear sysreg raw and verify:
+     - If GPIO0: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if (rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) { printf error; test_err++ }
+     - If GPIO1: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if (rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) { printf error; test_err++ }
+  H) Re-enable group interrupts: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF)
+  I) Clear GIC IRQ: GIC_ClearIRQ(87/88 based on macro)
+",0xA0243ffc,"- No timeout during wait loop; each iteration triggers group interrupt as expected.
+- After per-pin raw clears, group status reads 0x0.
+- Sysreg raw cleared for active GPIO instance; test_err remains 0; finish(0).","No negative tests",
