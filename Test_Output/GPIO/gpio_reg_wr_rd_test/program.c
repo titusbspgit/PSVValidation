@@ -74,7 +74,7 @@ void test_case(void)
     unsigned int def_fail_cnt = 0;
     unsigned int wr_fail_cnt = 0;
 
-    DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: START ====%n");
+    DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: START ====\n");
 
 #if 0
     /* Optional: soft reset sequence (disabled as per CSV remark) */
@@ -89,11 +89,11 @@ void test_case(void)
     chk_rd_wr(&wr_fail_cnt);
 
     if ((def_fail_cnt > 0u) || (wr_fail_cnt > 0u)) {
-        DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: FAIL def=%u wr=%u ====%n", def_fail_cnt, wr_fail_cnt);
+        DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: FAIL def=%u wr=%u ====\n", def_fail_cnt, wr_fail_cnt);
         finish(1);
         return;
     }
 
-    DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: PASS ====%n");
+    DEBUG_DISPLAY("==== gpio_reg_wr_rd_test: PASS ====\n");
     finish(0);
 }
