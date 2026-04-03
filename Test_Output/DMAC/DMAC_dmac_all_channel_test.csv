@@ -1,0 +1,39 @@
+Index,SS / Module,Test Case Name,Test Description,Speed,Mode,Memory Start Offset,Memory End Offset,Remarks,Test Steps / Procedure,Impacted Registers,Validation / Acceptance Criteria,Code Generation (Required/Not)
+1,DMAC,dmac_all_channel_test,"Configures DMA for channels 0–7 with per-channel source/destination and descriptor addresses, enables relevant IRQs, builds per-channel descriptors, starts DMA via debug instructions, waits for interrupt, and performs data_integrity check for each channel.",NA,"DMA, Interrupt",NA,NA,"Conditional compilation selects MPS_DMA or APS_DMA paths for GIC and system register enable; initialize_memory() inside the j-loop uses desc_addr[i] (i is not set in that scope); int_pend is assigned but not declared in this file.","Entry point: test_case()
+1) Compute iter = DATA_LEN_IN_BYTES / (SRC_BURST * (SRC_SIZE_IN_BITS/8)).
+2) Define arrays: src_addr[0..7], dst_addr[0..7], desc_addr[0..7], desc_addr_actual[0..7].
+3) If MPS_DMA is defined:
+   3.1) Call GIC_EnableIRQ(0x7).
+   3.2) WRITE MIZAR_MPS_SYSREG_INTR_EN = 0x80 via write_reg().
+   Else if APS_DMA is defined:
+   3.1) Call GIC_EnableIRQ(0x17).
+   3.2) WRITE MIZAR_APS_SYSREG_INTR_EN = 0x80 via write_reg().
+4) For j = 0..7: call initialize_memory(desc_addr[i]). (Note: uses desc_addr[i] within j-loop.)
+5) printf("Inside Testcase\n").
+6) For i = 0..7, perform per-channel descriptor programming and interrupt enable:
+   6.1) Call data_preloading(src_addr[i], DATA_LEN_IN_BYTES).
+   6.2) Set loc = &desc_addr[i].
+   6.3) DMA_MOV(SAR, src_addr[i], loc). [Register: SAR, Operation: WRITE]
+   6.4) DMA_MOV(DAR, dst_addr[i], loc). [Register: DAR, Operation: WRITE]
+   6.5) DMA_MOV_CCR(SRC_BURST, DST_BURST, SRC_SIZE_IN_BITS, DST_SIZE_IN_BITS, 0, loc).
+   6.6) DMA_LP(iter, 0, loc).
+   6.7) DMA_LD(loc).
+   6.8) DMA_ST(loc).
+   6.9) DMA_LP_END(0, loc).
+   6.10) DMA_SEV(loc, i).
+   6.11) DMA_END(loc).
+   6.12) READ MIZAR_DMA_INTEN via read_reg(MIZAR_DMA_INTEN).
+   6.13) WRITE MIZAR_DMA_INTEN = previous_value | (0x00000001 << i) via write_reg(). [Operation: READ-MODIFY-WRITE; Mask: (1 << i)]
+7) Call wait_on(10). [Timing delay]
+8) For i = 0..7, start DMA and wait for interrupt per channel:
+   8.1) dma_go_code = DMA_GO(i, 0, desc_addr_actual[i]).
+   8.2) inst0 = dbg_inst0(0, i, dma_go_code); printf("inst0 = 0x%x\n", inst0).
+   8.3) inst1 = dbg_inst1(dma_go_code); printf("inst1 = 0x%x\n", inst1).
+   8.4) Set int_pend = 1.
+   8.5) WRITE MIZAR_DMA_DBGINST0 = inst0 via write_reg().
+   8.6) WRITE MIZAR_DMA_DBGINST1 = inst1 via write_reg().
+   8.7) WRITE MIZAR_DMA_DBGCMD = 0x0 via write_reg().
+   8.8) Call wait_for_int(). [Blocks until ISR/interrupt]
+9) printf("Got the interrupt\n").
+10) For i = 0..7: fail = data_integrity(src_addr[i], dst_addr[i], DATA_LEN_IN_BYTES).
+11) Call finish(fail).","MIZAR_MPS_SYSREG_INTR_EN,MIZAR_APS_SYSREG_INTR_EN,MIZAR_DMA_INTEN,MIZAR_DMA_DBGINST0,MIZAR_DMA_DBGINST1,MIZAR_DMA_DBGCMD,MIZAR_DMA_INTMIS,SAR,DAR",NA,
