@@ -1,0 +1,52 @@
+name: Generate Name_Place Excel
+
+on:
+  push:
+    paths:
+      - .github/workflows/generate_name_place_excel.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Name_Place.xlsx with hidden sheet
+        run: |
+          python - << 'PY'
+          from openpyxl import Workbook
+          wb = Workbook()
+          # Sheet 1 (visible, active)
+          ws1 = wb.active
+          ws1.title = "Sheet 1"
+          ws1.append(["NAME"])
+          ws1.append(["Varsha"]) 
+          ws1.append(["Varsha"]) 
+          # Sheet 2 (hidden)
+          ws2 = wb.create_sheet(title="Sheet 2")
+          ws2.append(["NAME","PLACE"])
+          ws2.append(["Varsha","Chennai"]) 
+          ws2.append(["Varsha","Bangalore"]) 
+          ws2.sheet_state = 'hidden'  # hide from UI
+          wb.active = 0  # ensure Sheet 1 is active
+          wb.save("Name_Place.xlsx")
+          PY
+      - name: Commit and push Excel
+        run: |
+          git config user.name "Excel Automation Bot"
+          git config user.email "automation-bot@users.noreply.github.com"
+          git add Name_Place.xlsx
+          git commit -m "feat: add Name_Place.xlsx with hidden location sheet" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref_name }}
