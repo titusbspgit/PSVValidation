@@ -1,0 +1,94 @@
+Index,SS / Module,Feature,Test Case Name,Test Description,Speed,Mode,Memory Start Offset,Memory End Offset,Remarks,Test Steps / Procedure,Impacted Registers,Validation / Acceptance Criteria,Code Generation (Required/Not)
+1,GPIO,Independent control register for each GPIO,gpio_reg_wr_rd_test,"Verify default reset values and masked write/read behavior across listed GPIO registers (GPIO_8..GPIO_39, interrupt/group IO control, DOUT, DIN).",NA,NA,NA,NA,"when reading default values the din value is becoming 1 automatically if we don't force any value,but if we force zero to din bit level sel becoming high,so that reading value not matched with expected value","Entry point: test_case();
+Call chk_rst_val();
+In chk_rst_val(): for (i = 0; i < CNT; i++): set addr = addr_array[i];
+If skip_rst_array[i] == 1: continue; (skip default-read for this address)
+If read_mask_array[i] == 0x00000000: continue; (address not readable)
+READ: data_rd = read_reg(addr); (macro from addr_array[i])
+MODIFY: data = (data_rd & 0xFFFFFFFE);
+COMPARE: if (data == default_value_array[i]) then PASS else { def_fail_cnt++; printf failure message }
+Return to test_case();
+Call chk_rd_wr();
+In chk_rd_wr(): define chk_val[6] = {0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000};
+Outer loop: for (j = 0; j < 6; j++): set data_wr = chk_val[j];
+Write phase: for (i = 0; i < CNT; i++): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; else WRITE: write_reg(addr, (data_wr & write_mask_array[i]));
+Read/verify phase: for (i = 0; i < CNT; i++): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; if (read_mask_array[i] == 0) continue; else READ: data_rd = (read_reg(addr) & read_mask_array[i]);
+COMPUTE: wr_n = (write_mask_array[i] ^ 0xFFFFFFFF);
+COMPUTE: exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i]));
+COMPARE: if (data_rd == exp_val) PASS else { wr_fail_cnt++; printf write-read mismatch }
+Return to test_case();
+FINALIZE: if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).","MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_GPIO_GP0_INTR2_INTR_EN1,MIZAR_GPIO_GP0_INTR2_INTR_STS1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GPIO_DOUT_GROUP1,MIZAR_GPIO_GPIO_DOUT_GROUP2,MIZAR_GPIO_GPIO_DOUT_GROUP3,MIZAR_GPIO_GPIO_DOUT_GROUP4,MIZAR_GPIO_GPIO_DIN_GROUP1,MIZAR_GPIO_GPIO_DIN_GROUP2,MIZAR_GPIO_GPIO_DIN_GROUP3,MIZAR_GPIO_GPIO_DIN_GROUP4","PASS when: (a) For all i where readable, (read_reg(addr_array[i]) & 0xFFFFFFFE) == default_value_array[i]; and (b) For all j in chk_val and i where read/write enabled, (read_reg(addr_array[i]) & read_mask_array[i]) == ((chk_val[j] & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xFFFFFFFF) & read_mask_array[i] & default_value_array[i])). Overall PASS if def_fail_cnt == 0 and wr_fail_cnt == 0 leading to finish(0); otherwise FAIL via finish(1).",
+2,GPIO,Enable negative edge interrupt,test_gpio_negedge_intr_en,"Enable negedge interrupt per GPIO[8..39], generate a single falling edge per pin using pad driver, verify per-pin DIN=0 after edge, raw/group status set, clear per-pin and group status, and clear system interrupt; bounded wait via int_pend with timeout.",NA,Interrupt,0xA0243ffc,0xA0243ffc,NA,"Entry point: test_case();
+Initialize: test_err = 0;
+Conditional: ifdef GPIO0 -> GIC_EnableIRQ(87);
+Conditional: ifdef GPIO1 -> GIC_EnableIRQ(88);
+Conditional: ifdef GPIO0 -> WRITE: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);
+Conditional: ifdef GPIO1 -> WRITE: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);
+WRITE: write_reg(0xA0243FFC, 0xFFFFFFFF); // drive all high known state
+For i = 0..31: addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i*4);
+WRITE: write_reg(addr1, (1<<20)|(1<<18)|(1<<16)); // doe=1,input; neie=1; iclr=1
+TIMING: wait_on(10);
+For i = 0..31: wr_val = 1<<i;
+WRITE: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val); // pre-clear raw
+WRITE: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); // enable this bit only
+TIMING: wait_on(10);
+SET: int_pend = 1; // arm before edge
+WRITE: write_reg(0xA0243FFC, 0xFFFFFFFF); // high
+TIMING: wait_on(30);
+WRITE: write_reg(0xA0243FFC, ~wr_val); // create falling edge on bit i
+LOOP: timeout = 5000; while (int_pend && timeout--) { wait_on(10); }
+IF (timeout == 0) { printf timeout; test_err++; }
+FINALIZE: finish(test_err);
+ISR entry: Default_IRQHandler();
+SET: local_wr = (1<<i);
+SET: int_pend = 0;
+WRITE: write_reg(0xA0243FFC, 0xFFFFFFFF); // return pads high
+READ: raddr = MIZAR_GPIO_GP0_GPIO_8 + (i*4); rdata = read_reg(raddr);
+IF ((rdata & 0x1) != 0) { test_err++; } // DIN should be 0 after negedge
+IF ((rdata & 0x2) != 0x0) { // raw/irs set
+  READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+  IF ((rdata_grp & local_wr) == 0) { test_err++; }
+  WRITE: raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i*4); write_reg(raddr2, (1<<20)|(1<<16)); // doe=1, iclr=1
+  WRITE: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr);
+  READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+  IF (rdata_grp != 0x0) { test_err++; }
+  Conditional: ifdef GPIO0 -> WRITE: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); GIC_ClearIRQ(87);
+  Conditional: ifdef GPIO1 -> WRITE: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); GIC_ClearIRQ(88);
+} else { test_err++; }","MIZAR_LSS_SYSREG_INTR_EN1,LSS_SYSREG_INTR_EN1_GPIO0_INTR,LSS_SYSREG_INTR_EN1_GPIO1_INTR,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_LSS_SYSREG_RAW_STCR1,LSS_SYSREG_RAW_STCR1_GPIO0_INTR,LSS_SYSREG_RAW_STCR1_GPIO1_INTR","PASS when, for each i in 0..31: (1) ISR triggers before timeout (int_pend cleared); (2) In ISR, (rdata & 0x1)==0 (DIN low) and ((read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) & (1<<i)) != 0) before clear; (3) After clear: read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) == 0x0; (4) SYSREG RAW status cleared as written; Overall PASS if test_err==0 at finish(test_err), else FAIL.",
+3,GPIO,Enable positive edge interrupt,test_gpio_pedge_all_pads_en,"Enable posedge interrupt on GPIO[8..39], put all GPIOs in input mode, enable group interrupt, then for each pin generate one rising edge and verify group interrupt occurs, clear all per-pin raw bits and confirm group status clears; clear system interrupt.",NA,Interrupt,0xA0243ffc,0xA0243ffc,NA,"Entry point: test_case();
+Conditional: ifdef GPIO0 -> GIC_EnableIRQ(87);
+Conditional: ifdef GPIO1 -> GIC_EnableIRQ(88);
+Conditional: ifdef GPIO0 -> WRITE: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);
+Conditional: ifdef GPIO1 -> WRITE: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);
+For i = 0..31: WRITE: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00020000); // peie=1 per pin
+TIMING: wait_on(10);
+WRITE: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF); // doe[7:0]=1 input
+WRITE: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF);
+WRITE: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF);
+WRITE: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF);
+TIMING: wait_on(10);
+WRITE: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); // enable all
+For i = 0..31:
+  WRITE: write_reg(0xA0243FFC, 0x00000000); // ensure low
+  TIMING: wait_on(10);
+  SET: int_pend = 1; // arm before edge
+  WRITE: write_reg(0xA0243FFC, 0xFFFFFFFF); // rising edge
+  LOOP: timeout=2000; while ((int_pend==1) && (--timeout>0)) { wait_on(10); }
+  IF (timeout==0) { printf timeout; test_err++; break; }
+  WRITE: write_reg(0xA0243FFC, 0x00000000); // prep low
+  TIMING: wait_on(10);
+FINALIZE: finish(test_err);
+ISR entry: Default_IRQHandler();
+SET: wr_val = (1<<i);
+SET: int_pend = 0;
+READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+WRITE: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); // mask during service
+IF ((rdata_grp & 0xFFFFFFFF) != 0) { // group status set -> success indication } else { printf error; test_err++; }
+For j = 0..31: WRITE: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (j*4), 0x00010000); // iclr=1 per pin
+TIMING: wait_on(2);
+READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
+IF (rdata_grp == 0x0) { success } else { printf error; test_err++; }
+Conditional GPIO0: WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO0_INTR; READ back and if bit still set -> error
+Conditional GPIO1: WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO1_INTR; READ back and if bit still set -> error
+WRITE: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); // re-enable
+Conditional: GIC_ClearIRQ(87/88) accordingly.","MIZAR_LSS_SYSREG_INTR_EN1,LSS_SYSREG_INTR_EN1_GPIO0_INTR,LSS_SYSREG_INTR_EN1_GPIO1_INTR,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_LSS_SYSREG_RAW_STCR1,LSS_SYSREG_RAW_STCR1_GPIO0_INTR,LSS_SYSREG_RAW_STCR1_GPIO1_INTR","PASS when: (1) For each i, ISR triggers (int_pend cleared) before timeout; (2) Group interrupt status (MIZAR_GPIO_GP0_INTR1_INTR_STS1) is non-zero upon entry and becomes 0 after clearing iclr on all pins; (3) System RAW status is cleared after writing LSS_SYSREG_RAW_STCR1 bit; Overall PASS if test_err==0 at finish(test_err).",
