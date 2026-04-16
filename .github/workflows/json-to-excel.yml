@@ -42,3 +42,5 @@ jobs:
             git commit -m "Add generated Excel file from JSON input"
             git push origin "${GITHUB_REF_NAME}"
           fi
+
+# retrigger
