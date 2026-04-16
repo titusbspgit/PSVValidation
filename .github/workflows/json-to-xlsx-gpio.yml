@@ -12,12 +12,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: json-to-xlsx-gpio-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-xlsx:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -30,14 +36,32 @@ jobs:
       - name: Verify Excel matches JSON
         run: |
           python .github/scripts/verify_xlsx_matches_json.py Test_Output/GPIO/input.json Test_Output/GPIO/TestPlanGPIO.xlsx
-      - name: Commit and push Excel
+      - name: Commit and push Excel (rebase + retry)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet -- Test_Output/GPIO/TestPlanGPIO.xlsx; then
+          set -euo pipefail
+          git config user.name "Automation Bot"
+          git config user.email "bot@example.com"
+          git add Test_Output/GPIO/TestPlanGPIO.xlsx
+          if git diff --cached --quiet; then
             echo "No changes to Excel file."
-          else
-            git config user.name "Automation Bot"
-            git config user.email "bot@example.com"
-            git add Test_Output/GPIO/TestPlanGPIO.xlsx
-            git commit -m "Add/Update TestPlanGPIO.xlsx generated from Test_Output/GPIO/input.json"
-            git push
+            exit 0
           fi
+          # Rebase onto latest remote main to avoid non-fast-forward
+          DEFAULT_BRANCH="${GITHUB_REF_NAME:-main}"
+          git fetch origin "$DEFAULT_BRANCH"
+          git rebase "origin/$DEFAULT_BRANCH" || {
+            echo "Rebase failed, attempting to abort and continue with merge fallback";
+            git rebase --abort || true;
+            git pull --no-rebase --ff-only origin "$DEFAULT_BRANCH" || true;
+          }
+          # Retry push up to 3 times in case of race
+          for i in 1 2 3; do
+            if git push; then
+              echo "Push succeeded on attempt $i"; exit 0; fi
+            echo "Push failed on attempt $i, fetching and rebasing then retrying...";
+            git fetch origin "$DEFAULT_BRANCH";
+            git rebase "origin/$DEFAULT_BRANCH" || { git rebase --abort || true; };
+          done
+          echo "ERROR: Failed to push after retries."; exit 1
