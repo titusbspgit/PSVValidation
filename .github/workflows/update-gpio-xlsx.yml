@@ -1,0 +1,63 @@
+name: Update GPIO TestCase XLSX
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Update XLSX column to Not Required
+        run: |
+          python - <<'PY'
+          import openpyxl, os
+          src = "TestRepo/gpio/GPIO_TestCase.xlsx"
+          dst = "TestRepo/gpio/GPIO_TestCase_Update_1.xlsx"
+          col_name = "Code Generation - Required/Not Required"
+          new_value = "Not Required"
+
+          wb = openpyxl.load_workbook(src)
+          updated_any = False
+          for ws in wb.worksheets:
+              # find header in first row
+              idx = None
+              for cell in ws[1]:
+                  if str(cell.value).strip() == col_name:
+                      idx = cell.col_idx
+                      break
+              if idx is None:
+                  continue
+              max_row = ws.max_row
+              for r in range(2, max_row + 1):
+                  cell = ws.cell(row=r, column=idx)
+                  if cell.value != new_value:
+                      cell.value = new_value
+                      updated_any = True
+          os.makedirs(os.path.dirname(dst), exist_ok=True)
+          wb.save(dst)
+          PY
+      - name: Commit changes
+        run: |
+          if git status --porcelain | grep -q 'TestRepo/gpio/GPIO_TestCase_Update_1.xlsx'; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add TestRepo/gpio/GPIO_TestCase_Update_1.xlsx
+            git commit -m "Automated: set 'Code Generation - Required/Not Required' to 'Not Required' in all sheets [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
