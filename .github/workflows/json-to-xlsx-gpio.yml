@@ -1,0 +1,43 @@
+name: Build GPIO XLSX
+
+on:
+  push:
+    paths:
+      - 'Test_Output/GPIO/input.json'
+      - '.github/scripts/json_to_xlsx.py'
+      - '.github/scripts/verify_xlsx_matches_json.py'
+      - '.github/workflows/json-to-xlsx-gpio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install openpyxl==3.1.2
+      - name: Generate Excel from JSON
+        run: |
+          python .github/scripts/json_to_xlsx.py Test_Output/GPIO/input.json Test_Output/GPIO/TestPlanGPIO.xlsx
+      - name: Verify Excel matches JSON
+        run: |
+          python .github/scripts/verify_xlsx_matches_json.py Test_Output/GPIO/input.json Test_Output/GPIO/TestPlanGPIO.xlsx
+      - name: Commit and push Excel
+        run: |
+          if git diff --quiet -- Test_Output/GPIO/TestPlanGPIO.xlsx; then
+            echo "No changes to Excel file."
+          else
+            git config user.name "Automation Bot"
+            git config user.email "bot@example.com"
+            git add Test_Output/GPIO/TestPlanGPIO.xlsx
+            git commit -m "Add/Update TestPlanGPIO.xlsx generated from Test_Output/GPIO/input.json"
+            git push
+          fi
