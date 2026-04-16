@@ -87,3 +87,4 @@ if __name__ == '__main__':
     write_xlsx(rows, headers)
     print(f"Wrote {OUTPUT} with {len(rows)} rows and {len(headers)} columns")
 
+# no-op to retrigger workflow
