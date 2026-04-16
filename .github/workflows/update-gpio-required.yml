@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - ag-xlsx-access/update-gpio-required
+  pull_request:
+    branches:
+      - main
+    paths:
+      - TestRepo/gpio/GPIO_TestCase.xlsx
+      - scripts/update_gpio_required.py
+      - .github/workflows/update-gpio-required.yml
   workflow_dispatch: {}
 
 permissions:
