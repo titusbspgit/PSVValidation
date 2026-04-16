@@ -86,3 +86,4 @@ if __name__ == '__main__':
     headers = build_headers(rows)
     write_xlsx(rows, headers)
     print(f"Wrote {OUTPUT} with {len(rows)} rows and {len(headers)} columns")
+
