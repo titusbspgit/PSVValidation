@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -30,16 +31,46 @@ jobs:
         run: pip install --no-input --upgrade pip openpyxl
 
       - name: Generate Excel
-        run: python scripts/json_to_excel.py
+        run: |
+          mkdir -p TestRepo/gpio
+          python scripts/json_to_excel.py
 
-      - name: Commit and push Excel if changed
+      - name: Commit and push Excel (main or PR fallback)
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          CHANGED=0
           if git status --porcelain | grep -E "^( M|\?\?)" >/dev/null; then
             git add "TestRepo/gpio/TESTER_JSON.xlsx"
-            git commit -m "Add generated Excel file from JSON input"
-            git push origin main
+            git commit -m "Add generated Excel file from JSON input" || true
+            CHANGED=1
           else
             echo "No changes to commit"
+          fi
+
+          if [ "$CHANGED" = "1" ]; then
+            echo "Attempting direct push to main from detached HEAD via HEAD:main"
+            if git push origin HEAD:main; then
+              echo "Pushed directly to main"
+            else
+              echo "Direct push to main failed; attempting feature branch + PR"
+              BRANCH="feature/json-to-excel"
+              # Create or switch to feature branch
+              git checkout -B "$BRANCH"
+              git push -u origin "$BRANCH"
+              # Open PR via REST API
+              PR_PAYLOAD=$(jq -n --arg t "Add generated Excel file from JSON input" --arg h "$BRANCH" --arg b "main" '{title:$t, head:$h, base:$b}')
+              curl -sSf -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                -d "$PR_PAYLOAD" \
+                "https://api.github.com/repos/$GH_REPO/pulls" \
+                || echo "PR may already exist or could not be created"
+            fi
+          fi
