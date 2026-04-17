@@ -1,84 +1,66 @@
-#!/usr/bin/env python3
-import json
-import os
-import sys
-from collections import OrderedDict
+import os, sys, json
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
 
-try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Font
-except Exception as e:
-    print(f"openpyxl not available: {e}")
-    sys.exit(1)
-
-INPUT_JSON = os.environ.get("INPUT_JSON_PATH", "data/gpio_testcases.json")
-OUTPUT_XLSX = os.environ.get("OUTPUT_XLSX_PATH", "Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx")
-SHEET_NAME = os.environ.get("SHEET_NAME", "GPIO_TestCases")
-
-
-def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, dict):
-        data = [data]
-    if not isinstance(data, list) or len(data) == 0:
-        raise ValueError("JSON must be a non-empty array or an object")
-    return data
-
-
-def build_headers(rows):
-    seen = OrderedDict()
-    for row in rows:
-        if not isinstance(row, dict):
-            raise ValueError("All elements must be JSON objects")
-        for k in row.keys():
-            if k not in seen:
-                seen[k] = True
-    return list(seen.keys())
-
-
-def autosize_columns(ws, max_width=100):
-    for col in ws.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
-        for cell in col:
-            v = cell.value
-            l = len(str(v)) if v is not None else 0
-            if l > max_len:
-                max_len = l
-        adjusted = min(max_len + 2, max_width)
-        ws.column_dimensions[col_letter].width = adjusted
-
-
-def write_xlsx(rows, headers, out_path):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = SHEET_NAME
-
-    # Header
-    for c, h in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=c, value=h)
-        cell.font = Font(bold=True)
-
-    ws.freeze_panes = "A2"
-
-    # Rows
-    for r, row in enumerate(rows, start=2):
-        for c, h in enumerate(headers, start=1):
-            ws.cell(row=r, column=c, value=row.get(h, None))
-
-    autosize_columns(ws)
-
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    wb.save(out_path)
-
+def parse_json_stream(s: str):
+    try:
+        x = json.loads(s)
+        return x if isinstance(x, list) else [x]
+    except Exception:
+        chunks = [c for c in s.split("\n\n") if c.strip()]
+        rows = []
+        for c in chunks:
+            x = json.loads(c)
+            if isinstance(x, list):
+                rows.extend(x)
+            elif isinstance(x, dict):
+                rows.append(x)
+            else:
+                raise ValueError("Unsupported JSON top-level type")
+        return rows
 
 def main():
-    rows = load_json(INPUT_JSON)
-    headers = build_headers(rows)
-    write_xlsx(rows, headers, OUTPUT_XLSX)
-    print(f"Wrote {len(rows)} rows and {len(headers)} columns to {OUTPUT_XLSX}")
+    in_path = 'data/json_data.json'
+    out_path = 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx'
+    with open(in_path, 'r', encoding='utf-8') as f:
+        txt = f.read()
+    rows = parse_json_stream(txt)
+    if not rows:
+        raise SystemExit('ERROR: Empty JSON')
+    cols = []
+    for r in rows:
+        if not isinstance(r, dict):
+            raise SystemExit('ERROR: Unsupported JSON structure (expected array of objects)')
+        for k in r.keys():
+            if k not in cols:
+                cols.append(k)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Data'
+    for cidx, key in enumerate(cols, start=1):
+        cell = ws.cell(row=1, column=cidx, value=key)
+        cell.font = Font(bold=True)
+    for ridx, obj in enumerate(rows, start=2):
+        for cidx, key in enumerate(cols, start=1):
+            val = obj.get(key, '')
+            if isinstance(val, (list, dict)):
+                val = json.dumps(val, ensure_ascii=False, separators=(',', ':'), sort_keys=False)
+            ws.cell(row=ridx, column=cidx, value=val)
+    ws.freeze_panes = 'A2'
+    for cidx, key in enumerate(cols, start=1):
+        maxlen = len(str(key))
+        for r in range(2, ws.max_row + 1):
+            v = ws.cell(row=r, column=cidx).value
+            l = len(str(v)) if v is not None else 0
+            if l > maxlen:
+                maxlen = l
+        width = min(150, max(10, int(maxlen * 1.1)))
+        ws.column_dimensions[get_column_letter(cidx)].width = width
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    wb.save(out_path)
+    print(f'ROWS={len(rows)}')
+    print(f'COLS={len(cols)}')
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
