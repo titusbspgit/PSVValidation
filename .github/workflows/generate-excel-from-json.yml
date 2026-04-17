@@ -41,6 +41,13 @@ Interrupt handler: void Default_IRQHandler()\nA. unsigned int local_wr = 1u << i
         run: |
           python tools/json_to_xlsx.py
 
+      - name: Verify generated file exists
+        run: |
+          ls -la
+          ls -la TestRepo || true
+          ls -la TestRepo/gpio || true
+          test -f TestRepo/gpio/test_gpio_negedge_intr_en.xlsx
+
       - name: Commit and push changes (with PR fallback)
         id: push
         shell: bash
