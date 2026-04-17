@@ -1,165 +1,122 @@
 #!/usr/bin/env python3
-import json, os, sys
+import json
+import os
+import hashlib
+from collections import OrderedDict
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
-# Embedded JSON input
-JSON_INPUT = r'''[
+# Embedded JSON input (preserves key order deterministically)
+JSON_INPUT = r'''
+[
   {
-    "state": "Tamil Nadu",
-    "capital": "Chennai",
-    "population_millions": 72,
-    "area_sq_km": 130058,
-    "literacy_rate_percent": 80.1,
-    "official_language": "Tamil",
-    "vehicle_code": "TN",
-    "coastal_state": true,
-    "formation_year": 1956,
-    "major_industry": "Manufacturing"
+    "id": 101,
+    "name": "Anaya",
+    "age": 28,
+    "city": "Chennai",
+    "active": true
   },
   {
-    "state": "Karnataka",
-    "capital": "Bengaluru",
-    "population_millions": 61,
-    "area_sq_km": 191791,
-    "literacy_rate_percent": 75.4,
-    "official_language": "Kannada",
-    "vehicle_code": "KA",
-    "coastal_state": true,
-    "formation_year": 1956,
-    "major_industry": "IT"
+    "id": 102,
+    "name": "Rohan",
+    "age": 34,
+    "city": "Bengaluru",
+    "active": false
   },
   {
-    "state": "Maharashtra",
-    "capital": "Mumbai",
-    "population_millions": 124,
-    "area_sq_km": 307713,
-    "literacy_rate_percent": 82.3,
-    "official_language": "Marathi",
-    "vehicle_code": "MH",
-    "coastal_state": true,
-    "formation_year": 1960,
-    "major_industry": "Finance"
+    "id": 103,
+    "name": "Meera",
+    "age": 25,
+    "city": "Mumbai",
+    "active": true
   },
   {
-    "state": "Kerala",
-    "capital": "Thiruvananthapuram",
-    "population_millions": 35,
-    "area_sq_km": 38863,
-    "literacy_rate_percent": 96.2,
-    "official_language": "Malayalam",
-    "vehicle_code": "KL",
-    "coastal_state": true,
-    "formation_year": 1956,
-    "major_industry": "Tourism"
+    "id": 104,
+    "name": "Arjun",
+    "age": 41,
+    "city": "Hyderabad",
+    "active": true
   },
   {
-    "state": "Gujarat",
-    "capital": "Gandhinagar",
-    "population_millions": 63,
-    "area_sq_km": 196024,
-    "literacy_rate_percent": 78.0,
-    "official_language": "Gujarati",
-    "vehicle_code": "GJ",
-    "coastal_state": true,
-    "formation_year": 1960,
-    "major_industry": "Petrochemicals"
-  },
-  {
-    "state": "Rajasthan",
-    "capital": "Jaipur",
-    "population_millions": 80,
-    "area_sq_km": 342239,
-    "literacy_rate_percent": 66.1,
-    "official_language": "Hindi",
-    "vehicle_code": "RJ",
-    "coastal_state": false,
-    "formation_year": 1949,
-    "major_industry": "Mining"
-  },
-  {
-    "state": "West Bengal",
-    "capital": "Kolkata",
-    "population_millions": 91,
-    "area_sq_km": 88752,
-    "literacy_rate_percent": 76.3,
-    "official_language": "Bengali",
-    "vehicle_code": "WB",
-    "coastal_state": true,
-    "formation_year": 1950,
-    "major_industry": "Agriculture"
+    "id": 105,
+    "name": "Kavya",
+    "age": 30,
+    "city": "Pune",
+    "active": false
   }
-]'''
+]
+'''.strip()
 
-def fail(msg):
-    print(msg, file=sys.stderr)
-    sys.exit(2)
+# Target Excel path (relative to repo root)
+OUTPUT_XLSX_PATH = "TestRepo/gpio/TESTER_JSON.xlsx"
+SHEET_NAME = "Data"
 
 def main():
-    try:
-        data = json.loads(JSON_INPUT)
-    except Exception as e:
-        fail(f"Invalid JSON: {e}")
+    # Load JSON preserving pair order
+    records = json.loads(JSON_INPUT, object_pairs_hook=OrderedDict)
 
-    # Normalize to list of dicts
-    if isinstance(data, dict):
-        rows = [data]
-    elif isinstance(data, list) and all(isinstance(x, dict) for x in data):
-        rows = data
-    else:
-        fail("Unsupported JSON structure: expected object or array of objects")
+    # Normalize to list of dict rows
+    if isinstance(records, dict):
+        records = [records]
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+        raise SystemExit("Unsupported JSON structure: expected an object or an array of objects")
 
-    if not rows:
-        fail("Empty JSON: no data rows found")
+    if len(records) == 0:
+        raise SystemExit("Empty JSON array is not allowed")
 
-    # Preserve first-seen key order across the union of keys
-    columns = list(rows[0].keys())
-    seen = set(columns)
-    for obj in rows[1:]:
-        for k in obj.keys():
-            if k not in seen:
-                columns.append(k)
-                seen.add(k)
+    # Build union of keys in first-seen order
+    key_order = OrderedDict()
+    for row in records:
+        for k in row.keys():
+            if k not in key_order:
+                key_order[k] = None
+    columns = list(key_order.keys())
 
-    # Build workbook
+    # Create workbook and sheet
     wb = Workbook()
     ws = wb.active
-    ws.title = "Data"
+    ws.title = SHEET_NAME
 
     # Header row
-    ws.append(columns)
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-
-    # Freeze top row
-    ws.freeze_panes = 'A2'
+    header_font = Font(bold=True)
+    for col_idx, col_name in enumerate(columns, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
 
     # Data rows
-    for obj in rows:
-        ws.append([obj.get(col, "") for col in columns])
+    for row_idx, row in enumerate(records, start=2):
+        for col_idx, col_name in enumerate(columns, start=1):
+            value = row.get(col_name, None)
+            ws.cell(row=row_idx, column=col_idx, value=value)
 
-    # Auto-fit approximate column widths based on content length
-    for idx, col_name in enumerate(columns, start=1):
-        max_len = len(str(col_name))
-        for row in ws.iter_rows(min_row=2, min_col=idx, max_col=idx, values_only=True):
-            v = row[0]
-            if v is None:
-                l = 0
-            else:
-                l = len(str(v))
-            if l > max_len:
-                max_len = l
-        width = min(60, max(10, max_len + 2))
-        ws.column_dimensions[get_column_letter(idx)].width = width
+    # Freeze top row and add auto-filter
+    ws.freeze_panes = "A2"
+    last_col_letter = get_column_letter(len(columns))
+    ws.auto_filter.ref = f"A1:{last_col_letter}{len(records) + 1}"
 
-    # Ensure output directory exists
-    out_path = os.path.join('TestRepo', 'gpio', 'json_testing.xlsx')
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    # Auto-fit columns (approximate based on content width)
+    col_widths = {i: max(3, len(str(columns[i - 1]))) for i in range(1, len(columns) + 1)}
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=len(columns)):
+        for cell in row:
+            text = "" if cell.value is None else str(cell.value)
+            col_widths[cell.column] = max(col_widths[cell.column], len(text))
+    for i in range(1, len(columns) + 1):
+        ws.column_dimensions[get_column_letter(i)].width = col_widths[i] + 2  # padding
+
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(OUTPUT_XLSX_PATH), exist_ok=True)
 
     # Save workbook
-    wb.save(out_path)
-    print(f"Wrote Excel file to {out_path}")
+    wb.save(OUTPUT_XLSX_PATH)
 
-if __name__ == '__main__':
+    # Print SHA-256 for logging
+    sha256 = hashlib.sha256()
+    with open(OUTPUT_XLSX_PATH, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    print(f"Saved: {OUTPUT_XLSX_PATH}")
+    print(f"SHA256: {sha256.hexdigest()}")
+
+if __name__ == "__main__":
     main()
