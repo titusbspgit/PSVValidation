@@ -29,10 +29,13 @@ MAIN_ORDER = [
     'Memory End Offset',
     'Remarks',
     'Test Steps / Procedure',
-    'Impacted Registers',
+    'Imparted Registers',
     'Validation / Acceptance Criteria',
     'Code Generation (Required / Not)'
 ]
+
+# Correct header key for MAIN_ORDER if typo exists in source ('Imparted Registers' vs 'Impacted Registers')
+MAIN_ORDER = [h.replace('Imparted Registers', 'Impacted Registers') for h in MAIN_ORDER]
 
 WRAP_COLS = [
     'Test Description',
