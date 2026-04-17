@@ -7,6 +7,8 @@ on:
       - Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx
       - scripts/format_testplan.py
       - .github/workflows/format_testplan.yml
+permissions:
+  contents: write
 jobs:
   format:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
@@ -23,6 +25,8 @@ jobs:
       - name: Format Excel (TestPlan)
         run: python scripts/format_testplan.py --input "Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx" --output "Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx"
       - name: Commit updated workbook
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
