@@ -1,88 +1,84 @@
-import json, os, sys
-from openpyxl import Workbook
-from openpyxl.styles import Font
-from openpyxl.utils import get_column_letter
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from collections import OrderedDict
 
-def load_rows(data):
-    if isinstance(data, list):
-        return data
-    if isinstance(data, dict) and isinstance(data.get("TestCases"), list):
-        return data["TestCases"]
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+except Exception as e:
+    print(f"openpyxl not available: {e}")
+    sys.exit(1)
+
+INPUT_JSON = os.environ.get("INPUT_JSON_PATH", "data/gpio_testcases.json")
+OUTPUT_XLSX = os.environ.get("OUTPUT_XLSX_PATH", "Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx")
+SHEET_NAME = os.environ.get("SHEET_NAME", "GPIO_TestCases")
+
+
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
     if isinstance(data, dict):
-        return [data]
-    print("Unsupported JSON structure", file=sys.stderr)
-    sys.exit(2)
+        data = [data]
+    if not isinstance(data, list) or len(data) == 0:
+        raise ValueError("JSON must be a non-empty array or an object")
+    return data
 
-def build_header(rows):
-    header, seen = [], set()
-    for r in rows:
-        if not isinstance(r, dict):
-            print("Row is not an object", file=sys.stderr)
-            sys.exit(2)
-        for k in r.keys():
+
+def build_headers(rows):
+    seen = OrderedDict()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("All elements must be JSON objects")
+        for k in row.keys():
             if k not in seen:
-                seen.add(k)
-                header.append(k)
-    return header
+                seen[k] = True
+    return list(seen.keys())
 
-def auto_fit(ws, header, nrows):
-    for idx, h in enumerate(header, start=1):
-        col = get_column_letter(idx)
-        max_len = len(str(h))
-        for r in range(2, nrows + 2):
-            v = ws.cell(row=r, column=idx).value
-            if v is None:
-                l = 0
-            else:
-                s = str(v)
-                l = min(len(s), 120)
+
+def autosize_columns(ws, max_width=100):
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            v = cell.value
+            l = len(str(v)) if v is not None else 0
             if l > max_len:
                 max_len = l
-        ws.column_dimensions[col].width = min(max_len + 2, 120)
+        adjusted = min(max_len + 2, max_width)
+        ws.column_dimensions[col_letter].width = adjusted
 
-def main():
-    in_path = os.environ.get('INPUT_JSON_PATH', 'scripts/input.json')
-    out_path_env = os.environ.get('OUTPUT_FILE_PATH', 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx')
-    out_name = os.environ.get('OUTPUT_FILE_NAME', '')
-    if out_path_env.lower().endswith('.xlsx'):
-        out_path = out_path_env
-    else:
-        name = out_name or 'output.xlsx'
-        out_path = os.path.join(out_path_env, name)
 
-    with open(in_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    rows = load_rows(data)
-    if not rows:
-        print('Empty JSON', file=sys.stderr)
-        sys.exit(2)
-
-    header = build_header(rows)
-
+def write_xlsx(rows, headers, out_path):
     wb = Workbook()
     ws = wb.active
-    ws.title = 'Data'
+    ws.title = SHEET_NAME
 
-    for c, h in enumerate(header, start=1):
+    # Header
+    for c, h in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=c, value=h)
         cell.font = Font(bold=True)
 
-    for r_idx, r in enumerate(rows, start=2):
-        for c, h in enumerate(header, start=1):
-            v = r.get(h, '')
-            if isinstance(v, (list, dict)):
-                v = json.dumps(v, ensure_ascii=False, separators=(',', ':'))
-            ws.cell(row=r_idx, column=c, value=v)
+    ws.freeze_panes = "A2"
 
-    ws.freeze_panes = 'A2'
-    auto_fit(ws, header, len(rows))
+    # Rows
+    for r, row in enumerate(rows, start=2):
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=r, column=c, value=row.get(h, None))
 
-    out_dir = os.path.dirname(out_path)
-    if out_dir and not os.path.exists(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
+    autosize_columns(ws)
 
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     wb.save(out_path)
 
-if __name__ == '__main__':
+
+def main():
+    rows = load_json(INPUT_JSON)
+    headers = build_headers(rows)
+    write_xlsx(rows, headers, OUTPUT_XLSX)
+    print(f"Wrote {len(rows)} rows and {len(headers)} columns to {OUTPUT_XLSX}")
+
+
+if __name__ == "__main__":
     main()
