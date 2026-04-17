@@ -1,4 +1,4 @@
-# bump 2
+# bump 3
 name: Generate Excel from JSON and commit
 
 on:
@@ -35,16 +35,13 @@ jobs:
           pip install openpyxl
           python -c "import sys,openpyxl;print(sys.version);print(openpyxl.__version__)"
 
-      - name: Load JSON into env var
+      - name: Generate Excel from JSON file deterministically
+        shell: bash
         run: |
-          echo 'JSON_INPUT<<EOF' >> $GITHUB_ENV
-          cat data/test_gpio_negedge_intr_en.json >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-
-      - name: Generate Excel from JSON_INPUT
-        env:
-          OUTPUT_XLSX_PATH: TestRepo/gpio/test_gpio_negedge_intr_en.xlsx
-        run: |
+          set -e
+          mkdir -p TestRepo/gpio
+          export JSON_INPUT="$(cat data/test_gpio_negedge_intr_en.json)"
+          export OUTPUT_XLSX_PATH="TestRepo/gpio/test_gpio_negedge_intr_en.xlsx"
           python tools/json_to_xlsx.py
           echo "Post-gen listing:" && ls -la TestRepo/gpio || true
 
@@ -53,9 +50,13 @@ jobs:
         shell: bash
         run: |
           set -e
+          if [ ! -f "TestRepo/gpio/test_gpio_negedge_intr_en.xlsx" ]; then
+            echo "ERROR: Generated file missing after script run" >&2
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "TestRepo/gpio/test_gpio_negedge_intr_en.xlsx"
+          git add -f "TestRepo/gpio/test_gpio_negedge_intr_en.xlsx"
           if git diff --cached --quiet; then
             echo "No changes to commit."
             echo "pr_needed=false" >> $GITHUB_OUTPUT
