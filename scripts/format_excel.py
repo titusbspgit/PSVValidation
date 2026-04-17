@@ -8,6 +8,7 @@ OUTPUT_FILE_PATH = os.getenv('OUTPUT_FILE_PATH', FILE_PATH)
 OUTPUT_FILE_NAME = os.getenv('OUTPUT_FILE_NAME', os.path.basename(OUTPUT_FILE_PATH))
 COMMIT_MESSAGE = os.getenv('COMMIT_MESSAGE', ' TestPlan Generated and Pushed to Github')
 
+# META / Hidden Columns (exact names; no renaming)
 META_COLS = [
     'Hidden_Test_Case_Name',
     'Hidden_Test_Description',
@@ -17,6 +18,7 @@ META_COLS = [
     'Hidden_Validation_Acceptance_Criteria',
 ]
 
+# MAIN Sheet Columns (exact order; only these retained if present)
 MAIN_ORDER = [
     'Index',
     'SS / Module',
@@ -29,13 +31,10 @@ MAIN_ORDER = [
     'Memory End Offset',
     'Remarks',
     'Test Steps / Procedure',
-    'Imparted Registers',
+    'Impacted Registers',
     'Validation / Acceptance Criteria',
     'Code Generation (Required / Not)'
 ]
-
-# Correct header key for MAIN_ORDER if typo exists in source ('Imparted Registers' vs 'Impacted Registers')
-MAIN_ORDER = [h.replace('Imparted Registers', 'Impacted Registers') for h in MAIN_ORDER]
 
 WRAP_COLS = [
     'Test Description',
@@ -82,7 +81,7 @@ def copy_meta_sheet(wb, main_ws):
             src_col = hmap[name]
             # Header
             meta_ws.cell(row=1, column=write_col, value=name)
-            # Values
+            # Values (copy exactly)
             for r in range(2, main_ws.max_row + 1):
                 meta_ws.cell(row=r, column=write_col, value=main_ws.cell(row=r, column=src_col).value)
             write_col += 1
@@ -101,7 +100,7 @@ def reorder_main_to_allowed(main_ws):
     # Rename main to TestPlan
     main_ws.title = 'TestPlan'
 
-    # Capture data for allowed headers
+    # Capture data for allowed headers (only retain those that exist; do not add or infer)
     hmap = header_map(main_ws)
     selected = [h for h in MAIN_ORDER if h in hmap]
 
@@ -157,8 +156,8 @@ def apply_formatting(main_ws):
             if c in wrap_cols_idx:
                 align_kwargs['wrap_text'] = True
             cell.alignment = Alignment(**align_kwargs)
-            # Borders for all populated cells (including header handled later)
-            if cell.value is not None or r == 2:  # ensure first data row gets borders even if empty
+            # Borders for all populated cells
+            if cell.value is not None:
                 cell.border = border
 
     # Borders for header row
@@ -177,13 +176,12 @@ def apply_formatting(main_ws):
             s = str(v)
             if len(s) > max_len:
                 max_len = len(s)
-        # approximate width in characters
         width = max(10, min(80, max_len + 2))
         col_letter = get_column_letter(c)
         main_ws.column_dimensions[col_letter].width = width
         col_widths[c] = width
 
-    # Autofit row heights after wrapping
+    # Autofit row heights after wrapping (estimate)
     base_h = 15
     for r in range(2, main_ws.max_row + 1):
         max_lines = 1
@@ -193,7 +191,6 @@ def apply_formatting(main_ws):
                 continue
             s = str(v)
             width = col_widths.get(c, 10)
-            # estimate characters per line roughly equals column width
             per_line = max(1, int(width))
             est_lines = max(s.count('\n') + 1, math.ceil(len(s) / per_line))
             if est_lines > max_lines:
@@ -202,7 +199,7 @@ def apply_formatting(main_ws):
 
 
 def main():
-    # STEP 1 + 2: Fetch/validate handled by GitHub checkout; confirm .xlsx via extension
+    # STEP 1 + 2: Validate
     if not FILE_PATH.lower().endswith('.xlsx'):
         raise SystemExit('File is not .xlsx: ' + FILE_PATH)
     if not os.path.exists(FILE_PATH):
@@ -221,8 +218,7 @@ def main():
     # STEP 5A: Formatting only on TestPlan
     apply_formatting(main_ws)
 
-    # STEP 6: Save workbook
-    # Ensure directory exists
+    # STEP 6: Save workbook (preserve .xlsx)
     out_dir = os.path.dirname(OUTPUT_FILE_PATH)
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
