@@ -1,0 +1,48 @@
+name: Format GPIO TestPlan
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ag-excel-gpio-testplan-1
+    paths:
+      - '.github/workflows/format-gpio-testplan.yml'
+      - 'scripts/format_excel.py'
+      - 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx'
+
+permissions:
+  contents: write
+
+env:
+  FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx
+  OUTPUT_FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx
+  OUTPUT_FILE_NAME: GPIO_TestPlan_1.xlsx
+  COMMIT_MESSAGE: " TestPlan Generated and Pushed to Github"
+  TARGET_BRANCH: main
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install openpyxl
+      - name: Run Excel formatter
+        run: |
+          python scripts/format_excel.py
+      - name: Commit formatted file to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "Ag-Emb-Mpsoc-Excel-Formatter Agent"
+          git config user.email "actions@github.com"
+          git add "${{ env.OUTPUT_FILE_PATH }}"
+          git commit -m "${{ env.COMMIT_MESSAGE }}" || echo "No changes to commit"
+          git push origin HEAD:${{ env.TARGET_BRANCH }}
