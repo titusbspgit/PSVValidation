@@ -1,1 +1,2 @@
-Trigger workflow run to generate GPIO_TestPlan_1.xlsx
+formatter-trigger: true
+note: no-op change to retrigger Format GPIO Test Plan Excel workflow
