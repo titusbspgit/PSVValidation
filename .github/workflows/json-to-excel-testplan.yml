@@ -1,53 +1,38 @@
-name: Generate GPIO TestPlan Excel (IST)
-
+name: Generate GPIO TestPlan Excel
 on:
-  workflow_dispatch:
   push:
     branches:
       - chore/json-excel-testplan-**
-      - chore/json-excel-testplan-20260420-000000-IST
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: '3.x'
       - name: Install dependencies
-        run: pip install --no-input --upgrade pip openpyxl
-
-      - name: Compute IST timestamp
-        id: ist
-        shell: bash
         run: |
-          export TZ=Asia/Kolkata
-          echo "IST_DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
-          echo "IST_TIME=$(date +'%H%M%S')" >> $GITHUB_ENV
-          echo "IST_HUMAN=$(date +'%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_ENV
-
+          python -m pip install --upgrade pip
+          pip install openpyxl
       - name: Generate Excel
-        shell: bash
+        id: gen
         run: |
-          mkdir -p Test_Output/GPIO/TestPlan
-          python tools/convert_json_to_excel.py \
-            --input tools/json/gpio_testplan.json \
-            --output "Test_Output/GPIO/TestPlan/gpio_TestPlan_${{ env.IST_DATE }}_${{ env.IST_TIME }}.xlsx" \
-            --sheet-name TestPlan
-
+          python tools/scripts/json_to_excel_testplan.py
       - name: Commit Excel
-        shell: bash
         run: |
-          git config user.email "actions@github.com"
-          git config user.name "github-actions"
-          git add Test_Output/GPIO/TestPlan/*.xlsx
-          git commit -m "chore: add gpio TestPlan Excel generated on IST timestamp (${{ env.IST_HUMAN }})" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/GPIO/TestPlan/${{ steps.gen.outputs.filename }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: add gpio TestPlan Excel generated on IST timestamp (${{ steps.gen.outputs.ist_pretty }})"
+            git push
+          fi
