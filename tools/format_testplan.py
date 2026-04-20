@@ -1,235 +1,183 @@
-#!/usr/bin/env python3
-import sys
-import argparse
-from openpyxl import load_workbook, Workbook
-from openpyxl.styles import Font, Alignment, Border, Side
+import os, re, sys, datetime, pytz, subprocess
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment, Font, Border, Side
 from openpyxl.utils import get_column_letter
 
-META_COLUMNS = [
-    'Hidden_Test_Case_Name',
-    'Hidden_Test_Description',
-    'Hidden_Remarks',
-    'Hidden_Test_Steps_Procedure',
-    'Hidden_Impacted_Registers',
-    'Hidden_Validation_Acceptance_Criteria',
+INPUT_DIR = os.getenv("INPUT_DIR", "Test_Output/GPIO/TestPlan")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", INPUT_DIR)
+IP_NAME = os.getenv("IP_NAME", "IP")
+TZ_NAME = os.getenv("TZ", "Asia/Kolkata")
+COMMIT_MESSAGE = os.getenv("COMMIT_MESSAGE", "Add formatted test plan (IST)")
+
+META_COLS = [
+    "Hidden_Test_Case_Name",
+    "Hidden_Test_Description",
+    "Hidden_Remarks",
+    "Hidden_Test_Steps_Procedure",
+    "Hidden_Impacted_Registers",
+    "Hidden_Validation_Acceptance_Criteria",
 ]
 
-MAIN_COLUMNS_ORDER = [
-    'Index',
-    'SS / Module',
-    'Feature',
-    'Test Case Name',
-    'Test Description',
-    'Speed',
-    'Mode',
-    'Memory Start Offset',
-    'Memory End Offset',
-    'Remarks',
-    'Test Steps / Procedure',
-    'Impacted Registers',
-    'Validation / Acceptance Criteria',
-    'Code Generation (Required / Not)'
+MAIN_COLS = [
+    "Index",
+    "SS / Module",
+    "Feature",
+    "Test Case Name",
+    "Test Description",
+    "Speed",
+    "Mode",
+    "Memory Start Offset",
+    "Memory End Offset",
+    "Remarks",
+    "Test Steps / Procedure",
+    "Impacted Registers",
+    "Validation / Acceptance Criteria",
+    "Code Generation (Required / Not)",
 ]
 
-WRAP_COLUMNS = set([
-    'Test Description',
-    'Remarks',
-    'Test Steps / Procedure',
-    'Validation / Acceptance Criteria',
-])
+PATTERN = re.compile(rf"^{re.escape(IP_NAME)}_TestPlan_(\\d{{8}})_(\\d{{6}})(?:_IST)?\\.xlsx$")
+
+def pick_latest_xlsx(path):
+    cands = []
+    for name in os.listdir(path):
+        if not name.lower().endswith(".xlsx"): continue
+        m = PATTERN.match(name)
+        ts = None
+        if m:
+            d, t = m.group(1), m.group(2)
+            try:
+                ts = datetime.datetime.strptime(d + t, "%Y%m%d%H%M%S")
+            except Exception:
+                ts = None
+        full = os.path.join(path, name)
+        mtime = os.path.getmtime(full)
+        cands.append((ts, mtime, name))
+    if not cands:
+        raise SystemExit("No .xlsx found in directory: " + path)
+    # sort: first by ts (None last), then by mtime
+    cands.sort(key=lambda x: ((x[0] is None), x[0] or datetime.datetime.min, x[1]))
+    latest = cands[-1][2]
+    return os.path.join(path, latest)
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description='Reorganize Excel TestPlan: move META cols to very-hidden sheet and format MAIN sheet.')
-    p.add_argument('--input', required=True, help='Path to source .xlsx file')
-    p.add_argument('--output', required=True, help='Path to save modified .xlsx file')
-    return p.parse_args()
-
-
-def get_first_visible_sheet(wb):
-    for ws in wb.worksheets:
-        if ws.sheet_state == 'visible':
-            return ws
-    return wb.active
-
-
-def build_header_index_map(ws):
-    header_map = {}
-    for j, cell in enumerate(ws[1], start=1):
-        v = cell.value
+def headers_map(ws):
+    hdr = {}
+    for col in range(1, ws.max_column + 1):
+        v = ws.cell(row=1, column=col).value
         if v is None:
             continue
-        header_map[str(v)] = j
-    return header_map
+        hdr[str(v)] = col
+    return hdr
 
 
-def copy_meta_columns(main_ws, wb):
-    header_map = build_header_index_map(main_ws)
-    missing = [c for c in META_COLUMNS if c not in header_map]
-    if missing:
-        sys.stderr.write('Missing META columns: ' + ', '.join(missing) + '\n')
-        sys.exit(2)
-
-    # Determine observed left-to-right order on main sheet
-    ordered_meta = sorted(META_COLUMNS, key=lambda c: header_map[c])
-
-    # Create or clear Meta_data_sheet
-    if 'Meta_data_sheet' in wb.sheetnames:
-        meta_ws = wb['Meta_data_sheet']
-        # clear existing content
-        if meta_ws.max_row:
-            meta_ws.delete_rows(1, meta_ws.max_row)
-        if meta_ws.max_column:
-            meta_ws.delete_cols(1, meta_ws.max_column)
-    else:
-        meta_ws = wb.create_sheet('Meta_data_sheet')
-
-    # Copy headers and values exactly
-    for new_col_idx, col_name in enumerate(ordered_meta, start=1):
-        meta_ws.cell(row=1, column=new_col_idx, value=col_name)
-        src_col_idx = header_map[col_name]
-        for r in range(2, main_ws.max_row + 1):
-            meta_ws.cell(row=r, column=new_col_idx, value=main_ws.cell(row=r, column=src_col_idx).value)
-
-    # Very hide sheet
-    meta_ws.sheet_state = 'veryHidden'
-
-    return ordered_meta
+def copy_meta_sheet(wb, src_ws, hdr_map):
+    ws_meta = wb.create_sheet("Meta_data_sheet")
+    # build meta header from available cols in required order
+    meta_cols_present = [c for c in META_COLS if c in hdr_map]
+    for j, col_name in enumerate(meta_cols_present, start=1):
+        ws_meta.cell(row=1, column=j, value=col_name)
+    # copy rows
+    for r in range(2, src_ws.max_row + 1):
+        for j, col_name in enumerate(meta_cols_present, start=1):
+            src_c = src_ws.cell(row=r, column=hdr_map[col_name])
+            ws_meta.cell(row=r, column=j, value=src_c.value)
+    # very hidden
+    ws_meta.sheet_state = 'veryHidden'
+    return meta_cols_present
 
 
-def remove_columns_by_names(ws, col_names):
-    # Build fresh map
-    header_map = build_header_index_map(ws)
-    # Sort indices in descending order to delete safely
-    indices = sorted([header_map[name] for name in col_names], reverse=True)
-    for idx in indices:
-        ws.delete_cols(idx)
+def rebuild_main_as_testplan(ws, hdr_map, meta_cols_present):
+    # approved main columns that are present
+    keep_cols = [c for c in MAIN_COLS if c in hdr_map]
+    # snapshot data
+    data = []
+    for r in range(2, ws.max_row + 1):
+        row_vals = [ws.cell(row=r, column=hdr_map[c]).value for c in keep_cols]
+        data.append(row_vals)
+    # clear sheet
+    ws.delete_rows(1, ws.max_row)
+    # write header
+    for j, name in enumerate(keep_cols, start=1):
+        ws.cell(row=1, column=j, value=name)
+    # write data
+    for i, row_vals in enumerate(data, start=2):
+        for j, val in enumerate(row_vals, start=1):
+            ws.cell(row=i, column=j, value=val)
+    # remove any residual extra columns (best-effort)
+    if ws.max_column > len(keep_cols):
+        ws.delete_cols(len(keep_cols) + 1, ws.max_column - len(keep_cols))
+    return keep_cols
 
 
-def reorder_and_filter_main(ws, wb):
-    # After META deletion, rebuild the header map
-    header_map = build_header_index_map(ws)
-    missing_main = [c for c in MAIN_COLUMNS_ORDER if c not in header_map]
-    if missing_main:
-        sys.stderr.write('Missing MAIN columns: ' + ', '.join(missing_main) + '\n')
-        sys.exit(3)
-
-    max_row = ws.max_row
-
-    # Create a temporary sheet and copy only allowed columns in the exact order
-    tmp_name = 'TestPlan_tmp'
-    if tmp_name in wb.sheetnames:
-        del wb[tmp_name]
-    tmp_ws = wb.create_sheet(tmp_name)
-
-    # Write headers
-    for j, col_name in enumerate(MAIN_COLUMNS_ORDER, start=1):
-        tmp_ws.cell(row=1, column=j, value=col_name)
-
-    for r in range(2, max_row + 1):
-        for j, col_name in enumerate(MAIN_COLUMNS_ORDER, start=1):
-            src_col = header_map[col_name]
-            tmp_ws.cell(row=r, column=j, value=ws.cell(row=r, column=src_col).value)
-
-    # Delete original ws content by replacing sheet entirely
-    title = ws.title
-    del wb[title]
-    tmp_ws.title = title
-
-    return wb[title]
-
-
-def apply_formatting(ws):
-    # Header formatting
-    header_font = Font(bold=True)
-    header_align = Alignment(horizontal='center', vertical='center')
-    thin = Side(style='thin')
-    medium = Side(style='medium')
-
-    ncols = len(MAIN_COLUMNS_ORDER)
-    nrows = ws.max_row
-
-    # Apply header styles and medium bottom border
-    for j in range(1, ncols + 1):
+def format_testplan(ws, keep_cols):
+    # header formatting
+    hdr_font = Font(bold=True)
+    hdr_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    for j in range(1, len(keep_cols) + 1):
         c = ws.cell(row=1, column=j)
-        c.font = header_font
-        c.alignment = header_align
-        c.border = Border(left=thin, right=thin, top=thin, bottom=medium)
-
-    # Data rows formatting
-    for r in range(2, nrows + 1):
-        for j in range(1, ncols + 1):
-            hdr = ws.cell(row=1, column=j).value
-            h_align = 'left'
-            if hdr == 'Index':
-                h_align = 'center'
-            elif hdr in ('Memory Start Offset', 'Memory End Offset'):
-                h_align = 'right'
-            # Wrap for specific columns
-            wrap = True if hdr in WRAP_COLUMNS else False
-            c = ws.cell(row=r, column=j)
-            c.alignment = Alignment(horizontal=h_align, vertical='top', wrap_text=wrap)
-            c.border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-    # Set wrap on header of wrap columns as well (optional, not required)
-    for j in range(1, ncols + 1):
-        hdr = ws.cell(row=1, column=j).value
-        if hdr in WRAP_COLUMNS:
-            c = ws.cell(row=1, column=j)
-            c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-    # Autofit columns based on content length (approximation)
-    for j in range(1, ncols + 1):
-        max_len = 0
-        for r in range(1, nrows + 1):
-            val = ws.cell(row=r, column=j).value
-            if val is None:
+        c.font = hdr_font
+        c.alignment = hdr_align
+    # data alignment
+    text_left_cols = {"Test Description", "Remarks", "Test Steps / Procedure", "Validation / Acceptance Criteria"}
+    thin = Side(style='thin', color='000000')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for i in range(1, ws.max_row + 1):
+        for j in range(1, len(keep_cols) + 1):
+            c = ws.cell(row=i, column=j)
+            # wrap text for specific columns
+            col_name = keep_cols[j-1]
+            if col_name in text_left_cols:
+                c.alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
+            elif col_name == 'Index':
+                c.alignment = Alignment(vertical='top', horizontal='center')
+            else:
+                c.alignment = Alignment(vertical='top', horizontal='left')
+            c.border = border
+    # basic auto-fit widths by content length
+    for j in range(1, len(keep_cols) + 1):
+        max_len = len(str(keep_cols[j-1]))
+        for i in range(2, ws.max_row + 1):
+            v = ws.cell(row=i, column=j).value
+            if v is None:
                 continue
-            s = str(val)
-            # account for multi-line
-            for line in s.split('\n'):
-                if len(line) > max_len:
-                    max_len = len(line)
-        adjusted_width = min(max(10, max_len + 2), 80)
-        ws.column_dimensions[get_column_letter(j)].width = adjusted_width
-
-    # Ensure row heights are auto (Excel will auto-fit on open when wrap is set and height is default)
-    for r in range(1, nrows + 1):
-        ws.row_dimensions[r].height = None
+            s = str(v)
+            if len(s) > max_len:
+                max_len = len(s)
+        width = min(120, max_len + 2) * 0.9
+        ws.column_dimensions[get_column_letter(j)].width = width
+    # let row heights be default (Excel will expand on open if needed)
 
 
 def main():
-    args = parse_args()
-
-    if not args.input.lower().endswith('.xlsx'):
-        sys.stderr.write('Input file must be .xlsx\n')
-        sys.exit(1)
-
-    wb = load_workbook(args.input)
-
-    # Identify the primary visible sheet
-    main_ws = get_first_visible_sheet(wb)
-
-    # Create META sheet and copy columns
-    ordered_meta = copy_meta_columns(main_ws, wb)
-
-    # Hide META sheet is done inside copy function
-
-    # Rename main sheet to TestPlan
+    in_path = pick_latest_xlsx(INPUT_DIR)
+    wb = load_workbook(in_path)
+    # pick first visible sheet
+    main_ws = None
+    for ws in wb.worksheets:
+        if ws.sheet_state == 'visible':
+            main_ws = ws
+            break
+    if main_ws is None:
+        main_ws = wb.active
+    hdr_map = headers_map(main_ws)
+    meta_cols_present = copy_meta_sheet(wb, main_ws, hdr_map)
+    # rename main to TestPlan
     main_ws.title = 'TestPlan'
+    keep_cols = rebuild_main_as_testplan(main_ws, hdr_map, meta_cols_present)
+    format_testplan(main_ws, keep_cols)
+    # output file name in IST
+    ist = pytz.timezone(TZ_NAME)
+    now = datetime.datetime.now(ist)
+    out_name = f"{IP_NAME}_TestPlan_{now.strftime('%Y%m%d')}_{now.strftime('%H%M%S')}.xlsx"
+    out_path = os.path.join(OUTPUT_DIR, out_name)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    wb.save(out_path)
+    # commit
+    subprocess.run(["git", "config", "user.name", "github-actions[bot]"])  
+    subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])  
+    subprocess.run(["git", "add", out_path], check=False)
+    subprocess.run(["git", "commit", "-m", COMMIT_MESSAGE], check=False)
+    subprocess.run(["git", "push"], check=False)
 
-    # Remove META columns from TestPlan
-    remove_columns_by_names(wb['TestPlan'], ordered_meta)
-
-    # Keep and order only allowed MAIN columns
-    testplan_ws = reorder_and_filter_main(wb['TestPlan'], wb)
-
-    # Apply formatting ONLY to TestPlan
-    apply_formatting(testplan_ws)
-
-    # Save the workbook to output
-    wb.save(args.output)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

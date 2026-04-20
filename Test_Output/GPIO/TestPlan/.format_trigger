@@ -1,1 +1,3 @@
-Re-trigger format workflow run for GPIO Test Plan after formatter fix.
+trigger: format-run
+timestamp_ist: true
+note: update to trigger Format TestPlan workflow via push
