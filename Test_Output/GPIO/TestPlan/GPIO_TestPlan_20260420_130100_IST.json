@@ -1,5 +1,0 @@
-{
-  "test_cases": [
-    {"Index": 1, "SS / Module": "GPIO", "Feature": "AHB 32-bit register interface.", "Test Case Name": "gpio_reg_wr_rd_test", "Test Description": "same as before", "Speed": "NA", "Mode": "NA", "Memory Start Offset": "NA", "Memory End Offset": "NA", "Remarks": "same", "Test Steps / Procedure": "same", "Impacted Registers": "same", "Validation / Acceptance Criteria": "same", "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "gpio_reg_wr_rd_test", "Hidden_Test_Description": "same", "Hidden_Remarks": "same", "Hidden_Test_Steps_Procedure": "same", "Hidden_Impacted_Registers": "same", "Hidden_Validation_Acceptance_Criteria": "same" }
-  ]
-}
