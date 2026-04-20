@@ -1,0 +1,40 @@
+name: Excel Formatter (Auto)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Test_Output/GPIO/TestPlan/*.xlsx'
+  workflow_dispatch:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openpyxl pytz
+      - name: Format latest Excel and write IST-named output
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          python tools/excel_formatter.py \
+            --input-dir Test_Output/GPIO/TestPlan \
+            --ip-name GPIO \
+            --output-dir Test_Output/GPIO/TestPlan \
+            --sheet-name Data \
+            --tz Asia/Kolkata
+      - name: Commit formatted Excel
+        run: |
+          git config user.name "ag-json-excel-converter"
+          git config user.email "actions@github.com"
+          git add Test_Output/GPIO/TestPlan/*.xlsx
+          if git commit -m "Format Excel workbook (GPIO)"; then
+            git push origin HEAD:main
+          else
+            echo "No changes to commit."
+          fi
