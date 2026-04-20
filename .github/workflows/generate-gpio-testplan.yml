@@ -1,6 +1,7 @@
 name: Generate GPIO Test Plan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'Test_Output/GPIO/TestPlan/input/GPIO_TestPlan.json'
