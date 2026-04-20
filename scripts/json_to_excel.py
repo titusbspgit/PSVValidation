@@ -1,179 +1,112 @@
 #!/usr/bin/env python3
-import argparse
+# Deterministic JSON -> single-sheet Excel generator (fallback)
+# - Uses embedded JSON from this repository context
+# - Produces exactly one worksheet named "Data"
+# - Preserves first-seen key order
+# - Serializes nested objects/arrays as compact JSON strings
+# - Bold header, freeze top row, simple auto-fit widths
+
 import json
+import sys
 import os
+import datetime
 from collections import OrderedDict
-from datetime import datetime
-
+from zoneinfo import ZoneInfo
 from openpyxl import Workbook
+from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Font, Alignment
+
+EMBEDDED_JSON = r'''{ "ip": "gpio", "repo": { "url": "https://github.com/titusbspgit/PSVValidation", "branch": "main", "paths": [ "TestRepo/gpio/gpio_reg_wr_rd_test", "TestRepo/gpio/test_gpio_negedge_intr_en", "TestRepo/gpio/test_gpio_pedge_all_pads_en" ] }, "generated_at": "2026-04-20T00:00:00Z", "assumptions": [], "tests": [ { "Index": 1, "SS / Module": "gpio", "Feature": "AHB 32-bit register interface.", "Test Case Name": "gpio_reg_wr_rd_test", "Test Description": "Validates reset values and masked read/write behavior over a set of GPIO per‑pin control/status registers (GPIO_8 through GPIO_39) and selected group/interrupt registers. The test first reads and compares reset values (ignoring the least significant status bit), then applies six data patterns using write masks and verifies readbacks with read masks, preserving non‑writable readable fields at their reset values.", "Speed": "NA", "Mode": "NA", "Memory Start Offset": "NA", "Memory End Offset": "NA", "Remarks": "VRRW registers are skipped. When reading defaults, input data can read as 1 unless externally driven; forcing input low may affect level‑select and cause mismatches.", "Test Steps / Procedure": [ "Entry: invoke the test entry function.", "Phase A (reset verification): iterate over the configured register list.", "For each address: if marked to skip reset check, continue.", "For each address: if not readable per mask, continue.", "For each address: READ the register; ignore the least significant bit; COMPARE against the documented reset value; record a default‑check failure on mismatch.", "Phase B (masked write/readback): define six fixed data patterns.", "For each pattern: iterate over the configured register list to perform writes.", "For each address: if marked to skip write/read, continue.", "For each address: if not writable per mask, continue.", "For each address: WRITE the pattern limited to writable fields.", "After completing writes for the pattern: iterate over the configured register list to perform reads.", "For each address: if marked to skip write/read, continue.", "For each address: if not writable or not readable per masks, continue.", "For each address: READ the register and apply the read mask.", "For each address: COMPUTE the expected value by combining written bits that are both readable and writable with preserved reset values for readable but non‑writable bits; COMPARE and record a write/readback failure on mismatch.", "Exit: declare pass if no reset or write/readback mismatches were recorded; otherwise fail." ], "Impacted Registers": "GPIO_8,GPIO_9,GPIO_10,GPIO_11,GPIO_12,GPIO_13,GPIO_14,GPIO_15,GPIO_16,GPIO_17,GPIO_18,GPIO_19,GPIO_20,GPIO_21,GPIO_22,GPIO_23,GPIO_24,GPIO_25,GPIO_26,GPIO_27,GPIO_28,GPIO_29,GPIO_30,GPIO_31,GPIO_32,GPIO_33,GPIO_34,GPIO_35,GPIO_36,GPIO_37,GPIO_38,GPIO_39,GPIO_INTR_RAW_STCLR1,INTR1_INTR_EN1,INTR1_INTR_STS1,INTR2_INTR_EN1,INTR2_INTR_STS1", "Validation / Acceptance Criteria": [ "Reset phase: each masked read (LSB ignored) equals the documented reset value.", "Write/readback phase: each masked read equals the value formed by written bits in readable+writable fields combined with preserved reset values for readable but non‑writable fields.", "Pass condition: no mismatches in either phase." ], "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "gpio_reg_wr_rd_test", "Hidden_Test_Description": "test_case() calls chk_rst_val(); then chk_rd_wr(); then if (def_fail_cnt>0 || wr_fail_cnt>0) finish(1) else finish(0). chk_rst_val(): for i in [0..CNT-1], addr=addr_array[i]; if (skip_rst_array[i]==1) continue; if (read_mask_array[i]==0x00000000) continue; data_rd=read_reg(addr); data=(data_rd & 0xfffffffe); if (data==default_value_array[i]) pass else {def_fail_cnt++; printf(...)}. chk_rd_wr(): chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000}; for each pattern data_wr in chk_val: write phase: for i in [0..CNT-1], addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0) continue; write_reg(addr,(data_wr & write_mask_array[i])); read/compare phase: for i in [0..CNT-1], addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0) continue; if (read_mask_array[i]==0) continue; data_rd=(read_reg(addr) & read_mask_array[i]); wr_n=(write_mask_array[i] ^ 0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd==exp_val) pass else {wr_fail_cnt++; printf(...)}.", "Hidden_Remarks": "Comment notes: 'SKIPPING VRRW registers'. Also: reading default values, din may become 1 automatically if not forced; forcing 0 on din may set level-select high causing mismatches.", "Hidden_Test_Steps_Procedure": [ "test_case(): chk_rst_val(); chk_rd_wr(); if (def_fail_cnt>0 || wr_fail_cnt>0) finish(1); else finish(0).", "chk_rst_val(): loop i=0..48; addr=addr_array[i]; if (skip_rst_array[i]==1) continue; if (read_mask_array[i]==0x00000000) continue; data_rd=read_reg(addr); data=(data_rd & 0xfffffffe); if (data==default_value_array[i]) { } else {def_fail_cnt++; printf mismatch};", "chk_rd_wr(): chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000}; for (j=0..5){ data_wr=chk_val[j]; // write sweep", "for (i=0..48){ addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0x00000000) continue; write_reg(addr,(data_wr & write_mask_array[i])); }", "// read/compare sweep", "for (i=0..48){ addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0x00000000) continue; if (read_mask_array[i]==0x00000000) continue; data_rd=(read_reg(addr) & read_mask_array[i]); wr_n=(write_mask_array[i] ^ 0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd==exp_val) {} else {wr_fail_cnt++; printf mismatch;} } }" ], "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_GPIO_GP0_INTR2_INTR_EN1,MIZAR_GPIO_GP0_INTR2_INTR_STS1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GPIO_DOUT_GROUP1,MIZAR_GPIO_GPIO_DOUT_GROUP2,MIZAR_GPIO_GPIO_DOUT_GROUP3,MIZAR_GPIO_GPIO_DOUT_GROUP4,MIZAR_GPIO_GPIO_DIN_GROUP1,MIZAR_GPIO_GPIO_DIN_GROUP2,MIZAR_GPIO_GPIO_DIN_GROUP3,MIZAR_GPIO_GPIO_DIN_GROUP4", "Hidden_Validation_Acceptance_Criteria": "Default: (read_reg(addr) & 0xfffffffe) == default_value_array[i]. Write/Read: (read_reg(addr) & read_mask_array[i]) == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i]^0xffffffff) & read_mask_array[i] & default_value_array[i])). Pass if def_fail_cnt==0 && wr_fail_cnt==0; else fail.", "artifacts": { "source_files": [ { "path": "TestRepo/gpio/gpio_reg_wr_rd_test/program.c", "language": "C" }, { "path": "TestRepo/gpio/gpio_reg_wr_rd_test/test_define.c", "language": "C" } ], "build_scripts": [ { "path": "TestRepo/gpio/gpio_reg_wr_rd_test/Makefile", "language": "Makefile" } ], "run_scripts": [] }, "environment": { "framework": "bare-metal C", "tools": [], "runtime": "NA" }, "objective": "Check GPIO register defaults and enforce read/write attribute compliance using masked accesses.", "category": "functional", "priority": "NA", "pass_criteria": "No default or write/readback mismatches; overall result indicates success." }, { "Index": 2, "SS / Module": "gpio", "Feature": "neie (Negative edge interrupt enable)", "Test Case Name": "test_gpio_negedge_intr_en", "Test Description": "Configures all target pads as inputs with falling‑edge detection enabled, then for each pad individually clears any pending raw status, enables the corresponding interrupt bit, generates a falling transition by driving all high then only that pad low, and waits for the interrupt. The handler validates input level and masked status, clears per‑pin and group raw status, clears the system interrupt status, and returns to the main loop.", "Speed": "NA", "Mode": "Interrupt", "Memory Start Offset": "0xA0243ffc", "Memory End Offset": "0xA0243ffc", "Remarks": "A bounded wait with a timeout of 5000 iterations is used. The wait flag is armed before edge generation to avoid race conditions. Pads are restored high on handler entry.", "Test Steps / Procedure": [ "Entry: invoke the test entry function; initialize local error counter to zero.", "Enable the platform interrupt for the selected GPIO instance.", "Enable routing of the selected GPIO interrupt through the system controller.", "Drive the external pad driver address 0xA0243ffc to all high to establish a known level.", "For each pad index 0..31 (GPIO_8..GPIO_39): WRITE the per‑pin control/status to set input mode, enable falling‑edge detection, and clear any per‑pin raw status; insert a short delay.", "For each pad index 0..31: COMPUTE a mask with only the current bit set.", "For the current pad: WRITE the raw status/clear group register (GPIO_INTR_RAW_STCLR1) with the bit mask to pre‑clear any latched raw bit.", "For the current pad: WRITE the group interrupt enable register (INTR1_INTR_EN1) with only the current bit set; insert a short delay.", "Set the software wait flag before generating the edge.", "Generate a falling edge: WRITE the external pad driver address 0xA0243ffc to all high; delay briefly; then WRITE to drive only the current pad low.", "Enter a bounded wait loop: while the wait flag remains set and the timeout counter is nonzero, delay briefly and decrement the counter.", "If the timeout expires: log an error for the current pad.", "Interrupt handler runtime (on entry): clear the wait flag and restore the pad driver to all high by writing 0xA0243ffc.", "READ the current pad’s control/status and verify the input bit indicates low (after a falling edge).", "Verify the per‑pin raw status indicates a pending condition and READ the masked group interrupt status (INTR1_INTR_STS1).", "Check that the masked group status has the bit set for the current pad.", "Clear the per‑pin raw status by writing the control/status with input mode maintained and raw‑clear set for the current pad.", "Clear the group raw status bit by writing the same bit mask to the raw status/clear group register (GPIO_INTR_RAW_STCLR1).", "READ the masked group status (INTR1_INTR_STS1) and confirm it returns to zero.", "Clear the system raw status corresponding to the selected GPIO instance and clear the platform interrupt.", "Main loop continues with the next pad until all pads are serviced.", "Exit: write final result based on the accumulated error count." ], "Impacted Registers": "GPIO_8,GPIO_9,GPIO_10,GPIO_11,GPIO_12,GPIO_13,GPIO_14,GPIO_15,GPIO_16,GPIO_17,GPIO_18,GPIO_19,GPIO_20,GPIO_21,GPIO_22,GPIO_23,GPIO_24,GPIO_25,GPIO_26,GPIO_27,GPIO_28,GPIO_29,GPIO_30,GPIO_31,GPIO_32,GPIO_33,GPIO_34,GPIO_35,GPIO_36,GPIO_37,GPIO_38,GPIO_39,GPIO_INTR_RAW_STCLR1,INTR1_INTR_EN1,INTR1_INTR_STS1", "Validation / Acceptance Criteria": [ "For each pad, the bounded wait exits due to interrupt service, not timeout.", "On handler entry, the per‑pin input field reads low following the falling transition.", "Masked group status indicates the serviced pad’s bit prior to clear and reads zero after per‑pin and group raw clears.", "Platform/system interrupt status is cleared during handler service.", "Pass condition: no timeouts or validation errors across all pads." ], "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en", "Hidden_Test_Description": "test_case(): test_err=0; #ifdef GPIO0 GIC_EnableIRQ(87); #endif; #ifdef GPIO1 GIC_EnableIRQ(88); #endif; #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); #endif; #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR); #endif; write_reg(0xA0243ffc, 0xffffffff); for i=0..31: addr1=MIZAR_GPIO_GP0_GPIO_8+(i4); write_reg(addr1, (1u<<20)|(1u<<18)|(1u<<16)); wait_on(10); for i=0..31: wr_val=(1u<<i); write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~wr_val); timeout=5000; while (int_pend && timeout--) wait_on(10); if (timeout==0) { printf timeout; test_err++; } finish(test_err). Default_IRQHandler(): local_wr=(1u<<i); int_pend=0; write_reg(0xA0243ffc, 0xffffffff); raddr=MIZAR_GPIO_GP0_GPIO_8+(i4); rdata=read_reg(raddr); if ((rdata & 0x1)!=0) test_err++; if ((rdata & 0x2)!=0x0) { rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & local_wr)==0) test_err++; raddr2=MIZAR_GPIO_GP0_GPIO_8+(i4); write_reg(raddr2, (1u<<20)|(1u<<16)); write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp!=0x0) test_err++; #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); GIC_ClearIRQ(87); #endif #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); GIC_ClearIRQ(88); #endif } else { test_err++; }", "Hidden_Remarks": "Timeout uses 5000 iterations with wait_on(10). The wait flag is armed before generating the falling edge to prevent a race.", "Hidden_Test_Steps_Procedure": [ "Enable GIC IRQ (87 for GPIO0 or 88 for GPIO1) and route via MIZAR_LSS_SYSREG_INTR_EN1.", "Initialize 0xA0243ffc to 0xffffffff.", "Loop i=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + i4, (1u<<20)|(1u<<18)|(1u<<16)); wait_on(10).", "Per pad iteration: wr_val=(1u<<i); write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~wr_val);", "Wait loop: timeout=5000; while (int_pend && timeout--) wait_on(10); if (timeout==0) {error}.", "ISR: local_wr=(1u<<i); int_pend=0; write_reg(0xA0243ffc, 0xffffffff); raddr=MIZAR_GPIO_GP0_GPIO_8 + i4; rdata=read_reg(raddr); check (rdata & 0x1)==0 and (rdata & 0x2)!=0; rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); check (rdata_grp & local_wr)!=0; clear per‑pin: write_reg(MIZAR_GPIO_GP0_GPIO_8 + i4, (1u<<20)|(1u<<16)); clear group: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr); verify read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)==0; clear sysreg raw (GPIO0 or GPIO1) and GIC_ClearIRQ(87/88)." ], "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_LSS_SYSREG_RAW_STCR1", "Hidden_Validation_Acceptance_Criteria": "Timeout loop exits via int_pend==0 within 5000 iterations; in ISR: (rdata & 0x1)==0; (rdata & 0x2)!=0; (read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) & (1u<<i))!=0; after clears, read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)==0; sysreg RAW_STCR1 write/read shows bit cleared; overall test_err==0 at finish.", "artifacts": { "source_files": [ { "path": "TestRepo/gpio/test_gpio_negedge_intr_en/program.c", "language": "C" }, { "path": "TestRepo/gpio/test_gpio_negedge_intr_en/test_define.c", "language": "C" } ], "build_scripts": [ { "path": "TestRepo/gpio/test_gpio_negedge_intr_en/Makefile", "language": "Makefile" } ], "run_scripts": [] }, "environment": { "framework": "bare-metal C", "tools": [], "runtime": "NA" }, "objective": "Verify falling‑edge interrupt generation, masked status reporting, and raw/status clear behavior per pad.", "category": "interrupt", "priority": "NA", "pass_criteria": "Each pad triggers within timeout; input level and masked status validate; raw and system status clear; zero accumulated errors." }, { "Index": 3, "SS / Module": "gpio", "Feature": "peie (Positive edge interrupt enable)", "Test Case Name": "test_gpio_pedge_all_pads_en", "Test Description": "Enables rising‑edge detection for all pads and configures pads as inputs. The test enables group interrupt output, then for each pad creates a single rising transition by driving low then high, waiting for the interrupt. The handler masks the group during service, confirms masked status is asserted, clears per‑pin raw status across all pads, verifies masked status clears, clears the system interrupt status, and re‑enables the group.", "Speed": "NA", "Mode": "Interrupt", "Memory Start Offset": "0xA0243ffc", "Memory End Offset": "0xA0243ffc", "Remarks": "A bounded wait with a timeout of 2000 iterations is used. Group interrupt is masked during handler service to prevent re‑entrancy. Pads are driven low after each iteration to prepare for the next edge.", "Test Steps / Procedure": [ "Entry: invoke the test entry function; initialize local error counter to zero.", "Enable the platform interrupt for the selected GPIO instance.", "Enable routing of the selected GPIO interrupt through the system controller.", "For each pad index 0..31 (GPIO_8..GPIO_39): WRITE per‑pin control/status to enable rising‑edge detection.", "Delay briefly to allow configuration to take effect.", "WRITE the group IO control registers to place GPIOs 8–39 in input mode.", "Delay briefly to allow IO control to take effect.", "Enable group interrupt output by writing all ones to the group interrupt enable register (INTR1_INTR_EN1).", "For each pad index 0..31: WRITE the external pad driver address 0xA0243ffc low to set a known level; delay briefly.", "Set the software wait flag before generating the edge.", "Generate a rising edge by WRITING the external pad driver address 0xA0243ffc to all high.", "Enter a bounded wait loop: while the wait flag remains set and the timeout counter is nonzero, delay briefly and decrement the counter.", "If the timeout expires: log an error and stop further iterations.", "After service for the current edge: WRITE the external pad driver address 0xA0243ffc low; delay briefly to prepare for the next iteration.", "Interrupt handler runtime (on entry): clear the wait flag and capture the masked group interrupt status (INTR1_INTR_STS1).", "Mask the group by writing zeros to the group interrupt enable register (INTR1_INTR_EN1).", "Validate that the masked group status indicates at least one asserted bit.", "For each pad index 0..31: clear per‑pin raw status by writing the control/status with raw‑clear set.", "Delay briefly to allow raw clears to propagate.", "READ the masked group status (INTR1_INTR_STS1) and confirm it returns to zero.", "Clear the system raw status for the selected GPIO instance and verify by readback that the status bit is deasserted.", "Re‑enable the group interrupt output by writing all ones to the group interrupt enable register (INTR1_INTR_EN1).", "Clear the platform interrupt and return to the main loop.", "Exit: write final result based on the accumulated error count." ], "Impacted Registers": "GPIO_8,GPIO_9,GPIO_10,GPIO_11,GPIO_12,GPIO_13,GPIO_14,GPIO_15,GPIO_16,GPIO_17,GPIO_18,GPIO_19,GPIO_20,GPIO_21,GPIO_22,GPIO_23,GPIO_24,GPIO_25,GPIO_26,GPIO_27,GPIO_28,GPIO_29,GPIO_30,GPIO_31,GPIO_32,GPIO_33,GPIO_34,GPIO_35,GPIO_36,GPIO_37,GPIO_38,GPIO_39,INTR1_INTR_EN1,INTR1_INTR_STS1", "Validation / Acceptance Criteria": [ "For each iteration, the bounded wait exits due to interrupt service, not timeout.", "On handler entry, masked group status is non‑zero before clearing.", "After clearing per‑pin raw status across all pads, masked group status reads as zero.", "System interrupt raw status is cleared and verified by readback.", "Pass condition: no timeouts or validation errors across iterations." ], "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "test_gpio_pedge_all_pads_en", "Hidden_Test_Description": "test_case(): #ifdef GPIO0 GIC_EnableIRQ(87); #endif; #ifdef GPIO1 GIC_EnableIRQ(88); #endif; #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); #endif; #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR); #endif; for i=0..31 write_reg(MIZAR_GPIO_GP0_GPIO_8 + i4, 0x00020000); wait_on(10); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF); wait_on(10); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); for i=0..31: write_reg(0xA0243ffc, 0x00000000); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xFFFFFFFF); timeout=2000; while ((int_pend==1) && (--timeout>0)) wait_on(10); if (timeout==0) { printf timeout; test_err++; break; } write_reg(0xA0243ffc, 0x00000000); wait_on(10); finish(test_err). Default_IRQHandler(): wr_val=(1<<i); int_pend=0; rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); if ((rdata_grp & 0xffffffff)==0) { printf error; test_err++; } for j=0..31 write_reg(MIZAR_GPIO_GP0_GPIO_8 + j4, 0x00010000); wait_on(2); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp!=0x0) { printf error; test_err++; } #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR)!=0) { printf error; test_err++; } #endif #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR)!=0) { printf error; test_err++; } #endif write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); #ifdef GPIO0 GIC_ClearIRQ(87); #endif #ifdef GPIO1 GIC_ClearIRQ(88); #endif", "Hidden_Remarks": "Timeout uses 2000 iterations with wait_on(10). Group interrupt is masked during ISR by writing the group enable register to zero.", "Hidden_Test_Steps_Procedure": [ "Enable GIC IRQ (87 for GPIO0 or 88 for GPIO1) and route via MIZAR_LSS_SYSREG_INTR_EN1.", "Loop i=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + i4, 0x00020000); wait_on(10).", "Configure input mode: write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1..4, 0x000000FF) with waits.", "Enable group interrupt: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF).", "Per pad iteration: drive 0xA0243ffc low; wait_on(10); int_pend=1; drive 0xA0243ffc high; wait until int_pend==0 with timeout=2000 (wait_on(10) per iteration); if timeout==0 then error and break; drive low again; wait.", "ISR: int_pend=0; rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); if ((rdata_grp & 0xffffffff)==0) error; for j=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + j4, 0x00010000); wait_on(2); verify read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)==0; clear MIZAR_LSS_SYSREG_RAW_STCR1 (GPIO0/1) and verify by readback; re‑enable MIZAR_GPIO_GP0_INTR1_INTR_EN1=0xFFFFFFFF; clear GIC IRQ." ], "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_LSS_SYSREG_RAW_STCR1", "Hidden_Validation_Acceptance_Criteria": "Wait loop exits because int_pend==0 before timeout (2000). In ISR: initial read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) != 0; after per‑pin raw clears for all pads, read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) == 0; write to MIZAR_LSS_SYSREG_RAW_STCR1 and readback show the respective bit cleared; test_err==0 at finish.", "artifacts": { "source_files": [ { "path": "TestRepo/gpio/test_gpio_pedge_all_pads_en/program.c", "language": "C" }, { "path": "TestRepo/gpio/test_gpio_pedge_all_pads_en/test_define.c", "language": "C" } ], "build_scripts": [ { "path": "TestRepo/gpio/test_gpio_pedge_all_pads_en/Makefile", "language": "Makefile" } ], "run_scripts": [] }, "environment": { "framework": "bare-metal C", "tools": [], "runtime": "NA" }, "objective": "Validate rising‑edge interrupt behavior for all pads, including masked status reporting, raw clear, and system status handling.", "category": "interrupt", "priority": "NA", "pass_criteria": "Each iteration triggers within timeout; masked status observed and then cleared; system status cleared and verified; zero accumulated errors." } ], "notes": [ "Macro-to-register mapping was applied only where available. Group IO control and group DIN/DOUT registers and system register names were not mapped; they remain detailed in Hidden_Impacted_Registers.", "Both interrupt tests access an external pad driver at address 0xA0243ffc, which is used to generate edges; this is the only explicit memory address used at runtime.", "Build Makefiles exist but reference external includes via the environment; exact compile/link commands are not present within these folders.", "All runtime timing parameters (timeouts and small waits) are derived directly from the source code." ], "gaps": [ "Macro-to-register mapping for MIZAR_GPIO_GPIO_IO_CTRL_GROUPx and MIZAR_GPIO_GPIO_DIN/DOUT_GROUPx and LSS_SYSREG registers was not available; MAIN fields omit these names.", "Selection between GPIO0 and GPIO1 instance is controlled by build-time defines and not resolved within the local folders; handler paths cover both via conditionals." ] }'''
 
 
-def load_json(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        data = json.load(f, object_pairs_hook=OrderedDict)
-    if isinstance(data, dict):
-        data = [data]
-    if not isinstance(data, list) or not data:
-        raise ValueError('Input JSON must be a non-empty array or an object')
-    # Ensure each row is a mapping
-    for i, row in enumerate(data):
-        if not isinstance(row, dict):
-            raise ValueError(f'Row {i} is not an object: {type(row)}')
-    return data
-
-
-def union_keys_preserve_order(rows):
-    cols = []
-    seen = set()
-    for row in rows:
-        for k in row.keys():
-            if k not in seen:
-                seen.add(k)
-                cols.append(k)
-    return cols
-
-
-def set_header_style(ws):
-    bold = Font(bold=True)
-    for cell in ws[1]:
-        cell.font = bold
-        cell.alignment = Alignment(wrap_text=True, vertical='top')
-    ws.freeze_panes = 'A2'
-
-
-def autosize(ws):
-    # Best-effort auto-size
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            val = cell.value
-            if val is None:
-                length = 0
-            else:
-                s = str(val)
-                # Cap length to avoid absurd widths
-                length = min(len(s), 80)
-            if length > max_len:
-                max_len = length
-        ws.column_dimensions[col_letter].width = max(10, max_len + 2)
-
-
-def write_data_sheet(wb, rows):
-    ws = wb.create_sheet('Data')
-    cols = union_keys_preserve_order(rows)
-    ws.append(cols)
-    for row in rows:
-        out = []
-        for k in cols:
-            v = row.get(k, '')
-            if isinstance(v, (list, dict)):
-                out.append(json.dumps(v, ensure_ascii=False))
-            else:
-                out.append(v)
-        ws.append(out)
-    set_header_style(ws)
-    autosize(ws)
-
-
-def write_gpio_testplan_sheet(wb, rows):
-    ws = wb.create_sheet('GPIO_TestPlan')
-    # Column mapping based on expected fields
-    columns = [
-        ('Index', ['Index']),
-        ('Test Case Name', ['Test Case Name']),
-        ('Test Description', ['Test Description']),
-        ('Module', ['SS / Module']),
-        ('Feature', ['Feature']),
-        ('Mode', ['Mode']),
-        ('Speed', ['Speed']),
-        ('Memory Start Offset', ['Memory Start Offset']),
-        ('Memory End Offset', ['Memory End Offset']),
-        ('Remarks', ['Remarks']),
-        ('Steps', ['Test Steps / Procedure']),
-        ('Impacted Registers', ['Impacted Registers']),
-        ('Validation Criteria', ['Validation / Acceptance Criteria']),
-        ('Parameters', ['Parameters', 'parameters/config']),
-        ('Dependencies', ['Dependencies', 'dependencies']),
-        ('Requirements', ['Requirements', 'requirements/refs']),
-        ('Owner', ['owner/author', 'Owner', 'Author']),
-        ('Tags', ['Tags', 'tags'])
-    ]
-    headers = [c[0] for c in columns]
-    ws.append(headers)
-
-    for row in rows:
-        out = []
-        for header, keys in columns:
-            val = ''
-            for k in keys:
-                if k in row and row[k] not in (None, ''):
-                    val = row[k]
-                    break
-            if isinstance(val, list):
-                # Render lists as numbered multi-line text
-                val = '\n'.join([f"{i+1}. {str(item)}" for i, item in enumerate(val)])
-            out.append(val)
-        ws.append(out)
-
-    set_header_style(ws)
-    # Wrap for long text columns
-    for col in range(1, ws.max_column + 1):
-        for r in range(2, ws.max_row + 1):
-            ws.cell(row=r, column=col).alignment = Alignment(wrap_text=True, vertical='top')
-    autosize(ws)
-
-
-def write_hidden_details_sheet(wb, rows):
-    # Collect Hidden_* columns
-    hidden_cols = []
-    seen = set()
-    for row in rows:
-        for k in row.keys():
-            if k.startswith('Hidden_') and k not in seen:
-                seen.add(k)
-                hidden_cols.append(k)
-    if not hidden_cols:
-        return
-    ws = wb.create_sheet('Hidden_Details')
-    ws.append(hidden_cols)
-    for row in rows:
-        out = []
-        for k in hidden_cols:
-            v = row.get(k, '')
-            if isinstance(v, (list, dict)):
-                out.append(json.dumps(v, ensure_ascii=False))
-            else:
-                out.append(v)
-        ws.append(out)
-    set_header_style(ws)
-    autosize(ws)
+def to_compact_json(value):
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"), indent=None)
+    return value
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True)
-    parser.add_argument('--output', required=True)
-    args = parser.parse_args()
+    try:
+        data = json.loads(EMBEDDED_JSON, object_pairs_hook=OrderedDict)
+    except Exception as e:
+        print(f"ERROR: Invalid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    rows = load_json(args.input)
+    if isinstance(data, list):
+        rows = data
+    elif isinstance(data, dict):
+        rows = [data]
+    else:
+        print("ERROR: Unsupported JSON structure (must be object or array of objects)", file=sys.stderr)
+        sys.exit(1)
+
+    headers = []
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            print("ERROR: Inconsistent row type (non-object in array)", file=sys.stderr)
+            sys.exit(1)
+        for k in row.keys():
+            if k not in seen:
+                seen.add(k)
+                headers.append(k)
 
     wb = Workbook()
-    # Remove default sheet
-    wb.remove(wb.active)
+    ws = wb.active
+    ws.title = "Data"
 
-    write_data_sheet(wb, rows)
-    write_gpio_testplan_sheet(wb, rows)
-    write_hidden_details_sheet(wb, rows)
+    # Header
+    for c, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = Font(bold=True)
 
-    out_path = args.output
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    wb.save(out_path)
+    # Rows
+    for r_index, row in enumerate(rows, start=2):
+        for c, h in enumerate(headers, start=1):
+            val = row.get(h, "")
+            val = to_compact_json(val)
+            ws.cell(row=r_index, column=c, value=val)
 
-    print(f"Wrote Excel: {out_path}")
+    # Freeze top row
+    ws.freeze_panes = "A2"
+
+    # Auto-fit columns (rough)
+    for c, h in enumerate(headers, start=1):
+        maxlen = len(str(h))
+        for r in range(2, len(rows) + 2):
+            v = ws.cell(row=r, column=c).value
+            l = len(str(v)) if v is not None else 0
+            if l > maxlen:
+                maxlen = l
+        ws.column_dimensions[get_column_letter(c)].width = min(maxlen + 2, 120)
+
+    # Output naming using IST
+    ip_name = os.environ.get("IP_NAME", "GPIO")
+    try:
+        tz = ZoneInfo("Asia/Kolkata")
+    except Exception:
+        tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    now = datetime.datetime.now(tz)
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
+
+    outdir = os.path.join("Test_Output", "GPIO", "TestPlan")
+    os.makedirs(outdir, exist_ok=True)
+    outpath = os.path.join(outdir, filename)
+
+    wb.save(outpath)
+
+    # Emit GitHub Actions outputs if available
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a", encoding="utf-8") as f:
+            f.write(f"excel_path={outpath}\n")
+            f.write(f"excel_filename={filename}\n")
+            f.write(f"rows={len(rows)}\n")
+            f.write(f"columns={len(headers)}\n")
+
+    print(outpath)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
