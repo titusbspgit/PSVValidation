@@ -19,6 +19,9 @@ on:
         required: false
         default: 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_2.xlsx'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
