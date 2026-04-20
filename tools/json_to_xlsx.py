@@ -1,97 +1,122 @@
-from collections import OrderedDict
+#!/usr/bin/env python3
+import argparse
 import json
 import os
+import re
 import sys
-from openpyxl import Workbook
-from openpyxl.styles import Font
-from openpyxl.utils import get_column_letter
+from typing import Any, Dict, List
+
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+except Exception as e:
+    print(f"ERROR: openpyxl not available: {e}")
+    sys.exit(2)
 
 
-def load_rows(data):
-    # Accept array of objects, or root object with single array field, or single object
+def load_json(path: str) -> Any:
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def derive_rows(data: Any) -> List[Dict[str, Any]]:
+    # Supported shapes:
+    # 1) list[dict]
+    # 2) dict with key 'test_cases' as list[dict]
+    # 3) dict -> single row
     if isinstance(data, list):
-        return data
-    if isinstance(data, OrderedDict) or isinstance(data, dict):
-        if len(data) == 1:
-            only_key = next(iter(data))
-            val = data[only_key]
-            if isinstance(val, list):
-                return val
+        if all(isinstance(x, dict) for x in data):
+            return data
+        else:
+            raise ValueError('Unsupported JSON array contents; expected array of objects')
+    if isinstance(data, dict):
+        if 'test_cases' in data and isinstance(data['test_cases'], list) and all(isinstance(x, dict) for x in data['test_cases']):
+            return data['test_cases']
         return [data]
-    raise ValueError("Unsupported JSON structure: must be array of objects or object.")
+    raise ValueError('Unsupported JSON structure; expected object or array of objects')
 
 
-def build_headers(rows):
-    headers, seen = [], set()
+def union_keys(rows: List[Dict[str, Any]]) -> List[str]:
+    seen = set()
+    cols: List[str] = []
     for row in rows:
-        if not isinstance(row, dict):
-            raise ValueError("All rows must be objects with key/value pairs.")
         for k in row.keys():
             if k not in seen:
                 seen.add(k)
-                headers.append(k)
-    return headers
+                cols.append(k)
+    return cols
 
 
-def autosize(ws, headers, rows):
-    for cidx, h in enumerate(headers, start=1):
-        max_len = len(str(h))
-        for r in rows:
-            v = r.get(h, "")
-            max_len = max(max_len, len(str(v)))
-        ws.column_dimensions[get_column_letter(cidx)].width = min(max_len + 2, 120)
+def to_cell(v: Any) -> str:
+    # Preserve exact JSON values: stringify nested structures deterministically
+    if isinstance(v, (dict, list)):
+        return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
+    if v is None:
+        return ''
+    return str(v)
+
+
+def autosize(ws):
+    # Simple auto-fit by content width
+    for col_cells in ws.columns:
+        length = 0
+        col_letter = col_cells[0].column_letter
+        for cell in col_cells:
+            v = '' if cell.value is None else str(cell.value)
+            if len(v) > length:
+                length = len(v)
+        width = min(max(10, length + 2), 100)
+        ws.column_dimensions[col_letter].width = width
+
+
+def build_workbook(rows: List[Dict[str, Any]], sheet_name: str = 'Data') -> Workbook:
+    cols = union_keys(rows)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    # Header
+    ws.append(cols)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    ws.freeze_panes = 'A2'
+    # Rows
+    for r in rows:
+        ws.append([to_cell(r.get(c, '')) for c in cols])
+    autosize(ws)
+    return wb
+
+
+def default_output_from_input(input_path: str) -> str:
+    # If input filename ends with _TestPlan_YYYYMMDD_HHMMSS_IST.json, mirror the same base with .xlsx
+    bname = os.path.basename(input_path)
+    m = re.match(r'^(.*_TestPlan_\d{8}_\d{6}_IST)\.json$', bname)
+    if m:
+        base = m.group(1)
+        return os.path.join(os.path.dirname(input_path), base + '.xlsx')
+    # else, just replace extension
+    return os.path.splitext(input_path)[0] + '.xlsx'
 
 
 def main():
-    json_input = os.environ.get("JSON_INPUT", "").strip()
-    if not json_input:
-        print("ERROR: JSON_INPUT environment variable is empty.")
-        sys.exit(1)
-    try:
-        data = json.loads(json_input, object_pairs_hook=OrderedDict)
-    except Exception as e:
-        print(f"ERROR: Invalid JSON: {e}")
-        sys.exit(1)
+    ap = argparse.ArgumentParser(description='Convert JSON to single-sheet Excel (.xlsx) with sheet name Data.')
+    ap.add_argument('--input', required=True, help='Path to JSON file')
+    ap.add_argument('--output', required=False, help='Path to output .xlsx file')
+    ap.add_argument('--sheet-name', default='Data', help='Worksheet name (default: Data)')
+    args = ap.parse_args()
 
-    try:
-        rows = load_rows(data)
-    except Exception as e:
-        print(f"ERROR: {e}")
+    data = load_json(args.input)
+    rows = derive_rows(data)
+    if not rows:
+        print('ERROR: Empty JSON array or no rows detected', file=sys.stderr)
         sys.exit(1)
 
-    if not isinstance(rows, list) or len(rows) == 0:
-        print("ERROR: Empty JSON array or unsupported structure.")
-        sys.exit(1)
+    wb = build_workbook(rows, sheet_name=args.sheet_name)
 
-    headers = build_headers(rows)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Data"
-
-    # Header row, bold
-    for cidx, name in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=cidx, value=name)
-        cell.font = Font(bold=True)
-
-    # Data rows
-    for ridx, row in enumerate(rows, start=2):
-        for cidx, h in enumerate(headers, start=1):
-            val = row.get(h, "")
-            ws.cell(row=ridx, column=cidx, value=val)
-
-    # Formatting
-    ws.freeze_panes = "A2"
-    autosize(ws, headers, rows)
-
-    out_path = os.environ.get("OUTPUT_XLSX_PATH", "output.xlsx")
-    out_dir = os.path.dirname(out_path)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
+    out_path = args.output or default_output_from_input(args.input)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     wb.save(out_path)
+    print(f'Wrote Excel: {out_path}')
 
-    print(f"Generated: {out_path}\nRows: {len(rows)}\nColumns: {len(headers)}")
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

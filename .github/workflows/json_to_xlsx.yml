@@ -1,0 +1,39 @@
+name: JSON to Excel (Auto)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_*_IST.json'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Convert latest GPIO TestPlan JSON to Excel
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          set -e
+          json_file=$(ls -1 Test_Output/GPIO/TestPlan/GPIO_TestPlan_*_IST.json | sort | tail -n 1)
+          echo "Using JSON: $json_file"
+          out_file="${json_file%.json}.xlsx"
+          python tools/json_to_xlsx.py --input "$json_file" --output "$out_file" --sheet-name Data
+      - name: Commit Excel
+        run: |
+          git config user.name "ag-json-excel-converter"
+          git config user.email "actions@github.com"
+          git add Test_Output/GPIO/TestPlan/*.xlsx
+          if git commit -m "Add generated Excel file from JSON input"; then
+            git push origin HEAD:main
+          else
+            echo "No changes to commit."
+          fi
