@@ -6,6 +6,7 @@ from pathlib import Path
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
 except Exception as e:
     print(f"ERROR: openpyxl not available: {e}")
     sys.exit(2)
@@ -138,7 +139,8 @@ def write_excel(columns, rows, out_path):
                 col_widths[idx] = ln
     for idx, w in enumerate(col_widths, start=1):
         capped = min(max(10, w + 2), 80)
-        ws.column_dimensions[chr(64+idx) if idx<=26 else None].width = capped
+        col_letter = get_column_letter(idx)
+        ws.column_dimensions[col_letter].width = capped
     wb.save(out_path)
 
 
