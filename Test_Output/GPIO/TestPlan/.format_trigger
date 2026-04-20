@@ -1,3 +1,2 @@
 trigger: format-run
-timestamp_ist: true
-note: update to trigger Format TestPlan workflow via push
+# touch to trigger workflow
