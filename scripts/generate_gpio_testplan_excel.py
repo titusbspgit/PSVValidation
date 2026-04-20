@@ -109,9 +109,7 @@ def main():
 
     data = load_json(args.input)
     validate_json(data)
-    write_excel(data, args.output-dir)
+    write_excel(data, args.output_dir)
 
 if __name__ == '__main__':
     main()
-
-# trigger: retrigger workflow
