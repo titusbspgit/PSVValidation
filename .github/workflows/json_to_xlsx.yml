@@ -7,27 +7,42 @@ on:
       - 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_*_IST.json'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install openpyxl
+      - name: List candidate JSON files
+        run: |
+          ls -l Test_Output/GPIO/TestPlan || true
+          echo "CANDIDATES:" $(ls -1 Test_Output/GPIO/TestPlan/GPIO_TestPlan_*_IST.json | wc -l)
       - name: Convert latest GPIO TestPlan JSON to Excel
         env:
           TZ: Asia/Kolkata
         run: |
-          set -e
+          set -euo pipefail
           json_file=$(ls -1 Test_Output/GPIO/TestPlan/GPIO_TestPlan_*_IST.json | sort | tail -n 1)
           echo "Using JSON: $json_file"
           out_file="${json_file%.json}.xlsx"
           python tools/json_to_xlsx.py --input "$json_file" --output "$out_file" --sheet-name Data
+          ls -l "$out_file"
       - name: Commit Excel
+        env:
+          GIT_AUTHOR_NAME: ag-json-excel-converter
+          GIT_AUTHOR_EMAIL: actions@github.com
+          GIT_COMMITTER_NAME: ag-json-excel-converter
+          GIT_COMMITTER_EMAIL: actions@github.com
         run: |
           git config user.name "ag-json-excel-converter"
           git config user.email "actions@github.com"
