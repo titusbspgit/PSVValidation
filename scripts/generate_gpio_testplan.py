@@ -61,13 +61,11 @@ def autosize_columns(ws):
                 continue
             val = str(val)
             if "\n" in val:
-                # approximate width for wrapped text
                 width = max(len(line) for line in val.split("\n"))
             else:
                 width = len(val)
             if width > max_len:
                 max_len = width
-        # Add padding, clamp to reasonable max
         ws.column_dimensions[col_letter].width = min(max_len + 4, 120)
 
 
@@ -124,7 +122,7 @@ def main():
         for c, key in enumerate(seen, start=1):
             ws.cell(row=r_idx, column=c, value=to_cell_value(r.get(key, "")))
 
-    # Basic formatting on Data (visible sheet for now)
+    # Basic formatting on Data
     header_font = Font(bold=True)
     center = Alignment(horizontal="center", vertical="center")
     top = Alignment(vertical="top")
@@ -136,13 +134,11 @@ def main():
     ws.freeze_panes = "A2"
     autosize_columns(ws)
 
-    # Create META sheet
+    # Create META sheet (no formatting per rules)
     ws_meta = wb.create_sheet("Meta_data_sheet")
     # Write META headers
     for c, key in enumerate(META_COLUMNS, start=1):
         ws_meta.cell(row=1, column=c, value=key)
-        ws_meta.cell(row=1, column=c).font = header_font
-        ws_meta.cell(row=1, column=c).alignment = center
 
     # Map from Data headers to column index
     header_to_col = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column + 1)}
@@ -175,9 +171,9 @@ def main():
     wb.remove(ws)
 
     # Formatting for TestPlan
-    # Wrap text in specified columns
     header_index = {ws_final.cell(row=1, column=c).value: c for c in range(1, ws_final.max_column + 1)}
 
+    # Wrap text in specified columns
     for key in WRAP_COLUMNS:
         c = header_index.get(key)
         if c:
@@ -190,10 +186,8 @@ def main():
         for r in range(2, ws_final.max_row + 1):
             ws_final.cell(row=r, column=idx_col).alignment = Alignment(horizontal="center", vertical="top")
 
-    # Header formatting
-    for c in range(1, ws_final.max_column + 1):
-        ws_final.cell(row=1, column=c).font = header_font
-        ws_final.cell(row=1, column=c).alignment = center
+    # Header formatting already applied; ensure freeze top row
+    ws_final.freeze_panes = "A2"
 
     # Default top alignment for data rows
     for r in range(2, ws_final.max_row + 1):
@@ -201,9 +195,6 @@ def main():
             cell = ws_final.cell(row=r, column=c)
             if not cell.alignment or (cell.alignment.horizontal is None and cell.alignment.vertical is None):
                 cell.alignment = top
-
-    # Freeze top row
-    ws_final.freeze_panes = "A2"
 
     # Autosize and borders
     autosize_columns(ws_final)
