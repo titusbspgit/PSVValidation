@@ -1,13 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import json
 import os
-from datetime import datetime
+import datetime
 import pytz
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
-# JSON payload embedded exactly as provided
-JSON_DATA = r'''{
+# JSON payload provided directly (do not modify)
+JSON_PAYLOAD = r'''{
   "ip_name": "GPIO",
   "version": "",
   "repo_context": {
@@ -241,7 +244,7 @@ JSON_DATA = r'''{
         "--- Compute expected value from the pattern, read mask, write mask, and default value; increment write-fail count if mismatch.",
         "Complete: Report PASS if both default-fail and write-fail counts are zero; otherwise report FAIL."
       ],
-      "Impacted Registers": "GPIO_8, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1, GPIO_GP0_INTR2_INTR_EN1, GPIO_GP0_INTR2_INTR_STS1, GPIO_GPIO_INTR_RAW_STCLR1, GPIO_GPIO_IO_CTRL_GROUP1, GPIO_GPIO_IO_CTRL_GROUP2, GPIO_GPIO_IO_CTRL_GROUP3, GPIO_GPIO_IO_CTRL_GROUP4, GPIO_GPIO_DOUT_GROUP1, GPIO_GPIO_DOUT_GROUP2, GPIO_GPIO_DOUT_GROUP3, GPIO_GPIO_DOUT_GROUP4, GPIO_GPIO_DIN_GROUP1, GPIO_GPIO_DIN_GROUP2, GPIO_GPIO_DIN_GROUP3, GPIO_GPIO_DIN_GROUP4",
+      "Impacted Registers": "GPIO_8, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1, GPIO_GP0_INTR2_INTR_EN1, GPIO_GP0_INTR2_INTR_STS1, GPIO_GPIO_INTR_RAW_STCLR1, GPIO_GPIO_IO_CTRL_GROUP1, GPIO_GPIO_IO_CTRL_GROUP2, GPIO_GPIO_IO_CTRL_GROUP3, GPIO_GPIO_IO_CTRL_GROUP4, GPIO_GPIO_DOUT_GROUP1, GPIO_GPIO_DOUT_GROUP2, GPIO_GPIO_DOUT_GROUP3, GPIO_GPIO_DOUT_GROUP4, GPIO_GPIO_DIN_GROUP1, GPIO_GPIO_DIN_GROUP2, GPIO_GPIO_GPIO_DIN_GROUP3, GPIO_GPIO_DIN_GROUP4",
       "Validation / Acceptance Criteria": [
         "Default-value phase: for each non-skipped, readable register, the masked read equals the corresponding default table entry.",
         "Write/read phase: for each non-skipped register, masked readback equals the expected value derived from pattern, read mask, write mask, and default value.",
@@ -262,240 +265,234 @@ JSON_DATA = r'''{
         "unsigned int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000};",
         "for(j=0;j<6;j++){ data_wr=chk_val[j]; for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1){ continue; } if(write_mask_array[i]==0){ continue; } write_reg(addr,(data_wr & write_mask_array[i])); } for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1){ continue; } if(write_mask_array[i]==0){ continue; } if(read_mask_array[i]==0){ continue; } data_rd=(read_reg(addr) & read_mask_array[i]); wr_n=(write_mask_array[i] ^ 0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if(data_rd == exp_val){ /*pass*/ } else { wr_fail_cnt++; printf(\"Read_write : Failed : Write Read mismatch For Address %x, Expected value=0x%x\\tRead value=0x%x\\n\",addr,exp_val ,data_rd); } } }"
       ],
-      "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GPIO_DOUT_GROUP1, MIZAR_GPIO_GPIO_DOUT_GROUP2, MIZAR_GPIO_GPIO_DOUT_GROUP3, MIZAR_GPIO_GPIO_DOUT_GROUP4, MIZAR_GPIO_GPIO_DIN_GROUP1, MIZAR_GPIO_GPIO_DIN_GROUP2, MIZAR_GPIO_GPIO_DIN_GROUP3, MIZAR_GPIO_GPIO_DIN_GROUP4",
-      "Hidden_Validation_Acceptance_Criteria": "def_fail_cnt == 0 after chk_rst_val(); wr_fail_cnt == 0 after chk_rd_wr(); final finish(0) indicates pass; any non-zero counters cause finish(1).",
-      "path": "TestRepo/gpio/gpio_reg_wr_rd_test",
-      "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test",
-      "objective": "Verify readable default values and masked write/readback behavior for GPIO registers via the AHB register interface.",
-      "preconditions": "Platform provides access to GPIO registers; tables in test_define.c reflect the design’s register map and masks.",
-      "expected_results": "All default-value reads match expected values; all masked write/read sequences match computed expectations; no failures reported.",
-      "input_parameters": "",
-      "dependencies": [
-        "test_define.c",
-        "test_common.h",
-        "gpio/gpio_def.h",
-        "gpio/gpio_offset.h"
-      ],
-      "tags": []
+      "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GPIO_DOUT_GROUP1, MIZAR_GPIO_GPIO_DOUT_GROUP2, MIZAR_GPIO_GPIO_DOUT_GROUP3, MIZAR_GPIO_GPIO_DOUT_GROUP4, MIZAR_GPIO_GPIO_DIN_GROUP1, MIZAR_GPIO_GPIO_DIN_GROUP2, MIZAR_GPIO_GPIO_DIN_GROUP3, MIZAR_GPIO_GPIO_DIN_GROUP4"
     }
   ],
   "META_DATA_NOTE": "Hidden_* fields preserve raw macro names and function identifiers. Main column fields are rewritten and macro-to-register name replacement is applied where mapping was available. No assumptions beyond code and comments were introduced."
 }'''
 
-# Constants per Stage1
-META_COLUMNS = [
-    "Hidden_Test_Case_Name",
-    "Hidden_Test_Description",
-    "Hidden_Remarks",
-    "Hidden_Test_Steps_Procedure",
-    "Hidden_Impacted_Registers",
-    "Hidden_Validation_Acceptance_Criteria",
+# Constants per Stage1 formatting rules
+META_COLS = [
+    'Hidden_Test_Case_Name',
+    'Hidden_Test_Description',
+    'Hidden_Remarks',
+    'Hidden_Test_Steps_Procedure',
+    'Hidden_Impacted_Registers',
+    'Hidden_Validation_Acceptance_Criteria',
 ]
 
-MAIN_COLUMNS = [
-    "Index",
-    "SS / Module",
-    "Feature",
-    "Test Case Name",
-    "Test Description",
-    "Speed",
-    "Mode",
-    "Memory Start Offset",
-    "Memory End Offset",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Impacted Registers",
-    "Validation / Acceptance Criteria",
-    "Code Generation (Required / Not)",
+MAIN_COLS = [
+    'Index',
+    'SS / Module',
+    'Feature',
+    'Test Case Name',
+    'Test Description',
+    'Speed',
+    'Mode',
+    'Memory Start Offset',
+    'Memory End Offset',
+    'Remarks',
+    'Test Steps / Procedure',
+    'Impacted Registers',
+    'Validation / Acceptance Criteria',
+    'Code Generation (Required / Not)',
 ]
 
-WRAP_COLUMNS = set([
-    "Test Description",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Validation / Acceptance Criteria",
-])
-
-OUTPUT_DIR = os.path.join("Test_Output", "GPIO", "TestPlan")
+OUTPUT_DIR = os.path.join('Test_Output', 'GPIO', 'TestPlan')
 
 
-def ensure_list(val):
-    return val if isinstance(val, list) else []
+def _json_to_rows():
+    obj = json.loads(JSON_PAYLOAD)
+    # If top-level contains test_cases list, use it; otherwise, use array/object as provided
+    if isinstance(obj, dict) and 'test_cases' in obj and isinstance(obj['test_cases'], list):
+        rows = obj['test_cases']
+        ip_name = obj.get('ip_name', 'OUTPUT')
+    elif isinstance(obj, list):
+        rows = obj
+        ip_name = 'OUTPUT'
+    else:
+        rows = [obj]
+        ip_name = obj.get('ip_name', 'OUTPUT') if isinstance(obj, dict) else 'OUTPUT'
+    return ip_name, rows
 
 
-def serialize_cell(value):
-    # Preserve values; for lists/dicts, store as compact JSON string
-    if isinstance(value, (list, dict)):
-        return json.dumps(value, ensure_ascii=False)
-    return value
+def _normalize_schema(rows):
+    seen = []
+    seen_set = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        for k in r.keys():
+            if k not in seen_set:
+                seen.append(k)
+                seen_set.add(k)
+    # Ensure META and MAIN keys appear if missing (as empty columns)
+    for k in META_COLS + MAIN_COLS:
+        if k not in seen_set:
+            seen.append(k)
+            seen_set.add(k)
+    return seen
 
 
-def detect_rows_and_columns(test_cases):
-    # Build ordered union of keys preserving first seen order
-    ordered_keys = []
-    seen = set()
-    for row in test_cases:
-        if isinstance(row, dict):
-            for k in row.keys():
-                if k not in seen:
-                    seen.add(k)
-                    ordered_keys.append(k)
-    return len(test_cases), len(MAIN_COLUMNS), ordered_keys
+def _cell_value(v):
+    if isinstance(v, (dict, list)):
+        # Preserve exact JSON textual form for complex types
+        return json.dumps(v, ensure_ascii=False)
+    return v
 
 
-def create_workbook(test_cases):
-    wb = Workbook()
+def _write_data_sheet(wb, headers, rows):
     ws = wb.active
-    ws.title = "Data"
-
-    # Determine all keys across rows (Data sheet basis)
-    rows_count, _, ordered_keys = detect_rows_and_columns(test_cases)
-
+    ws.title = 'Data'
     # Write header
-    for col_idx, key in enumerate(ordered_keys, start=1):
-        ws.cell(row=1, column=col_idx, value=key)
+    for c, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    # Write rows
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, h in enumerate(headers, start=1):
+            val = ''
+            if isinstance(row, dict) and h in row:
+                val = _cell_value(row[h])
+            ws.cell(row=r_idx, column=c_idx, value=val)
+    ws.freeze_panes = 'A2'
+    # Basic width autofit approximation
+    _autofit_columns(ws)
+    return ws
 
+
+def _create_meta_sheet(wb, headers, rows):
+    ws = wb.create_sheet('Meta_data_sheet')
+    # Build meta headers present
+    for c, h in enumerate(META_COLS, start=1):
+        ws.cell(row=1, column=c, value=h)
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, h in enumerate(META_COLS, start=1):
+            val = ''
+            if isinstance(row, dict) and h in row:
+                val = _cell_value(row[h])
+            ws.cell(row=r_idx, column=c_idx, value=val)
+    # Mark very hidden
+    ws.sheet_state = 'veryHidden'
+    return ws
+
+
+def _build_testplan_sheet(wb, data_ws, rows):
+    ws = wb.create_sheet('TestPlan_tmp')
+    # Write headers in the strict order
+    for c, h in enumerate(MAIN_COLS, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.fill = PatternFill(start_color='FFEFEFEF', end_color='FFEFEFEF', fill_type='solid')
     # Write data rows
-    for r_idx, row in enumerate(test_cases, start=2):
-        for c_idx, key in enumerate(ordered_keys, start=1):
-            val = row.get(key, "")
-            ws.cell(row=r_idx, column=c_idx, value=serialize_cell(val))
-
-    # Basic readable formatting for Data (will be reorganized later)
-    header_font = Font(bold=True)
-    for c in range(1, len(ordered_keys) + 1):
-        cell = ws.cell(row=1, column=c)
-        cell.font = header_font
-    ws.freeze_panes = "A2"
-
-    return wb
-
-
-def create_meta_sheet(wb, test_cases):
-    meta_ws = wb.create_sheet("Meta_data_sheet")
-    # Header
-    for col_idx, key in enumerate(META_COLUMNS, start=1):
-        meta_ws.cell(row=1, column=col_idx, value=key)
-    # Rows
-    for r_idx, row in enumerate(test_cases, start=2):
-        for c_idx, key in enumerate(META_COLUMNS, start=1):
-            meta_ws.cell(row=r_idx, column=c_idx, value=serialize_cell(row.get(key, "")))
-    # Very Hidden
-    meta_ws.sheet_state = 'veryHidden'
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, h in enumerate(MAIN_COLS, start=1):
+            val = ''
+            if isinstance(row, dict) and h in row:
+                val = _cell_value(row[h])
+            ws.cell(row=r_idx, column=c_idx, value=val)
+    # Apply formatting to TestPlan only
+    _format_testplan(ws)
+    # Remove original Data sheet and rename tmp to TestPlan
+    wb.remove(data_ws)
+    ws.title = 'TestPlan'
+    return ws
 
 
-def build_testplan_sheet(wb, test_cases):
-    # Rename Data -> TestPlan and then prune/reorder columns strictly
-    data_ws = wb["Data"]
-    data_ws.title = "TestPlan"
-    ws = data_ws
+def _format_testplan(ws):
+    # Wrap text for specified columns
+    wrap_cols = set([
+        'Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria'
+    ])
+    header_map = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column + 1)}
 
-    # Clear existing content and write only MAIN columns
-    ws.delete_rows(1, ws.max_row)
-    # Header
-    for col_idx, key in enumerate(MAIN_COLUMNS, start=1):
-        ws.cell(row=1, column=col_idx, value=key)
-    # Data
-    for r_idx, row in enumerate(test_cases, start=2):
-        for c_idx, key in enumerate(MAIN_COLUMNS, start=1):
-            ws.cell(row=r_idx, column=c_idx, value=serialize_cell(row.get(key, "")))
-
-    # Formatting STRICT for TestPlan only
-    header_font = Font(bold=True)
-    center = Alignment(horizontal="center", vertical="center", wrap_text=False)
-    top_left = Alignment(horizontal="left", vertical="top", wrap_text=True)
-    top_center = Alignment(horizontal="center", vertical="top", wrap_text=True)
-    thin = Side(border_style="thin", color="000000")
+    # Apply alignment and borders
+    thin = Side(style='thin')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    header_fill = PatternFill("solid", fgColor="DDDDDD")
 
-    max_row = ws.max_row
-    max_col = ws.max_column
-
-    # Header formatting
-    for c in range(1, max_col + 1):
+    # Header formatting already bold+center; ensure borders
+    for c in range(1, ws.max_column + 1):
         cell = ws.cell(row=1, column=c)
-        cell.font = header_font
-        cell.alignment = center
-        cell.fill = header_fill
         cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    # Data formatting
-    # Identify column indices for wrap
-    wrap_cols = {idx + 1 for idx, name in enumerate(MAIN_COLUMNS) if name in WRAP_COLUMNS}
-    # Index column for centering numeric
-    index_col = MAIN_COLUMNS.index("Index") + 1 if "Index" in MAIN_COLUMNS else None
-
-    for r in range(2, max_row + 1):
-        for c in range(1, max_col + 1):
+    # Data rows
+    for r in range(2, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
             cell = ws.cell(row=r, column=c)
-            if c in wrap_cols:
-                # Wrap and top align
-                cell.alignment = top_left if c not in (index_col,) else top_center
+            header = ws.cell(row=1, column=c).value
+            if header in wrap_cols:
+                cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+            elif header == 'Index':
+                cell.alignment = Alignment(horizontal='center', vertical='top')
             else:
-                # Default alignment: text left, numeric/index centered
-                if c == index_col:
-                    cell.alignment = top_center
-                else:
-                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=False)
+                cell.alignment = Alignment(horizontal='left', vertical='top')
             cell.border = border
 
     # Freeze top row
-    ws.freeze_panes = "A2"
+    ws.freeze_panes = 'A2'
 
-    # Autofit columns (approximate)
-    for c in range(1, max_col + 1):
-        col_letter = get_column_letter(c)
-        max_len = 0
-        for r in range(1, max_row + 1):
+    # Autofit columns (approximate) and row heights
+    _autofit_columns(ws)
+    _autoheight_rows(ws, wrap_cols)
+
+
+def _autofit_columns(ws):
+    # Approximate best-fit based on text length
+    max_len = {}
+    for r in range(1, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
             val = ws.cell(row=r, column=c).value
-            if val is None:
-                length = 0
-            else:
+            s = str(val) if val is not None else ''
+            max_len[c] = max(max_len.get(c, 0), len(s))
+    for c, l in max_len.items():
+        width = min(max(10, l + 2), 80)  # clamp
+        ws.column_dimensions[get_column_letter(c)].width = width
+
+
+def _autoheight_rows(ws, wrap_cols):
+    # Heuristic: estimate lines by length vs column width
+    header = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    col_widths = {c: ws.column_dimensions[get_column_letter(c)].width or 10 for c in range(1, ws.max_column + 1)}
+    base_height = 15
+    for r in range(2, ws.max_row + 1):
+        max_lines = 1
+        for c in range(1, ws.max_column + 1):
+            h = header[c - 1]
+            val = ws.cell(row=r, column=c).value
+            if h in wrap_cols and val is not None:
                 s = str(val)
-                # For wrapped columns, consider line breaks
-                length = max((len(line) for line in s.splitlines()), default=0)
-            if length > max_len:
-                max_len = length
-        # Add padding; cap width to avoid extremes
-        ws.column_dimensions[col_letter].width = min(max_len + 4, 80)
+                approx_chars_per_line = max(1, int(col_widths[c]))
+                lines = 0
+                for part in s.split('\n'):
+                    lines += max(1, (len(part) // approx_chars_per_line) + 1)
+                if lines > max_lines:
+                    max_lines = lines
+        ws.row_dimensions[r].height = min(300, base_height * max_lines)
 
 
 def main():
-    # Parse and validate JSON
-    try:
-        payload = json.loads(JSON_DATA)
-    except Exception as e:
-        raise SystemExit(f"Invalid JSON input: {e}")
+    ip_name, rows = _json_to_rows()
+    headers = _normalize_schema(rows)
 
-    test_cases = payload.get("test_cases")
-    if not isinstance(test_cases, list) or len(test_cases) == 0:
-        raise SystemExit("Invalid or empty test_cases array in JSON input")
+    wb = Workbook()
+    data_ws = _write_data_sheet(wb, headers, rows)
+    _create_meta_sheet(wb, headers, rows)
+    _build_testplan_sheet(wb, data_ws, rows)
 
-    # Create workbook and sheets
-    wb = create_workbook(test_cases)
-    create_meta_sheet(wb, test_cases)
-    build_testplan_sheet(wb, test_cases)
-
-    # Timestamp in IST
-    tz = pytz.timezone("Asia/Kolkata")
-    now = datetime.now(tz)
-    fname = f"GPIO_TestPlan_{now:%Y%m%d_%H%M%S}.xlsx"
+    # IST timestamp for filename
+    tz = pytz.timezone('Asia/Kolkata')
+    now = datetime.datetime.now(tz)
+    fname = f"{ip_name}_TestPlan_{now:%Y%m%d_%H%M%S}.xlsx"
 
     # Ensure output directory exists
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_DIR, fname)
 
-    # Save workbook
     wb.save(out_path)
-
-    # Emit generated path for GitHub Actions to pick
-    with open("generated_gpio_excel_path.txt", "w", encoding="utf-8") as f:
-        f.write(out_path)
-
-    # Also print for logs
     print(out_path)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

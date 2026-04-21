@@ -1,4 +1,4 @@
-name: Generate GPIO Test Plan Excel (Stage1 Fallback)
+name: Generate GPIO Test Plan Excel
 
 on:
   push:
@@ -6,18 +6,19 @@ on:
     paths:
       - .github/workflows/generate_gpio_testplan_excel.yml
       - tools/generate_excel_from_json_gpio.py
+      - tools/trigger_gpio_excel.txt
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     permissions:
       contents: write
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,20 +30,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl pytz
 
-      - name: Generate Excel from JSON (Stage1 formatting)
+      - name: Generate Excel
         run: |
           python tools/generate_excel_from_json_gpio.py
 
-      - name: Commit finalized Excel
+      - name: Commit Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FILE_PATH="$(cat generated_gpio_excel_path.txt)"
-          echo "Generated file: ${FILE_PATH}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${FILE_PATH}"
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
+          if ls Test_Output/GPIO/TestPlan/*.xlsx 1> /dev/null 2>&1; then
+            git add Test_Output/GPIO/TestPlan/*.xlsx
+            if git diff --cached --quiet; then
+              echo "No Excel changes to commit."
+            else
+              git commit -m "Final formatted Excel generated from JSON input"
+              git push origin HEAD:main
+            fi
           else
-            git commit -m "Final formatted Excel generated from JSON input"
-            git push
+            echo "No Excel file generated."
+            exit 1
           fi
