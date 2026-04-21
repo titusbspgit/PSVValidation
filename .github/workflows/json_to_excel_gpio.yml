@@ -1,73 +1,43 @@
-name: Generate and Commit GPIO Test Plan Excel
+name: Generate GPIO Test Plan Excel (Fallback)
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'data/gpio_testplan_input.json'
-      - 'scripts/gen_gpio_testplan_excel.py'
       - '.github/workflows/json_to_excel_gpio.yml'
-
-permissions:
-  contents: write
+      - 'tools/generate_excel_from_json_gpio.py'
+  workflow_dispatch:
 
 jobs:
   build:
-    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
+          pip install openpyxl pytz
 
-      - name: Compute IST timestamp
-        id: ts
-        shell: bash
+      - name: Generate Excel from JSON
         run: |
-          python - <<'PY' > ist.txt
-          from datetime import datetime, timedelta, timezone
-          ist = timezone(timedelta(hours=5, minutes=30))
-          now = datetime.now(ist)
-          print(now.strftime('%Y-%m-%d %H:%M:%S'))
-          print(now.strftime('%Y%m%d_%H%M%S'))
-          PY
-          I_H=$(sed -n '1p' ist.txt)
-          I_S=$(sed -n '2p' ist.txt)
-          echo "HUMAN=$I_H" >> $GITHUB_OUTPUT
-          echo "STAMP=$I_S" >> $GITHUB_OUTPUT
+          python tools/generate_excel_from_json_gpio.py
 
-      - name: Generate Excel
-        id: gen
-        shell: bash
+      - name: Commit Excel output
         run: |
-          python scripts/gen_gpio_testplan_excel.py \
-            --input data/gpio_testplan_input.json \
-            --output-dir Test_Output/GPIO/TestPlan \
-            --ip-name GPIO \
-            --ist-stamp "${{ steps.ts.outputs.STAMP }}"
-
-      - name: Get generated filename
-        id: fname
-        shell: bash
-        run: |
-          echo "FILENAME=$(cat Test_Output/GPIO/TestPlan/.last_generated_filename)" >> $GITHUB_OUTPUT
-
-      - name: Commit Excel
-        shell: bash
-        run: |
-          git config user.email "github-actions@users.noreply.github.com"
+          set -e
+          FILEPATH=$(cat Test_Output/GPIO/TestPlan/generated_path.txt)
+          echo "Generated file: $FILEPATH"
           git config user.name "github-actions[bot]"
-          git add "Test_Output/GPIO/TestPlan/${{ steps.fname.outputs.FILENAME }}"
-          git commit -m "Add GPIO Test Plan (auto-generated) - IST ${{ steps.ts.outputs.HUMAN }}" || echo "No changes to commit"
-          git push || echo "Nothing to push"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILEPATH"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
+          git push
