@@ -1,0 +1,12 @@
+Test ID,Test Name,Objective,Preconditions,Steps,Expected Results,Type,Relative Path,Github Link
+GPIO-TP-001,gpio_reg_wr_rd_test,Validate basic GPIO register write/read functionality,"Board powered, GPIO IP accessible, debug access available","1) Reset GPIO\n2) Write known patterns to key registers\n3) Read back registers\n4) Compare with expected patterns","All writes succeed and read-backs match expected values",validation,TestRepo/gpio/gpio_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test
+GPIO-TP-002,test_gpio_negedge_intr_en,Verify negative-edge triggered GPIO interrupts on selected pads,"Board powered, GPIO pads accessible, interrupt controller configured","1) Configure GPIO pad(s) as input\n2) Enable negative-edge interrupt\n3) Stimulate negative edge on pad(s)\n4) Read/clear interrupt status","Interrupt triggers on negative edge and status bits set/cleared as expected",validation,TestRepo/gpio/test_gpio_negedge_intr_en,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en
+GPIO-TP-003,test_gpio_pedge_all_pads_en,Enable positive-edge interrupts on all pads and validate per-pad status,"Board powered, all GPIO pads accessible, interrupt controller configured","1) Configure all pads as input\n2) Enable positive-edge interrupts for all pads\n3) Stimulate positive edge per pad\n4) Verify per-pad status and clear","Each pad generates interrupt on positive edge; per-pad status and global status behave correctly",validation,TestRepo/gpio/test_gpio_pedge_all_pads_en,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_pedge_all_pads_en
+
+Metadata,Value
+IP,GPIO
+Source Repository,https://github.com/titusbspgit/PSVValidation
+Branch,main
+Base Directory,TestRepo/gpio
+Generated Time (IST),2026-04-21 13:30:00
+Generator,Ag-Emb-Mpsoc-Repo-Structure Agent
