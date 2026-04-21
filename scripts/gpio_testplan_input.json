@@ -62,7 +62,7 @@
         "Timing: No waits in this test (except commented-out soft reset section)."
       ],
       "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GPIO_DOUT_GROUP1, MIZAR_GPIO_GPIO_DOUT_GROUP2, MIZAR_GPIO_GPIO_DOUT_GROUP3, MIZAR_GPIO_GPIO_DOUT_GROUP4, MIZAR_GPIO_GPIO_DIN_GROUP1, MIZAR_GPIO_GPIO_DIN_GROUP2, MIZAR_GPIO_GPIO_DIN_GROUP3, MIZAR_GPIO_GPIO_DIN_GROUP4",
-      "Hidden_Validation_Acceptance_Criteria": "Default check: for all i with skip_rst_array[i]==0 and read_mask_array[i]!=0, (read_reg(addr_array[i]) & 0xfffffffe) must equal default_value_array[i], else def_fail_cnt++. Write/read check (per pattern): for all i with skip_array[i]==0 and write_mask_array[i]!=0 and read_mask_array[i]!=0, after write of (data_wr & write_mask_array[i]), expect (read_reg(addr_array[i]) & read_mask_array[i]) == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i]^0xffffffff) & read_mask_array[i] & default_value_array[i])), else wr_fail_cnt++. Final finish(0) only if def_fail_cnt==0 and wr_fail_cnt==0."
+      "Hidden_Validation_Acceptance_Criteria": "Main loop: For each i, int_pend must become 0 before timeout (5000) else test_err++. ISR checks: (rdata & 0x1)==0 indicates DIN low after negedge; (rdata & 0x2)!=0 indicates raw set; group read MIZAR_GPIO_GP0_INTR1_INTR_STS1 must have bit (1<<i) set; after clearing per-pin raw and MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, group status must be 0; system-level raw must be cleared via MIZAR_LSS_SYSREG_RAW_STCR1; GIC cleared. finish(test_err) with 0 indicates PASS."
     },
     {
       "Index": "2",
@@ -208,3 +208,4 @@
     }
   ]
 }
+ 
