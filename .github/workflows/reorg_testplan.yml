@@ -1,0 +1,67 @@
+name: Reorg TestPlan Excel
+
+on:
+  push:
+    paths:
+      - .github/workflows/reorg_testplan.yml
+      - tools/reorg_excel.py
+  workflow_dispatch:
+    inputs:
+      file_path:
+        description: 'Path to input Excel file'
+        required: false
+        default: 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260421_115438.xlsx'
+      output_file_name:
+        description: 'Path for output Excel file'
+        required: false
+        default: 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260421_115438_reorg.xlsx'
+      branch:
+        description: 'Target branch'
+        required: false
+        default: 'main'
+      commit_changes:
+        description: 'Commit the modified file'
+        required: false
+        default: 'true'
+
+jobs:
+  reorg:
+    runs-on: ubuntu-latest
+    env:
+      FILE_PATH: ${{ github.event.inputs.file_path || 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260421_115438.xlsx' }}
+      OUTPUT_NAME: ${{ github.event.inputs.output_file_name || 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260421_115438_reorg.xlsx' }}
+      BRANCH: ${{ github.event.inputs.branch || 'main' }}
+      COMMIT_CHANGES: ${{ github.event.inputs.commit_changes || 'true' }}
+      COMMIT_MESSAGE: " TestPlan Generated and Pushed to Github"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl==3.1.2
+
+      - name: Run reorg script
+        run: |
+          python tools/reorg_excel.py --input "${{ env.FILE_PATH }}" --output "${{ env.OUTPUT_NAME }}"
+
+      - name: Commit changes
+        if: env.COMMIT_CHANGES == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.OUTPUT_NAME }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "${{ env.COMMIT_MESSAGE }}"
+            git push origin "${{ env.BRANCH }}"
+          fi
