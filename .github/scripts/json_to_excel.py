@@ -117,8 +117,6 @@ def main():
     wb = build_workbook(metadata, test_cases, meta_columns, record_columns)
 
     ensure_dir(args.output_dir)
-    filename = compute_filename(args.ip-name if hasattr(args, 'ip-name') else args.ip_name, args.timezone)
-    # Correct attribute: argparse uses underscore, not hyphen
     filename = compute_filename(args.ip_name, args.timezone)
     out_path = os.path.join(args.output_dir, filename)
     wb.save(out_path)
