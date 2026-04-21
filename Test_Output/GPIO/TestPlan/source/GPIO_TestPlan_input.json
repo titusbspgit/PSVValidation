@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "ip": "GPIO",
+    "repository": "https://github.com/titusbspgit/PSVValidation",
+    "branch": "main",
+    "subdirectory": "TestRepo/gpio",
+    "generated_timestamp_IST": "NA"
+  },
+  "test_cases": [
+    {
+      "Index": "1",
+      "SS / Module": "GPIO",
+      "Feature": "AHB 32-bit register interface.",
+      "Test Case Name": "gpio_reg_wr_rd_test",
+      "Test Description": "Verify reset values and masked write/read behavior across GPIO registers. The flow reads each address that is marked as readable and not in the default-skip list, compares the masked value against the documented reset values, then iterates through six data patterns to perform masked writes followed by masked reads and expected-value comparison.",
+      "Speed": "NA",
+      "Mode": "NA",
+      "Memory Start Offset": "NA",
+      "Memory End Offset": "NA",
+      "Remarks": "VRRW-type registers are explicitly skipped per configuration. A noted behavior states that input data tends to read high without external drive; forcing the input low affects bit-level selection and can cause mismatches against expected values.",
+      "Test Steps / Procedure": [
+        "Entry: the test begins at the primary test routine.",
+        "Reset-value verification loop: for each configured address that is not in the default-skip list and is marked readable, perform a register read and apply a mask that clears the least significant bit. Compare the masked value to the documented reset value; on mismatch, record a default-value failure.",
+        "Pattern setup: define six 32-bit patterns to exercise register write/read checks.",
+        "Write phase per pattern: for each address that is not in the skip list and is marked writable, perform a masked write of the current pattern.",
+        "Read/compare phase per pattern: for each address that is not in the skip list and is both writable and readable, perform a masked read. Compute the expected value by combining the written pattern on writable-and-readable bits with the reset value on non-writable-but-readable bits. If the read value does not match the expected value, record a write/read failure.",
+        "Completion: if any default-value or write/read failures are recorded, mark the test as failed; otherwise, mark it as passed."
+      ],
+      "Impacted Registers": "GPIO_GP0_GPIO_8, GPIO_GP0_GPIO_9, GPIO_GP0_GPIO_10, GPIO_GP0_GPIO_11, GPIO_GP0_GPIO_12, GPIO_GP0_GPIO_13, GPIO_GP0_GPIO_14, GPIO_GP0_GPIO_15, GPIO_GP0_GPIO_16, GPIO_GP0_GPIO_17, GPIO_GP0_GPIO_18, GPIO_GP0_GPIO_19, GPIO_GP0_GPIO_20, GPIO_GP0_GPIO_21, GPIO_GP0_GPIO_22, GPIO_GP0_GPIO_23, GPIO_GP0_GPIO_24, GPIO_GP0_GPIO_25, GPIO_GP0_GPIO_26, GPIO_GP0_GPIO_27, GPIO_GP0_GPIO_28, GPIO_GP0_GPIO_29, GPIO_GP0_GPIO_30, GPIO_GP0_GPIO_31, GPIO_GP0_GPIO_32, GPIO_GP0_GPIO_33, GPIO_GP0_GPIO_34, GPIO_GP0_GPIO_35, GPIO_GP0_GPIO_36, GPIO_GP0_GPIO_37, GPIO_GP0_GPIO_38, GPIO_GP0_GPIO_39, GPIO_INTR_RAW_STCLR1, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1, GPIO_GP0_INTR2_INTR_EN1, GPIO_GP0_INTR2_INTR_STS1, GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, GPIO_IO_CTRL_GROUP4, GPIO_DOUT_GROUP1, GPIO_DOUT_GROUP2, GPIO_DOUT_GROUP3, GPIO_DOUT_GROUP4, GPIO_DIN_GROUP1, GPIO_DIN_GROUP2, GPIO_DIN_GROUP3, GPIO_DIN_GROUP4",
+      "Validation / Acceptance Criteria": [
+        "For each readable address in reset-value checking, the masked read value equals the documented reset value.",
+        "For each pattern and each address that is writable and readable, the masked read value equals the expected combination of written bits on writable-and-readable fields and reset bits on non-writable-but-readable fields.",
+        "Final result is pass only if no default-value failures and no write/read mismatches are recorded."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "gpio_reg_wr_rd_test",
+      "Hidden_Test_Description": "program.c performs chk_rst_val() then chk_rd_wr() and finishes based on def_fail_cnt and wr_fail_cnt. chk_rst_val(): for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_rst_array[i]==1) continue; if(read_mask_array[i]==0x00000000) continue; data_rd=read_reg(addr); data=(data_rd & 0xfffffffe); if(data==default_value_array[i]) pass else def_fail_cnt++; } chk_rd_wr(): six patterns; per pattern write: for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0) continue; write_reg(addr,(data_wr & write_mask_array[i])); } then read/compare: for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0) continue; if(read_mask_array[i]==0) continue; data_rd=(read_reg(addr) & read_mask_array[i]); wr_n=(write_mask_array[i]^0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if(data_rd==exp_val) pass else wr_fail_cnt++; } finish( (def_fail_cnt>0 || wr_fail_cnt>0)?1:0 );",
+      "Hidden_Remarks": "test_define.c: //80,94,98,9c,a0,a4,a8,ac,b0...SKIPPING VRRW registers; when reading default values the din value is becoming 1 automatically if we don't force any value, but if we force zero to din bit level sel becoming high, so that reading value not matched with expected value",
+      "Hidden_Test_Steps_Procedure": "Entry: test_case(). Step1: chk_rst_val(): for i=0..48: addr = addr_array[i] (MIZAR_GPIO_GP0_GPIO_8..MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1..4, MIZAR_GPIO_GPIO_DOUT_GROUP1..4, MIZAR_GPIO_GPIO_DIN_GROUP1..4). If skip_rst_array[i]==1 continue; if read_mask_array[i]==0x00000000 continue; data_rd = read_reg(addr); data = (data_rd & 0xfffffffe); compare to default_value_array[i]; if mismatch def_fail_cnt++. Step2: chk_rd_wr(): patterns chk_val[6] = {0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000}. For each pattern j: data_wr=chk_val[j]; Write loop: for i=0..48: addr=addr_array[i]; if skip_array[i]==1 continue; if write_mask_array[i]==0 continue; write_reg(addr,(data_wr & write_mask_array[i])); Read loop: for i=0..48: addr=addr_array[i]; if skip_array[i]==1 continue; if write_mask_array[i]==0 continue; if read_mask_array[i]==0 continue; data_rd = (read_reg(addr) & read_mask_array[i]); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if data_rd != exp_val wr_fail_cnt++. Step3: if(def_fail_cnt>0 || wr_fail_cnt>0) finish(1) else finish(0).",
+      "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GPIO_DOUT_GROUP1, MIZAR_GPIO_GPIO_DOUT_GROUP2, MIZAR_GPIO_GPIO_DOUT_GROUP3, MIZAR_GPIO_GPIO_DOUT_GROUP4, MIZAR_GPIO_GPIO_DIN_GROUP1, MIZAR_GPIO_GPIO_DIN_GROUP2, MIZAR_GPIO_GPIO_DIN_GROUP3, MIZAR_GPIO_GPIO_DIN_GROUP4",
+      "Hidden_Validation_Acceptance_Criteria": "Default check: data == default_value_array[i] after masking with 0xfffffffe for each readable, non-skipped address. Write/read check: for each pattern and each address that is writable and readable, (read_reg(addr) & read_mask_array[i]) == (((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i]^0xffffffff) & read_mask_array[i] & default_value_array[i]))). Final pass if (def_fail_cnt==0 && wr_fail_cnt==0).",
+      "Source Files": [
+        "TestRepo/gpio/gpio_reg_wr_rd_test/program.c",
+        "TestRepo/gpio/gpio_reg_wr_rd_test/test_define.c",
+        "TestRepo/gpio/gpio_reg_wr_rd_test/Makefile"
+      ]
+    },
+    {
+      "Index": "2",
+      "SS / Module": "GPIO",
+      "Feature": "interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input.",
+      "Test Case Name": "test_gpio_negedge_intr_en",
+      "Test Description": "Configure GPIO pads as inputs with negative-edge interrupt enabled. For each pad, enable its interrupt, generate a falling edge on the corresponding input, and confirm that the pad-level raw status and the group status reflect the event. Then clear the raw status at both pad and group levels and verify clearance while ensuring the input level is low after the falling edge.",
+      "Speed": "NA",
+      "Mode": "Interrupt",
+      "Memory Start Offset": "0xA0243ffc",
+      "Memory End Offset": "0xA0243ffc",
+      "Remarks": "All pads are initially driven high as a known state. Each iteration arms the wait before generating the falling edge and uses a bounded timeout to avoid infinite waits.",
+      "Test Steps / Procedure": [
+        "Entry: the test routine initializes error tracking and enables the interrupt at the CPU controller for the relevant GPIO instance.",
+        "Enable system-level routing for the GPIO interrupt source.",
+        "Drive the external pad driver register at 0xA0243ffc to all ones to establish a known high level on all pads.",
+        "Per-pad configuration loop (32 pads): for each pad register starting at GPIO_GP0_GPIO_8 in ascending order, program input mode, enable negative-edge detection, and request raw-clear; wait a short delay after each configuration.",
+        "Per-pad test loop: for each pad index, pre-clear its corresponding bit in the group raw-status-clear register.",
+        "Enable only the current pad’s interrupt in the group enable register; wait a short delay.",
+        "Arm the wait condition for the interrupt service to signal completion.",
+        "Generate a falling edge for the current pad by first driving all pads high, waiting briefly, then driving the external pad driver such that only the current pad is low.",
+        "Wait for the interrupt with a bounded timeout; if the timeout expires, record an error for this pad and proceed.",
+        "In the interrupt service, return the external pad driver to the known high state, then read the current pad’s register.",
+        "Verify that the input state bit indicates a low level following the falling edge; on mismatch, record an error.",
+        "Confirm that the group interrupt status register shows the bit corresponding to the current pad; if not set, record an error.",
+        "Clear the pad-level raw status by writing the pad register with input mode and the raw-clear request, and also clear the group raw status bit using the group raw-status-clear register.",
+        "Verify that the group interrupt status register reads zero after clearing; on mismatch, record an error.",
+        "Clear the system-level interrupt latch and the CPU controller pending state for the relevant interrupt source.",
+        "Upon completion of all iterations, finish the test with pass if no errors were recorded."
+      ],
+      "Impacted Registers": "GPIO_GP0_GPIO_8, GPIO_GP0_GPIO_9, GPIO_GP0_GPIO_10, GPIO_GP0_GPIO_11, GPIO_GP0_GPIO_12, GPIO_GP0_GPIO_13, GPIO_GP0_GPIO_14, GPIO_GP0_GPIO_15, GPIO_GP0_GPIO_16, GPIO_GP0_GPIO_17, GPIO_GP0_GPIO_18, GPIO_GP0_GPIO_19, GPIO_GP0_GPIO_20, GPIO_GP0_GPIO_21, GPIO_GP0_GPIO_22, GPIO_GP0_GPIO_23, GPIO_GP0_GPIO_24, GPIO_GP0_GPIO_25, GPIO_GP0_GPIO_26, GPIO_GP0_GPIO_27, GPIO_GP0_GPIO_28, GPIO_GP0_GPIO_29, GPIO_GP0_GPIO_30, GPIO_GP0_GPIO_31, GPIO_GP0_GPIO_32, GPIO_GP0_GPIO_33, GPIO_GP0_GPIO_34, GPIO_GP0_GPIO_35, GPIO_GP0_GPIO_36, GPIO_GP0_GPIO_37, GPIO_GP0_GPIO_38, GPIO_GP0_GPIO_39, GPIO_INTR_RAW_STCLR1, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1",
+      "Validation / Acceptance Criteria": [
+        "For each pad test, the interrupt is observed within the defined timeout.",
+        "At interrupt service, the input state on the tested pad is low following the falling edge.",
+        "The group interrupt status indicates the bit corresponding to the tested pad during service and reads zero after the pad-level raw clear and the group raw clear are performed.",
+        "The final result is pass only if no timeouts or status mismatches are recorded."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en",
+      "Hidden_Test_Description": "program.c test_case(): test_err=0; GIC_EnableIRQ(87/88) based on GPIO0/GPIO1; write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR or LSS_SYSREG_INTR_EN1_GPIO1_INTR); write_reg(0xA0243ffc, 0xffffffff); for i=0..31: addr1 = MIZAR_GPIO_GP0_GPIO_8 + i*4; write_reg(addr1, (1u<<20)|(1u<<18)|(1u<<16)); wait_on(10); for i=0..31: wr_val=1u<<i; write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~wr_val); timeout=5000; while(int_pend && timeout--) wait_on(10); if(timeout==0){ printf(...); test_err++; } finish(test_err). ISR Default_IRQHandler(): local_wr=1u<<i; int_pend=0; write_reg(0xA0243ffc, 0xffffffff); raddr=MIZAR_GPIO_GP0_GPIO_8 + i*4; rdata=read_reg(raddr); if((rdata & 0x1)!=0) test_err++; if((rdata & 0x2)!=0){ rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if((rdata_grp & local_wr)==0) test_err++; raddr2=MIZAR_GPIO_GP0_GPIO_8 + i*4; write_reg(raddr2, (1u<<20)|(1u<<16)); write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if(rdata_grp!=0x0) test_err++; write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR); GIC_ClearIRQ(87/88); } else { test_err++; }",
+      "Hidden_Remarks": "All pads are driven high initially via write_reg(0xA0243ffc, 0xffffffff). Each iteration sets int_pend=1 before generating the edge and uses a timeout (5000) with wait_on(10).",
+      "Hidden_Test_Steps_Procedure": "Entry: test_case(). Ifdef GPIO0/GPIO1: GIC_EnableIRQ(87/88). Enable MIZAR_LSS_SYSREG_INTR_EN1 for GPIO0/1. Drive 0xA0243ffc=0xffffffff. Config loop: for i=0..31: addr1=MIZAR_GPIO_GP0_GPIO_8+(i*4); write_reg(addr1,(1u<<20)|(1u<<18)|(1u<<16)); wait_on(10). Per-pad: wr_val=1u<<i; write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); int_pend=1; write_reg(0xA0243ffc,0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~wr_val); timeout=5000; while(int_pend && timeout--) wait_on(10); if(timeout==0) { printf(...); test_err++; }. ISR Default_IRQHandler(): local_wr=1<<i; int_pend=0; write_reg(0xA0243ffc,0xffffffff); raddr=MIZAR_GPIO_GP0_GPIO_8+(i*4); rdata=read_reg(raddr); if((rdata&0x1)!=0) test_err++; if((rdata&0x2)!=0){ rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if((rdata_grp & local_wr)==0) test_err++; raddr2=MIZAR_GPIO_GP0_GPIO_8+(i*4); write_reg(raddr2,(1u<<20)|(1u<<16)); write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if(rdata_grp!=0) test_err++; write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR); GIC_ClearIRQ(87/88); } else { test_err++; }",
+      "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1",
+      "Hidden_Validation_Acceptance_Criteria": "Timeout-based wait: interrupt must arrive before timeout reaches 0. In ISR: (rdata & 0x1)==0 (DIN=0 after falling edge); (read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) & (1<<i)) != 0 during service; after clearing pad-level iclr and group RAW_STCLR1, read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)==0. finish(test_err) with test_err==0 indicates PASS.",
+      "Source Files": [
+        "TestRepo/gpio/test_gpio_negedge_intr_en/program.c",
+        "TestRepo/gpio/test_gpio_negedge_intr_en/test_define.c",
+        "TestRepo/gpio/test_gpio_negedge_intr_en/Makefile"
+      ]
+    },
+    {
+      "Index": "3",
+      "SS / Module": "GPIO",
+      "Feature": "interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input.",
+      "Test Case Name": "test_gpio_pedge_all_pads_en",
+      "Test Description": "Enable positive-edge interrupt detection on all pads, set the pads to input mode, and enable group-level interrupts. For each pad, generate a rising edge and verify that a group interrupt occurs. Clear pad raw status for all pads, confirm group status clears to zero, clear system-level status, and re-enable group interrupts.",
+      "Speed": "NA",
+      "Mode": "Interrupt",
+      "Memory Start Offset": "0xA0243ffc",
+      "Memory End Offset": "0xA0243ffc",
+      "Remarks": "Each iteration arms the wait before generating the rising edge, uses a bounded timeout, masks group interrupts during service, and restores configuration for the next iteration.",
+      "Test Steps / Procedure": [
+        "Entry: the test routine enables the interrupt at the CPU controller for the relevant GPIO instance.",
+        "Enable system-level routing for the GPIO interrupt source.",
+        "Per-pad configuration loop: for each pad register starting at GPIO_GP0_GPIO_8 in ascending order, program positive-edge detection.",
+        "Delay briefly to let configuration settle.",
+        "Configure groups to input mode by programming the IO control group registers.",
+        "Delay briefly to let IO mode settle.",
+        "Enable all bits in the group interrupt-enable register.",
+        "Per-pad test loop: for each index, first drive the external pad driver register at 0xA0243ffc low, delay briefly, then arm the wait condition for interrupt service completion, and finally drive the external pad driver high to create a rising edge.",
+        "Wait for the interrupt with a bounded timeout; on timeout, record an error and terminate the loop.",
+        "After each iteration, return the external pad driver low and delay briefly before proceeding to the next pad.",
+        "Interrupt service: read the group interrupt status register and mask group interrupts by disabling the group enable register.",
+        "If the group interrupt status is nonzero, note success; otherwise, record an error.",
+        "Clear pad raw status for all pads by programming each pad register with the raw-clear request and delay briefly.",
+        "Verify the group interrupt status reads zero after clear; on mismatch, record an error.",
+        "Clear the system-level interrupt latch and verify that the corresponding system-level status bit is cleared; record an error if not.",
+        "Re-enable group interrupts and clear the CPU controller pending state."
+      ],
+      "Impacted Registers": "GPIO_GP0_GPIO_8, GPIO_GP0_GPIO_9, GPIO_GP0_GPIO_10, GPIO_GP0_GPIO_11, GPIO_GP0_GPIO_12, GPIO_GP0_GPIO_13, GPIO_GP0_GPIO_14, GPIO_GP0_GPIO_15, GPIO_GP0_GPIO_16, GPIO_GP0_GPIO_17, GPIO_GP0_GPIO_18, GPIO_GP0_GPIO_19, GPIO_GP0_GPIO_20, GPIO_GP0_GPIO_21, GPIO_GP0_GPIO_22, GPIO_GP0_GPIO_23, GPIO_GP0_GPIO_24, GPIO_GP0_GPIO_25, GPIO_GP0_GPIO_26, GPIO_GP0_GPIO_27, GPIO_GP0_GPIO_28, GPIO_GP0_GPIO_29, GPIO_GP0_GPIO_30, GPIO_GP0_GPIO_31, GPIO_GP0_GPIO_32, GPIO_GP0_GPIO_33, GPIO_GP0_GPIO_34, GPIO_GP0_GPIO_35, GPIO_GP0_GPIO_36, GPIO_GP0_GPIO_37, GPIO_GP0_GPIO_38, GPIO_GP0_GPIO_39, GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, GPIO_IO_CTRL_GROUP4, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1",
+      "Validation / Acceptance Criteria": [
+        "For each pad test, the interrupt is observed within the defined timeout.",
+        "During interrupt service, the group interrupt status is nonzero and indicates an active event.",
+        "After clearing all pad raw status bits, the group interrupt status reads zero.",
+        "System-level interrupt status is cleared after the clear operation, verified by readback.",
+        "The final result is pass only if no timeouts or status mismatches are recorded."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "test_gpio_pedge_all_pads_en",
+      "Hidden_Test_Description": "program.c test_case(): enable GIC IRQ (87/88) per GPIO0/GPIO1; enable system interrupt via write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR/GPIO1_INTR). For i=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + i*4, 0x00020000) (posedge enable). wait_on(10). write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1..4, 0x000000FF) (doe=1 input). wait_on(10). write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF). Per-pad: write_reg(0xA0243ffc, 0x00000000); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xFFFFFFFF); timeout=2000; while(int_pend==1 && --timeout>0) wait_on(10); if(timeout==0){ printf(...); test_err++; break; } write_reg(0xA0243ffc, 0x00000000); wait_on(10); finish(test_err). ISR Default_IRQHandler(): wr_val=1<<i; int_pend=0; rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); if((rdata_grp & 0xffffffff)!=0) success else { printf(...); test_err++; } for j=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + j*4, 0x00010000); wait_on(2); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if(rdata_grp!=0x0){ printf(...); test_err++; } write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR)!=0) { printf(...); test_err++; } write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); GIC_ClearIRQ(87/88);",
+      "Hidden_Remarks": "Interrupt is armed before generating the rising edge; timeout of 2000 used with wait_on(10). Group interrupts are masked during service and then re-enabled after clearing.",
+      "Hidden_Test_Steps_Procedure": "Entry: test_case(). Enable GIC IRQ 87/88. Enable MIZAR_LSS_SYSREG_INTR_EN1 for GPIO0/1. For i=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + i*4, 0x00020000). wait_on(10). write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF); wait_on(10). write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF). For i=0..31: write_reg(0xA0243ffc, 0x00000000); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xFFFFFFFF); timeout=2000; while((int_pend==1) && (--timeout>0)) wait_on(10); if(timeout==0){ printf(...); test_err++; break; } write_reg(0xA0243ffc, 0x00000000); wait_on(10). ISR: rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); if((rdata_grp & 0xffffffff)!=0) ok else error. For j=0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + j*4, 0x00010000); wait_on(2). rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if(rdata_grp!=0x0) error. write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR/GPIO1_INTR)!=0) error. write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF); GIC_ClearIRQ(87/88).",
+      "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1",
+      "Hidden_Validation_Acceptance_Criteria": "Timeout wait must complete early (interrupt arrives). In ISR: read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) nonzero; after clearing pad iclr across 32 pads, read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1)==0; system RAW_STCR1 bit for GPIO instance cleared on write and verified by readback; finish(test_err) with test_err==0 indicates PASS.",
+      "Source Files": [
+        "TestRepo/gpio/test_gpio_pedge_all_pads_en/program.c",
+        "TestRepo/gpio/test_gpio_pedge_all_pads_en/test_define.c",
+        "TestRepo/gpio/test_gpio_pedge_all_pads_en/Makefile"
+      ]
+    }
+  ]
+}

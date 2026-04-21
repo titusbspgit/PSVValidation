@@ -1,141 +1,129 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 import argparse
 import json
-import sys
-from collections import OrderedDict
+import os
 from datetime import datetime
-from pathlib import Path
-
-try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-except Exception:  # pragma: no cover
-    ZoneInfo = None
-
-try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment
-except ImportError as e:  # pragma: no cover
-    print(f"ERROR: openpyxl not installed: {e}", file=sys.stderr)
-    sys.exit(2)
+from zoneinfo import ZoneInfo
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
 
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Convert JSON to Excel (.xlsx) with a single worksheet.")
-    p.add_argument("--input", required=True, help="Path to input JSON file (array or object)")
-    p.add_argument("--output-dir", required=True, help="Output directory to write the .xlsx file")
-    p.add_argument("--ip-name", required=True, help="IP name for naming the output file")
-    p.add_argument("--sheet-name", default="Data", help="Worksheet name (default: Data)")
-    return p.parse_args()
+def load_json(path: str):
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 
-def load_json(path: Path):
-    with path.open("r", encoding="utf-8") as f:
-        try:
-            # Preserve key order deterministically
-            return json.load(f, object_pairs_hook=OrderedDict)
-        except json.JSONDecodeError as e:
-            print(f"ERROR: Invalid JSON: {e}", file=sys.stderr)
-            sys.exit(1)
+def validate_structure(data: dict):
+    if not isinstance(data, dict):
+        raise ValueError('JSON root must be an object')
+    if 'metadata' not in data or 'test_cases' not in data:
+        raise ValueError('JSON must contain "metadata" and "test_cases"')
+    if not isinstance(data['test_cases'], list) or len(data['test_cases']) == 0:
+        raise ValueError('"test_cases" must be a non-empty array')
 
 
-def normalize(records):
-    # records can be a dict (single object) or list of dicts
-    if isinstance(records, dict):
-        rows = [records]
-    elif isinstance(records, list):
-        rows = records
-    else:
-        print("ERROR: Unsupported JSON structure: expected object or array of objects", file=sys.stderr)
-        sys.exit(1)
-    if len(rows) == 0:
-        print("ERROR: Empty JSON array", file=sys.stderr)
-        sys.exit(1)
-
-    # Build ordered union of keys based on first appearance
-    columns = []
-    seen = set()
-    for row in rows:
-        if not isinstance(row, dict):
-            print("ERROR: Each array element must be a JSON object", file=sys.stderr)
-            sys.exit(1)
-        for k in row.keys():
-            if k not in seen:
-                seen.add(k)
-                columns.append(k)
-    return columns, rows
+def union_keys_preserve_order(records):
+    seen = []
+    in_seen = set()
+    for rec in records:
+        if not isinstance(rec, dict):
+            raise ValueError('Each test case must be an object')
+        for k in rec.keys():
+            if k not in in_seen:
+                in_seen.add(k)
+                seen.append(k)
+    return seen
 
 
-def to_cell_value(v):
-    # Preserve exact JSON values. Convert lists/dicts to compact JSON string.
-    if isinstance(v, (dict, list)):
-        return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-    return v
+def ensure_dir(path: str):
+    os.makedirs(path, exist_ok=True)
 
 
-def autosize_columns(ws):
-    # Compute max length per column and set width
-    for col in ws.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
-        for cell in col:
-            try:
-                val = "" if cell.value is None else str(cell.value)
-            except Exception:
-                val = ""
-            if len(val) > max_len:
-                max_len = len(val)
-        ws.column_dimensions[col_letter].width = min(max(10, max_len + 2), 120)
+def json_value_to_cell(val):
+    # Preserve exact value; arrays/objects become JSON strings
+    if isinstance(val, (dict, list)):
+        return json.dumps(val, ensure_ascii=False)
+    return val
 
 
-def build_workbook(columns, rows, sheet_name: str) -> Workbook:
+def build_workbook(metadata, records, meta_columns, record_columns):
     wb = Workbook()
     ws = wb.active
-    ws.title = sheet_name
+    ws.title = 'Data'
 
-    # Header
-    header_font = Font(bold=True)
-    ws.append(columns)
+    headers = meta_columns + record_columns
+    ws.append(headers)
+
+    # Bold header
     for cell in ws[1]:
-        cell.font = header_font
-        cell.alignment = Alignment(vertical="top", wrap_text=True)
+        cell.font = Font(bold=True)
 
     # Rows
-    for r in rows:
-        ws.append([to_cell_value(r.get(c, "")) for c in columns])
-    ws.freeze_panes = "A2"
+    for rec in records:
+        row = []
+        for c in meta_columns:
+            row.append(metadata.get(c, ''))
+        for c in record_columns:
+            row.append(json_value_to_cell(rec.get(c, '')))
+        ws.append(row)
 
-    # Basic auto-size
-    autosize_columns(ws)
+    # Freeze top row
+    ws.freeze_panes = 'A2'
+
+    # Auto-fit columns based on max length (basic heuristic)
+    for idx, col in enumerate(ws.iter_cols(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column), start=1):
+        max_len = 0
+        for cell in col:
+            try:
+                val = '' if cell.value is None else str(cell.value)
+            except Exception:
+                val = ''
+            if len(val) > max_len:
+                max_len = len(val)
+        # Set width with bounds
+        width = min(max(12, max_len + 2), 80)
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
     return wb
 
 
-def ist_timestamp() -> str:
-    tz = ZoneInfo("Asia/Kolkata") if ZoneInfo else None
-    now = datetime.now(tz) if tz else datetime.utcnow()
-    if not tz:
-        # Fallback: UTC used if ZoneInfo not available, but append _IST to follow naming rule
-        pass
-    return now.strftime("%Y%m%d_%H%M%S")
+def compute_filename(ip_name: str, tz_name: str):
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    ymd = now.strftime('%Y%m%d')
+    hms = now.strftime('%H%M%S')
+    return f"{ip_name}_TestPlan_{ymd}_{hms}.xlsx"
 
 
 def main():
-    args = parse_args()
-    in_path = Path(args.input)
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description='Convert Test Plan JSON to single-sheet Excel')
+    parser.add_argument('--input', required=True, help='Path to input JSON file')
+    parser.add_argument('--output-dir', required=True, help='Directory to write the Excel file into')
+    parser.add_argument('--ip-name', required=True, help='IP name for filename rule')
+    parser.add_argument('--timezone', default='Asia/Kolkata', help='IANA timezone for IST timestamp in filename')
+    args = parser.parse_args()
 
-    data = load_json(in_path)
-    columns, rows = normalize(data)
+    data = load_json(args.input)
+    validate_structure(data)
 
-    wb = build_workbook(columns, rows, args.sheet_name)
+    metadata = data.get('metadata', {})
+    test_cases = data.get('test_cases', [])
 
-    ts = ist_timestamp()
-    out_name = f"{args.ip_name}_TestPlan_{ts}_IST.xlsx"
-    out_path = out_dir / out_name
+    # Metadata columns first and in this exact order
+    meta_columns = ['ip', 'repository', 'branch', 'subdirectory', 'generated_timestamp_IST']
+    record_columns = union_keys_preserve_order(test_cases)
 
+    wb = build_workbook(metadata, test_cases, meta_columns, record_columns)
+
+    ensure_dir(args.output_dir)
+    filename = compute_filename(args.ip-name if hasattr(args, 'ip-name') else args.ip_name, args.timezone)
+    # Correct attribute: argparse uses underscore, not hyphen
+    filename = compute_filename(args.ip_name, args.timezone)
+    out_path = os.path.join(args.output_dir, filename)
     wb.save(out_path)
-    print(str(out_path))
 
-if __name__ == "__main__":
+    print(f"WROTE {out_path}")
+
+if __name__ == '__main__':
     main()
