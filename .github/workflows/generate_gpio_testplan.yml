@@ -1,10 +1,13 @@
-name: Generate GPIO Test Plan Excel
+name: Generate GPIO TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
-      - 'data/testplans/**'
+      - 'Test_Output/GPIO/TestPlan/input/TestPlan_GPIO.json'
+      - '.github/workflows/generate_gpio_testplan.yml'
+      - 'scripts/generate_testplan_excel.py'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,28 +23,26 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl pytz
-      - name: Generate Excel from JSON
-        run: |
-          python tools/generate_excel_from_json.py \
-            --input data/testplans/GPIO_testplan.json \
-            --output-dir Test_Output/GPIO/TestPlan \
-            --ip-name GPIO
+        run: pip install openpyxl
+      - name: Generate Excel
+        run: python scripts/generate_testplan_excel.py
       - name: Commit Excel
         run: |
-          set -e
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ls Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx 1> /dev/null 2>&1; then
-            FILE=$(ls -t Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx | head -n 1)
-            git add "$FILE"
-            git commit -m "chore(testplan): add/update GPIO test plan Excel (auto-generated)" || echo "No changes to commit"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          CHANGED=$(git status --porcelain Test_Output/GPIO/TestPlan/*.xlsx || true)
+          if [ -n "$CHANGED" ]; then
+            git add Test_Output/GPIO/TestPlan/*.xlsx
+            MSG=$(python - <<'PY'
+from datetime import datetime, timedelta, timezone
+now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+print(now_ist.strftime("Add GPIO Test Plan Excel (generated on %Y-%m-%d %H:%M:%S IST)"))
+PY
+)
+            git commit -m "$MSG"
             git push
           else
-            echo "No Excel file generated to commit."
-            exit 1
+            echo "No Excel changes to commit"
           fi
