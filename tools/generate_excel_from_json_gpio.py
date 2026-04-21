@@ -243,7 +243,7 @@ json_text = r'''{
         "--- Compute expected value from the pattern, read mask, write mask, and default value; increment write-fail count if mismatch.",
         "Complete: Report PASS if both default-fail and write-fail counts are zero; otherwise report FAIL."
       ],
-      "Impacted Registers": "GPIO_8, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1, GPIO_GP0_INTR2_INTR_EN1, GPIO_GP0_INTR2_INTR_STS1, GPIO_GPIO_INTR_RAW_STCLR1, GPIO_GPIO_IO_CTRL_GROUP1, GPIO_GPIO_IO_CTRL_GROUP2, GPIO_GPIO_IO_CTRL_GROUP3, GPIO_GPIO_IO_CTRL_GROUP4, GPIO_GPIO_DOUT_GROUP1, GPIO_GPIO_DOUT_GROUP2, GPIO_GPIO_DOUT_GROUP3, GPIO_GPIO_DOUT_GROUP4, GPIO_GPIO_DIN_GROUP1, GPIO_GPIO_DIN_GROUP2, GPIO_GPIO_DIN_GROUP3, GPIO_GPIO_DIN_GROUP4",
+      "Impacted Registers": "GPIO_8, GPIO_GP0_INTR1_INTR_EN1, GPIO_GP0_INTR1_INTR_STS1, GPIO_GP0_INTR2_INTR_EN1, GPIO_GP0_INTR2_INTR_STS1, GPIO_GPIO_INTR_RAW_STCLR1, GPIO_GPIO_IO_CTRL_GROUP1, GPIO_GPIO_IO_CTRL_GROUP2, GPIO_GPIO_IO_CTRL_GROUP3, GPIO_GPIO_IO_CTRL_GROUP4, GPIO_GPIO_DOUT_GROUP1, GPIO_GPIO_DOUT_GROUP2, GPIO_GPIO_DOUT_GROUP3, GPIO_GPIO_DOUT_GROUP4, GPIO_GPIO_DIN_GROUP1, GPIO_GPIO_DIN_GROUP2, GPIO_GPIO_GPIO_DIN_GROUP3, GPIO_GPIO_GPIO_DIN_GROUP4",
       "Validation / Acceptance Criteria": [
         "Default-value phase: for each non-skipped, readable register, the masked read equals the corresponding default table entry.",
         "Write/read phase: for each non-skipped register, masked readback equals the expected value derived from pattern, read mask, write mask, and default value.",
@@ -467,3 +467,5 @@ with open(output_dir / 'generated_path.txt', 'w', encoding='utf-8') as f:
     f.write(str(output_path))
 
 print(f'Wrote: {output_path}')
+
+# no-op trigger to re-run workflow
