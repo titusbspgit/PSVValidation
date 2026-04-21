@@ -1,10 +1,12 @@
-name: Generate GPIO TestPlan Excel (Stage1 Fallback)
+name: Generate GPIO Test Plan Excel (Stage1 Fallback)
 
 on:
   push:
+    branches: [ main ]
     paths:
       - .github/workflows/generate_gpio_testplan_excel.yml
-      - .github/scripts/gen_gpio_excel.py
+      - tools/generate_excel_from_json_gpio.py
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,7 +15,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -25,33 +27,22 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
+          pip install openpyxl pytz
 
-      - name: Compute IST timestamps for filename and commit message
+      - name: Generate Excel from JSON (Stage1 formatting)
         run: |
-          export TZ=Asia/Kolkata
-          echo "TS_FN=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
-          echo "TS_HUMAN=$(date '+%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_ENV
+          python tools/generate_excel_from_json_gpio.py
 
-      - name: Generate Excel from embedded JSON
-        env:
-          OUTPUT_DIR: Test_Output/GPIO/TestPlan
-          IP_NAME: GPIO
-          TS_FN: ${{ env.TS_FN }}
+      - name: Commit finalized Excel
         run: |
-          python .github/scripts/gen_gpio_excel.py
-
-      - name: Commit and push Excel file
-        env:
-          TS_HUMAN: ${{ env.TS_HUMAN }}
-          TS_FN: ${{ env.TS_FN }}
-        run: |
-          FILE="Test_Output/GPIO/TestPlan/GPIO_TestPlan_${TS_FN}.xlsx"
+          FILE_PATH="$(cat generated_gpio_excel_path.txt)"
+          echo "Generated file: ${FILE_PATH}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILE"
-          git commit -m "Add GPIO TestPlan Excel generated on ${TS_HUMAN}" || echo "No changes to commit"
-          git push
-
-      - name: Output file path
-        run: echo "Generated file at Test_Output/GPIO/TestPlan/GPIO_TestPlan_${{ env.TS_FN }}.xlsx"
+          git add "${FILE_PATH}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
