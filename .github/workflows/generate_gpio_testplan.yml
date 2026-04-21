@@ -1,0 +1,47 @@
+name: Generate GPIO Test Plan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data/testplans/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl pytz
+      - name: Generate Excel from JSON
+        run: |
+          python tools/generate_excel_from_json.py \
+            --input data/testplans/GPIO_testplan.json \
+            --output-dir Test_Output/GPIO/TestPlan \
+            --ip-name GPIO
+      - name: Commit Excel
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ls Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx 1> /dev/null 2>&1; then
+            FILE=$(ls -t Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx | head -n 1)
+            git add "$FILE"
+            git commit -m "chore(testplan): add/update GPIO test plan Excel (auto-generated)" || echo "No changes to commit"
+            git push
+          else
+            echo "No Excel file generated to commit."
+            exit 1
+          fi
