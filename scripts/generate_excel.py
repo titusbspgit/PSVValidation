@@ -103,7 +103,7 @@ def main():
     wb = Workbook()
     ws = wb.active
     ws.title = 'Data'
-    # Headers
+    # Headers (base sheet)
     for ci, h in enumerate(header_order, start=1):
         c = ws.cell(row=1, column=ci, value=h)
         c.font = Font(bold=True)
@@ -115,13 +115,11 @@ def main():
             v = row.get(h, '')
             ws.cell(row=ri, column=ci, value=json_to_str(v))
     auto_fit(ws)
-    # Create Meta sheet
+    # Create Meta sheet (no formatting per spec)
     meta_ws = wb.create_sheet('Meta_data_sheet')
     present_meta = [c for c in meta_cols if c in header_order]
     for ci, h in enumerate(present_meta, start=1):
-        cell = meta_ws.cell(row=1, column=ci, value=h)
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        meta_ws.cell(row=1, column=ci, value=h)
     # Copy values
     for ri in range(2, ws.max_row + 1):
         for ci, h in enumerate(present_meta, start=1):
@@ -144,7 +142,7 @@ def main():
     del wb['Data']
     testplan_tmp.title = 'TestPlan'
     tp = wb['TestPlan']
-    # Strict formatting (visual only)
+    # Strict formatting (visual only) applied ONLY to TestPlan
     wrap_cols = {
         'Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria'
     }
