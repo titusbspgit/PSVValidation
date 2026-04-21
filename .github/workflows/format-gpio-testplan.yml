@@ -1,48 +1,39 @@
-name: Format GPIO TestPlan
+name: Format GPIO Test Plan Excel
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - ag-excel-gpio-testplan-1
+    branches: [ main ]
     paths:
-      - '.github/workflows/format-gpio-testplan.yml'
-      - 'scripts/format_excel.py'
-      - 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx'
-
-permissions:
-  contents: write
-
-env:
-  FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx
-  OUTPUT_FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_1.xlsx
-  OUTPUT_FILE_NAME: GPIO_TestPlan_1.xlsx
-  COMMIT_MESSAGE: " TestPlan Generated and Pushed to Github"
-  TARGET_BRANCH: main
+      - .github/scripts/format_testplan_excel.py
+      - .github/workflows/format-gpio-testplan.yml
 
 jobs:
-  run:
+  format-excel:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Run Excel formatter
+
+      - name: Run formatter script
         run: |
-          python scripts/format_excel.py
-      - name: Commit formatted file to main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          python .github/scripts/format_testplan_excel.py --file "Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260420_053000.xlsx"
+
+      - name: Commit and push changes
         run: |
-          git config user.name "Ag-Emb-Mpsoc-Excel-Formatter Agent"
-          git config user.email "actions@github.com"
-          git add "${{ env.OUTPUT_FILE_PATH }}"
-          git commit -m "${{ env.COMMIT_MESSAGE }}" || echo "No changes to commit"
-          git push origin HEAD:${{ env.TARGET_BRANCH }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260420_053000.xlsx"
+          git commit -m "Format GPIO Test Plan Excel to standard (IST)" || echo "No changes to commit"
+          git push
