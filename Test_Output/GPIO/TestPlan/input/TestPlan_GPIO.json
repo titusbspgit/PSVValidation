@@ -167,11 +167,11 @@
       ],
       "Hidden_Impacted_Registers": "MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27, MIZAR_GPIO_GP0_GPIO_28, MIZAR_GPIO_GP0_GPIO_29, MIZAR_GPIO_GP0_GPIO_30, MIZAR_GPIO_GP0_GPIO_31, MIZAR_GPIO_GP0_GPIO_32, MIZAR_GPIO_GP0_GPIO_33, MIZAR_GPIO_GP0_GPIO_34, MIZAR_GPIO_GP0_GPIO_35, MIZAR_GPIO_GP0_GPIO_36, MIZAR_GPIO_GP0_GPIO_37, MIZAR_GPIO_GP0_GPIO_38, MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_INTR_EN1, MIZAR_LSS_SYSREG_RAW_STCR1",
       "Hidden_Validation_Acceptance_Criteria": [
-        "No per-pin timeout occurs in the wait loop (interrupt observed before timeout expires)",
-        "In ISR: per-pin DIN bit reads 0 after the falling edge",
-        "In ISR: per-pin raw/latched status indicates an event and group interrupt status has the bit set for the active pin",
-        "After ISR clear sequence: group interrupt status reads back 0",
-        "After ISR: system raw status for the selected GPIO instance is cleared"
+        "No timeout while waiting for the interrupt after generating the rising edge for each pin",
+        "During ISR entry: group interrupt status indicates an interrupt is raised (non-zero)",
+        "After clearing per-pin raw status for all pins: group interrupt status reads back 0",
+        "System raw status for the selected GPIO instance reads as cleared after W1C operation",
+        "Interrupt line is re-enabled for subsequent iterations"
       ]
     },
     {
