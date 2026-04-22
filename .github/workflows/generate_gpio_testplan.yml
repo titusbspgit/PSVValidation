@@ -1,3 +1,4 @@
+# noop trigger for workflow re-run
 name: Generate GPIO TestPlan Excel (Stage1 Fallback)
 
 # Trigger updated to run workflow and regenerate Excel
