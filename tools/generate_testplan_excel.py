@@ -261,7 +261,7 @@ WRAP_COLS = {
 
 BLUE_FILL = PatternFill(fill_type="solid", start_color="4472C4", end_color="4472C4")
 THIN_BORDER = Border(
-    left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin")
+    left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side("thin")
 )
 
 
@@ -294,16 +294,13 @@ def autosize_columns(ws, header_order: List[str]):
                     max_len = len(line)
         # clamp for readability
         width = min(max(10, max_len + 2), 80)
-        ws.column_dimensions[chr(64 + col_idx) if col_idx <= 26 else None].width = width
-        # For columns beyond Z, map properly
-        if col_idx > 26:
-            # compute Excel column letters
-            n = col_idx
-            letters = ""
-            while n:
-                n, rem = divmod(n - 1, 26)
-                letters = chr(65 + rem) + letters
-            ws.column_dimensions[letters].width = width
+        # compute Excel column letters properly
+        n = col_idx
+        letters = ""
+        while n:
+            n, rem = divmod(n - 1, 26)
+            letters = chr(65 + rem) + letters
+        ws.column_dimensions[letters].width = width
 
 
 def apply_formatting(ws, header_order: List[str]):
