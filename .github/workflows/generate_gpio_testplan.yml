@@ -1,5 +1,6 @@
 name: Generate GPIO TestPlan Excel (Stage1 Fallback)
 
+# Trigger updated to run workflow and regenerate Excel
 on:
   push:
     branches: [ main ]
