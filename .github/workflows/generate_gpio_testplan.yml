@@ -1,7 +1,5 @@
-# noop trigger for workflow re-run
 name: Generate GPIO TestPlan Excel (Stage1 Fallback)
 
-# Trigger updated to run workflow and regenerate Excel
 on:
   push:
     branches: [ main ]
@@ -9,6 +7,9 @@ on:
       - .github/workflows/generate_gpio_testplan.yml
       - tools/generate_testplan_excel.py
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -37,7 +38,7 @@ jobs:
           IST_NOW="$(date +'%Y-%m-%d %H:%M:%S IST')"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/*.xlsx
+          git add Test_Output/GPIO/TestPlan/*.xlsx || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
