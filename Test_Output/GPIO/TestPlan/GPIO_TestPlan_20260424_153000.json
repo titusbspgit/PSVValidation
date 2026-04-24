@@ -5,12 +5,27 @@
     "branch": "main",
     "subdirectory": "TestRepo/gpio",
     "commit_hash": "TBD",
-    "generation_timestamp_ist": "2026-04-24T15:30:00+05:30",
+    "generation_timestamp_ist": "2026-04-24T10:25:49+0530",
     "source_to_testcase_mapping": [
-      {"folder": "gpio_reg_wr_rd_test/", "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test"},
-      {"folder": "test_gpio_negedge_intr_en/", "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en"},
-      {"folder": "test_gpio_pedge_all_pads_en/", "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_pedge_all_pads_en"}
-    ]
+      {
+        "folder": "gpio_reg_wr_rd_test/",
+        "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test"
+      },
+      {
+        "folder": "test_gpio_negedge_intr_en/",
+        "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en"
+      },
+      {
+        "folder": "test_gpio_pedge_all_pads_en/",
+        "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_pedge_all_pads_en"
+      }
+    ],
+    "output_commit_hash": "5d4a11228cded2ba71cc0fdf33336fba44d6091c",
+    "artifacts": {
+      "excel_filename": "GPIO_TestPlan__.xlsx",
+      "excel_path": "Test_Output/GPIO/TestPlan/GPIO_TestPlan__.xlsx",
+      "excel_url": "https://github.com/titusbspgit/PSVValidation/blob/main/Test_Output/GPIO/TestPlan/GPIO_TestPlan__.xlsx"
+    }
   },
   "TEST_CASES": [
     {
