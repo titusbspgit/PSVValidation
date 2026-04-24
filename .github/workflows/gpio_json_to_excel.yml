@@ -2,65 +2,36 @@ name: Generate TestPlan Excel from JSON (GPIO)
 
 on:
   push:
-    branches: [ "main" ]
     paths:
-      - ".github/workflows/gpio_json_to_excel.yml"
+      - .github/workflows/gpio_json_to_excel.yml
   workflow_dispatch: {}
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-and-commit-excel:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Setup Python
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Write JSON input (GPIO consolidated Test Plan)
+          python-version: '3.11'
+
+      - name: Install Python dependencies
         run: |
-          mkdir -p json_input
-          cat > json_input/input.json <<'JSON_EOF'
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Create input JSON from inline data
+        run: |
+          cat > input_gpio_testplan.json << 'JSON'
           {
-            "META_DATA": {
-              "ip_name": "GPIO",
-              "repository": "titusbspgit/PSVValidation",
-              "branch": "main",
-              "subdirectory": "TestRepo/gpio",
-              "analysis_commit_hash": "1edeaa70b2da09b4277feac8a54c9b4d595bddc5",
-              "output_commit_hash": "",
-              "generation_timestamp_ist": "",
-              "macro_to_register_mapping_applied_in_MAIN": true,
-              "source_to_testcase_mapping": [
-                {
-                  "folder": "gpio_reg_wr_rd_test/",
-                  "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test"
-                },
-                {
-                  "folder": "test_gpio_negedge_intr_en/",
-                  "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en"
-                },
-                {
-                  "folder": "test_gpio_pedge_all_pads_en/",
-                  "url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_pedge_all_pads_en"
-                }
-              ],
-              "artifacts": {
-                "output_directory": "Test_Output/GPIO/TestPlan/",
-                "excel_filename": "",
-                "excel_path": "",
-                "excel_url": "",
-                "json_filename": "",
-                "json_path": "",
-                "json_url": "",
-                "commit_message": "Final formatted Excel generated from JSON input"
-              }
-            },
             "TEST_CASES": [
               {
                 "Index": 1,
@@ -84,7 +55,7 @@ jobs:
                   "Complete all pattern iterations and aggregate failures.",
                   "Finish with pass if both failure counters remain zero; otherwise, finish with fail."
                 ],
-                "Impacted Registers": "GP0_GPIO_8,GP0_GPIO_9,GP0_GPIO_10,GP0_GPIO_11,GP0_GPIO_12,GP0_GPIO_13,GP0_GPIO_14,GP0_GPIO_15,GP0_GPIO_16,GP0_GPIO_17,GP0_GPIO_18,GP0_GPIO_19,GP0_GPIO_20,GP0_GPIO_21,GP0_GPIO_22,GP0_GPIO_23,GP0_GPIO_24,GP0_GPIO_25,GP0_GPIO_26,GP0_GPIO_27,GP0_GPIO_28,GP0_GPIO_29,GP0_GPIO_30,GP0_GPIO_31,GP0_GPIO_32,GP0_GPIO_33,GP0_GPIO_34,GP0_GPIO_35,GP0_GPIO_36,GP0_GPIO_37,GP0_GPIO_38,GP0_GPIO_39,GPIO_INTR_RAW_STCLR1,GP0_INTR1_INTR_EN1,GP0_INTR1_INTR_STS1,GP0_INTR2_INTR_EN1,GP0_INTR2_INTR_STS1,GPIO_IO_CTRL_GROUP1,GPIO_IO_CTRL_GROUP2,GPIO_IO_CTRL_GROUP3,GPIO_IO_CTRL_GROUP4,GPIO_DOUT_GROUP1,GPIO_DOUT_GROUP2,GPIO_DOUT_GROUP3,GPIO_DOUT_GROUP4,GPIO_DIN_GROUP1,GPIO_DIN_GROUP2,GPIO_DIN_GROUP3,GPIO_DIN_GROUP4",
+                "Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,MIZAR_GPIO_GP0_GPIO_28,MIZAR_GPIO_GP0_GPIO_29,MIZAR_GPIO_GP0_GPIO_30,MIZAR_GPIO_GP0_GPIO_31,MIZAR_GPIO_GP0_GPIO_32,MIZAR_GPIO_GP0_GPIO_33,MIZAR_GPIO_GP0_GPIO_34,MIZAR_GPIO_GP0_GPIO_35,MIZAR_GPIO_GP0_GPIO_36,MIZAR_GPIO_GP0_GPIO_37,MIZAR_GPIO_GP0_GPIO_38,MIZAR_GPIO_GP0_GPIO_39,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1,MIZAR_GPIO_GP0_INTR2_INTR_EN1,MIZAR_GPIO_GP0_INTR2_INTR_STS1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GPIO_DOUT_GROUP1,MIZAR_GPIO_GPIO_DOUT_GROUP2,MIZAR_GPIO_GPIO_DOUT_GROUP3,MIZAR_GPIO_GPIO_DOUT_GROUP4,MIZAR_GPIO_GPIO_DIN_GROUP1,MIZAR_GPIO_GPIO_DIN_GROUP2,MIZAR_GPIO_GPIO_DIN_GROUP3,MIZAR_GPIO_GPIO_DIN_GROUP4",
                 "Validation / Acceptance Criteria": [
                   "Reset default check: For each non-skipped, readable address, the read value with bit0 cleared must equal the documented default value.",
                   "Write/read check: For each non-skipped address that is both writable and readable, the masked readback must equal the expected value computed from the masked write data combined with preserved default bits for unwritable fields.",
@@ -102,7 +73,7 @@ jobs:
                   "- if (read_mask_array[i] == 0x00000000) continue.",
                   "- READ: data_rd = read_reg(addr).",
                   "- MODIFY local: data = (data_rd & 0xfffffffe).",
-                  "- COMPARE: if (data == default_value_array[i]) pass else { def_fail_cnt++; printf failure }. (Register macro source for addr: one of MIZAR_GPIO_GP0_GPIO_8..39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR*_* , MIZAR_GPIO_GPIO_IO_CTRL_GROUP*, MIZAR_GPIO_GPIO_DOUT_GROUP*, MIZAR_GPIO_GPIO_DIN_GROUP*)",
+                  "- COMPARE: if (data == default_value_array[i]) pass else { def_fail_cnt++; printf failure }. (Register macro source for addr: one of MIZAR_GPIO_GP0_GPIO_8..39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR*_*, MIZAR_GPIO_GPIO_IO_CTRL_GROUP*, MIZAR_GPIO_GPIO_DOUT_GROUP*, MIZAR_GPIO_GPIO_DIN_GROUP*)",
                   "Return to test_case().",
                   "Invoke chk_rd_wr().",
                   "In chk_rd_wr(): define chk_val[6] = {0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000}.",
@@ -153,7 +124,7 @@ jobs:
                   "If the timeout expires before the interrupt is observed, record an error for that pin.",
                   "Finish with the aggregated error count."
                 ],
-                "Impacted Registers": "INTR_EN1,RAW_STCR1,GP0_GPIO_8,GPIO_INTR_RAW_STCLR1,GP0_INTR1_INTR_EN1,GP0_INTR1_INTR_STS1",
+                "Impacted Registers": "MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_LSS_SYSREG_RAW_STCR1,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GPIO_INTR_RAW_STCLR1,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1",
                 "Validation / Acceptance Criteria": [
                   "Timeout handling: no wait loop should expire while waiting for the interrupt; a timeout indicates failure.",
                   "Per-pin post-edge: the input data bit must be low after a negative edge.",
@@ -183,7 +154,7 @@ jobs:
                   "- wait_on(10).",
                   "- Arm wait: int_pend = 1.",
                   "- Create negedge: WRITE 0xA0243ffc = 0xFFFFFFFF; wait_on(30); WRITE 0xA0243ffc = ~wr_val.",
-                  "- Bounded wait: timeout = 5000; while (int_pend && timeout--) { wait_on(10); }.
+                  "- Bounded wait: timeout = 5000; while (int_pend && timeout--) { wait_on(10); }.",
                   "- If (timeout == 0): printf timeout error; test_err++.",
                   "END: finish(test_err).",
                   "ISR: void Default_IRQHandler():",
@@ -207,7 +178,7 @@ jobs:
                   "ISR: require (rdata & 0x1) == 0 (DIN low) after negedge.",
                   "ISR: require (rdata & 0x2) != 0x0 indicating raw set; and ((read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) & (1u<<i)) != 0).",
                   "After clearing per-pin iclr and group RAW, require read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) == 0x0.",
-                  "System raw clear require: after writing MIZAR_LSS_SYSREG_RAW_STCR1 appropriate bit, a readback must show the bit cleared; else increment test_err.",
+                  "System raw clear require: after WRITE MIZAR_LSS_SYSREG_RAW_STCR1 = appropriate bit, subsequent READ should have that bit cleared.",
                   "Overall: finish(test_err) with test_err == 0."
                 ]
               },
@@ -235,7 +206,7 @@ jobs:
                   "After each event, drive low again and delay.",
                   "Finish with the aggregated error count."
                 ],
-                "Impacted Registers": "INTR_EN1,RAW_STCR1,GP0_GPIO_8,GPIO_IO_CTRL_GROUP1,GPIO_IO_CTRL_GROUP2,GPIO_IO_CTRL_GROUP3,GPIO_IO_CTRL_GROUP4,GP0_INTR1_INTR_EN1,GP0_INTR1_INTR_STS1",
+                "Impacted Registers": "MIZAR_LSS_SYSREG_INTR_EN1,MIZAR_LSS_SYSREG_RAW_STCR1,MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GPIO_IO_CTRL_GROUP1,MIZAR_GPIO_GPIO_IO_CTRL_GROUP2,MIZAR_GPIO_GPIO_IO_CTRL_GROUP3,MIZAR_GPIO_GPIO_IO_CTRL_GROUP4,MIZAR_GPIO_GP0_INTR1_INTR_EN1,MIZAR_GPIO_GP0_INTR1_INTR_STS1",
                 "Validation / Acceptance Criteria": [
                   "No wait loop should exhaust its timeout when waiting for the interrupt following a rising transition.",
                   "The group masked status must indicate an interrupt when entered in the handler.",
@@ -288,220 +259,15 @@ jobs:
               }
             ]
           }
-          JSON_EOF
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
-      - name: Generate formatted Excel (Stage1 rules)
-        id: gen
+          JSON
+
+      - name: Generate Stage1-formatted Excel and commit
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          IP_NAME: GPIO
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
         run: |
-          python - <<'PY_EOF'
-          import json, os
-          from datetime import datetime, timezone, timedelta
-          from openpyxl import Workbook
-          from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-          from openpyxl.utils import get_column_letter
-          from openpyxl.worksheet.datavalidation import DataValidation
+          python scripts/json_to_excel_stage1.py \
+            --input input_gpio_testplan.json \
+            --ip-name "$IP_NAME" \
+            --output-dir "$OUTPUT_DIR"
 
-          def norm(v):
-              if isinstance(v, (list, dict)):
-                  return json.dumps(v, ensure_ascii=False)
-              return v
-
-          # Load JSON
-          with open('json_input/input.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-          rows = data.get('TEST_CASES', [])
-          if not isinstance(rows, list) or len(rows) == 0:
-              raise SystemExit('No TEST_CASES found in input JSON')
-
-          # Union headers preserving first-seen order
-          headers = []
-          seen = set()
-          for row in rows:
-              if isinstance(row, dict):
-                  for k in row.keys():
-                      if k not in seen:
-                          seen.add(k)
-                          headers.append(k)
-
-          # Create base workbook and Data sheet
-          wb = Workbook()
-          ws = wb.active
-          ws.title = 'Data'
-
-          for c, k in enumerate(headers, 1):
-              ws.cell(row=1, column=c, value=k)
-          for r, row in enumerate(rows, start=2):
-              for c, k in enumerate(headers, start=1):
-                  ws.cell(row=r, column=c, value=norm(row.get(k, "")))
-
-          # Basic formatting for Data sheet
-          for cell in ws[1]:
-              cell.font = Font(bold=True)
-              cell.alignment = Alignment(horizontal='center', vertical='center')
-          ws.freeze_panes = 'A2'
-          # Auto-fit approximate widths
-          for c, k in enumerate(headers, 1):
-              maxlen = len(str(k))
-              for r in range(2, ws.max_row + 1):
-                  val = ws.cell(row=r, column=c).value
-                  if val is None:
-                      continue
-                  s = str(val)
-                  for part in s.splitlines():
-                      if len(part) > maxlen:
-                          maxlen = len(part)
-              ws.column_dimensions[get_column_letter(c)].width = min(100, maxlen + 2)
-
-          # Create Meta_data_sheet and copy META columns
-          meta_cols = [
-              'Hidden_Test_Case_Name',
-              'Hidden_Test_Description',
-              'Hidden_Remarks',
-              'Hidden_Test_Steps_Procedure',
-              'Hidden_Impacted_Registers',
-              'Hidden_Validation_Acceptance_Criteria'
-          ]
-          meta_ws = wb.create_sheet('Meta_data_sheet')
-          for c, k in enumerate(meta_cols, 1):
-              meta_ws.cell(row=1, column=c, value=k)
-          for r, row in enumerate(rows, 2):
-              for c, k in enumerate(meta_cols, 1):
-                  meta_ws.cell(row=r, column=c, value=norm(row.get(k, "")))
-          meta_ws.sheet_state = 'veryHidden'
-
-          # Build TestPlan sheet with MAIN columns in strict order
-          main_order = [
-              'Index',
-              'SS / Module',
-              'Feature',
-              'Test Case Name',
-              'Test Description',
-              'Speed',
-              'Mode',
-              'Memory Start Offset',
-              'Memory End Offset',
-              'Remarks',
-              'Test Steps / Procedure',
-              'Impacted Registers',
-              'Validation / Acceptance Criteria',
-              'Code Generation (Required / Not)'
-          ]
-
-          tp = wb.create_sheet('TP2')
-          for c, k in enumerate(main_order, 1):
-              tp.cell(row=1, column=c, value=k)
-          for r, row in enumerate(rows, 2):
-              for c, k in enumerate(main_order, 1):
-                  tp.cell(row=r, column=c, value=norm(row.get(k, "")))
-
-          # Formatting for TestPlan sheet
-          # Header formatting: bold, centered, blue fill
-          header_fill = PatternFill(fill_type='solid', start_color='FF1F4E79', end_color='FF1F4E79')
-          for cell in tp[1]:
-              cell.font = Font(bold=True)
-              cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-              cell.fill = header_fill
-          tp.freeze_panes = 'A2'
-
-          # Wrap text for specified columns
-          wrap_cols = set([
-              'Test Description',
-              'Remarks',
-              'Test Steps / Procedure',
-              'Validation / Acceptance Criteria'
-          ])
-          col_index = {tp.cell(row=1, column=c).value: c for c in range(1, tp.max_column + 1)}
-
-          # Data row alignment and wrapping
-          for r in range(2, tp.max_row + 1):
-              for c in range(1, tp.max_column + 1):
-                  hdr = tp.cell(row=1, column=c).value
-                  cell = tp.cell(row=r, column=c)
-                  wrap = hdr in wrap_cols
-                  if hdr == 'Index':
-                      cell.alignment = Alignment(horizontal='center', vertical='top', wrap_text=wrap)
-                  else:
-                      cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=wrap)
-
-          # Borders for all populated cells
-          thin = Side(border_style='thin', color='FF000000')
-          border = Border(left=thin, right=thin, top=thin, bottom=thin)
-          for r in range(1, tp.max_row + 1):
-              for c in range(1, tp.max_column + 1):
-                  tp.cell(row=r, column=c).border = border
-
-          # Auto-fit column widths for TestPlan
-          for c in range(1, tp.max_column + 1):
-              hdr = str(tp.cell(row=1, column=c).value)
-              maxlen = len(hdr)
-              for r in range(2, tp.max_row + 1):
-                  val = tp.cell(row=r, column=c).value
-                  if val is None:
-                      continue
-                  s = str(val)
-                  for part in s.splitlines():
-                      if len(part) > maxlen:
-                          maxlen = len(part)
-              tp.column_dimensions[get_column_letter(c)].width = min(120, maxlen + 2)
-
-          # Approximate row heights based on wrapped columns
-          base_h = 15
-          for r in range(2, tp.max_row + 1):
-              max_lines = 1
-              for name in wrap_cols:
-                  c = col_index.get(name)
-                  if c:
-                      val = tp.cell(row=r, column=c).value
-                      if val is None:
-                          continue
-                      s = str(val)
-                      lines = s.count('\n') + 1
-                      if lines > max_lines:
-                          max_lines = lines
-              tp.row_dimensions[r].height = base_h * max_lines
-
-          # Data validation for Code Generation (Required / Not)
-          cg_col = col_index.get('Code Generation (Required / Not)')
-          if cg_col:
-              col_letter = get_column_letter(cg_col)
-              dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True, showDropDown=True)
-              tp.add_data_validation(dv)
-              dv.add(f"{col_letter}2:{col_letter}{tp.max_row}")
-
-          # Remove original Data sheet and rename TP2 to TestPlan
-          wb.remove(ws)
-          tp.title = 'TestPlan'
-
-          # Save to IST-based filename
-          ist = timezone(timedelta(hours=5, minutes=30))
-          now = datetime.now(ist)
-          out_dir = os.path.join('Test_Output', 'GPIO', 'TestPlan')
-          os.makedirs(out_dir, exist_ok=True)
-          fname = f"GPIO_TestPlan_{now.strftime('%Y%m%d')}_{now.strftime('%H%M%S')}.xlsx"
-          out_path = os.path.join(out_dir, fname)
-          wb.save(out_path)
-
-          # Emit outputs
-          gh_out = os.environ.get('GITHUB_OUTPUT')
-          if gh_out:
-              with open(gh_out, 'a', encoding='utf-8') as f:
-                  f.write(f"excel_path={out_path}\n")
-                  f.write(f"generation_timestamp_ist={now.isoformat()}\n")
-                  repo = os.environ.get('GITHUB_REPOSITORY', '')
-                  if repo:
-                      url = f"https://github.com/{repo}/blob/main/{out_path}"
-                      f.write(f"excel_url={url}\n")
-          PY_EOF
-      - name: Commit finalized Excel to main
-        if: ${{ steps.gen.outputs.excel_path != '' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${{ steps.gen.outputs.excel_path }}"
-          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
-          git push || (echo "Push failed" && exit 1)
