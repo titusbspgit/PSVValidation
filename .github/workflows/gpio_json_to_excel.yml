@@ -180,7 +180,7 @@ jobs:
                   "- wait_on(10).",
                   "- Arm wait: int_pend = 1.",
                   "- Create negedge: WRITE 0xA0243ffc = 0xFFFFFFFF; wait_on(30); WRITE 0xA0243ffc = ~wr_val.",
-                  "- Bounded wait: timeout = 5000; while (int_pend && timeout--) { wait_on(10); }.",
+                  "- Bounded wait: timeout = 5000; while (int_pend && timeout--) { wait_on(10); }.
                   "- If (timeout == 0): printf timeout error; test_err++.",
                   "END: finish(test_err).",
                   "ISR: void Default_IRQHandler():",
@@ -502,3 +502,5 @@ jobs:
           git add "${{ steps.gen.outputs.excel_path }}"
           git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
           git push || echo "Push skipped"
+
+# retrigger
