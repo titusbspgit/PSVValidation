@@ -7,6 +7,9 @@ on:
       - ".github/workflows/gpio_json_to_excel.yml"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -204,7 +207,7 @@ jobs:
                   "ISR: require (rdata & 0x1) == 0 (DIN low) after negedge.",
                   "ISR: require (rdata & 0x2) != 0x0 indicating raw set; and ((read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) & (1u<<i)) != 0).",
                   "After clearing per-pin iclr and group RAW, require read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) == 0x0.",
-                  "System raw clear require: after WRITE MIZAR_LSS_SYSREG_RAW_STCR1 = appropriate bit, subsequent READ should have that bit cleared.",
+                  "System raw clear require: after writing MIZAR_LSS_SYSREG_RAW_STCR1 appropriate bit, a readback must show the bit cleared; else increment test_err.",
                   "Overall: finish(test_err) with test_err == 0."
                 ]
               },
@@ -501,6 +504,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "${{ steps.gen.outputs.excel_path }}"
           git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
-          git push || echo "Push skipped"
-
-# retrigger
+          git push || (echo "Push failed" && exit 1)
