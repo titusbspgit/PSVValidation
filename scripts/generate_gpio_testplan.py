@@ -133,8 +133,6 @@ meta_ws.append(HIDDEN_COLUMNS)
 for rec in rows:
     meta_ws.append([to_cell_value(rec.get(h, '')) for h in HIDDEN_COLUMNS])
 
-# Hide Meta sheet as veryHidden later after all operations
-
 # Convert Data -> TestPlan by removing extra columns and ordering MAIN columns
 # Map current headers to indices
 header_map = {ws.cell(row=1, column=i).value: i for i in range(1, ws.max_column + 1)}
@@ -151,6 +149,9 @@ for r in range(2, ws.max_row + 1):
         src_col = header_map.get(h)
         val = ws.cell(row=r, column=src_col).value if src_col else ''
         plan.cell(row=r, column=c, value=val)
+
+# Enable AutoFilter across the data range
+plan.auto_filter.ref = f"A1:{get_column_letter(plan.max_column)}{plan.max_row}"
 
 # Apply formatting to TestPlan only
 # Header styling
@@ -218,18 +219,19 @@ for i, url in enumerate(source_urls, start=2):
 auto_width(plan)
 set_row_heights(plan, wrap_cols_idx)
 
-# Hide Meta sheet
-meta_ws.sheet_state = 'veryHidden'
-
-# Remove original Data sheet
-wb.remove(ws)
-
 # Compute IST timestamp and filename
 ist = pytz.timezone('Asia/Kolkata')
 now_ist = datetime.now(ist)
 stamp_date = now_ist.strftime('%Y%m%d')
 stamp_time = now_ist.strftime('%H%M%S')
 filename = f'GPIO_TestPlan_{stamp_date}_{stamp_time}.xlsx'
+
+# Add IST timestamp to META sheet and then hide it
+meta_ws.append(['Generated_Timestamp_IST', now_ist.strftime('%Y-%m-%d %H:%M:%S')])
+meta_ws.sheet_state = 'veryHidden'
+
+# Remove original Data sheet
+wb.remove(ws)
 
 # Ensure output dir
 os.makedirs(OUTPUT_DIR, exist_ok=True)
