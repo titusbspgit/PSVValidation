@@ -1,0 +1,67 @@
+{
+  "ip": "SPI",
+  "generated_ist": "2026-04-27 18:30:00 IST",
+  "source_base": "TestRepo/spi",
+  "tests": [
+    {
+      "id": "SPI_PIO_FULL_DUPLEX",
+      "name": "SPI PIO Full Duplex",
+      "description": "Validate SPI full-duplex transfers using CPU-driven (PIO) RX/TX.",
+      "category": ["functional", "sanity"],
+      "repo_paths": ["TestRepo/spi/spi_pio_full_duplex"],
+      "source_files": [],
+      "configs": {
+        "transfer_mode": "full_duplex",
+        "data_path_rx": "PIO",
+        "data_path_tx": "PIO",
+        "dma": "disabled"
+      },
+      "dependencies": [
+        "SPI controller initialized",
+        "Valid loopback or SPI slave device available",
+        "Clock polarity/phase configured per mode"
+      ],
+      "expected_result": "RX data matches TX data across transfer length; no frame/overrun/underrun errors; status registers clean.",
+      "tags": ["SPI", "PIO", "FullDuplex", "NoDMA"]
+    },
+    {
+      "id": "SPI_PIO_RX_DMA_TX",
+      "name": "SPI PIO RX, DMA TX",
+      "description": "Validate hybrid path where TX uses DMA and RX uses PIO.",
+      "category": ["functional", "integration"],
+      "repo_paths": ["TestRepo/spi/spi_pio_rx_dma_tx"],
+      "source_files": [],
+      "configs": {
+        "transfer_mode": "full_or_half_duplex (unspecified)",
+        "data_path_rx": "PIO",
+        "data_path_tx": "DMA",
+        "dma_channels": "TX channel enabled"
+      },
+      "dependencies": [
+        "DMA engine configured for SPI TX",
+        "SPI controller and descriptors prepared",
+        "Loopback or known-response SPI slave"
+      ],
+      "expected_result": "DMA-driven TX completes without errors, PIO RX collects expected data; descriptor/status indicate success.",
+      "tags": ["SPI", "PIO_RX", "DMA_TX", "Hybrid"]
+    },
+    {
+      "id": "SPI_REG_WR_RD",
+      "name": "SPI Register Write/Read Test",
+      "description": "Sanity check for SPI register accessibility, default resets, and read-back equivalence.",
+      "category": ["sanity", "configuration"],
+      "repo_paths": ["TestRepo/spi/spi_reg_wr_rd_test"],
+      "source_files": [],
+      "configs": {
+        "access": "MMIO register read/write",
+        "scope": "key control/status/config registers"
+      },
+      "dependencies": [
+        "SoC clock/reset for SPI enabled",
+        "MMIO base address correct"
+      ],
+      "expected_result": "Writes to R/W registers read back identically; reset-only fields match documented reset values; RO registers unchanged.",
+      "tags": ["SPI", "Registers", "Sanity"]
+    }
+  ]
+}
