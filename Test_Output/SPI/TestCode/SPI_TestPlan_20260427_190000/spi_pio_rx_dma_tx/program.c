@@ -17,7 +17,9 @@
  */
 void test_case(void)
 {
-    unsigned int error_count = 0u; /* Accumulates any detected errors */
+    /* Initialization per description */
+    spi_cntrl_config();
+    spi_vip_handshake();
 
     /* Prepare a deterministic TX buffer (acts as DMA source) */
     unsigned int src_buf[8];
@@ -56,13 +58,19 @@ void test_case(void)
 #endif
     }
 
-    /* Acceptance criteria: pass if err1 == 0. Map err1 to error_count. */
-    if (error_count == 0u)
+    /* Acceptance criteria: pass if err1 == 0 where err1 = spi_vip_scbd_status() */
     {
-        finish(0); /* PASS */
-    }
-    else
-    {
-        finish(1); /* FAIL */
+        int err1 = spi_vip_scbd_status();
+#ifdef DEBUG_DISPLAY
+        printf("[spi_pio_rx_dma_tx] spi_vip_scbd_status()=%d\n", err1);
+#endif
+        if (err1 == 0)
+        {
+            finish(0); /* PASS */
+        }
+        else
+        {
+            finish(1); /* FAIL */
+        }
     }
 }

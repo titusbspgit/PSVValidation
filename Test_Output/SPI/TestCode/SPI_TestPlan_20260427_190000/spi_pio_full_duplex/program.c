@@ -12,6 +12,7 @@
 /*
  * Function: test_case
  * Purpose : Deterministic translation of the procedure using only impacted registers.
+ *           - Initialize controller and VIP handshake via provided APIs
  *           - Poll MIZAR_SPI_MIS
  *           - On RX mis bit set: perform a single read from MIZAR_SPI_DATA_REG
  *           - On TX mis bit set: perform a single write to MIZAR_SPI_DATA_REG
@@ -21,8 +22,11 @@
  */
 void test_case(void)
 {
-    unsigned int error_count = 0u; /* Accumulates any detected errors */
     unsigned int count = 1u;       /* TX data pattern base */
+
+    /* Initialization per description */
+    spi_cntrl_config();
+    spi_vip_handshake();
 
     for (unsigned int j = 0u; j < 8u; ++j)
     {
@@ -61,13 +65,19 @@ void test_case(void)
         wait_on(10u);
     }
 
-    /* Acceptance criteria: pass if err1 == 0. Map err1 to error_count. */
-    if (error_count == 0u)
+    /* Acceptance criteria: pass if err1 == 0 where err1 = spi_vip_scbd_status() */
     {
-        finish(0); /* PASS */
-    }
-    else
-    {
-        finish(1); /* FAIL */
+        int err1 = spi_vip_scbd_status();
+#ifdef DEBUG_DISPLAY
+        printf("[spi_pio_full_duplex] spi_vip_scbd_status()=%d\n", err1);
+#endif
+        if (err1 == 0)
+        {
+            finish(0); /* PASS */
+        }
+        else
+        {
+            finish(1); /* FAIL */
+        }
     }
 }
