@@ -1,22 +1,16 @@
-name: Generate I2C TestPlan Excel
+name: Generate I2C TestPlan Excel (Stage1)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/generate_i2c_testplan.yml"
-      - "tools/generate_testplan.py"
-      - "tools/i2c_testplan_json.json"
-      - "tools/validate_stage1.py"
 
 permissions:
   contents: write
 
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -27,65 +21,51 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
+          pip install openpyxl tzdata
 
-      - name: Generate formatted Excel from JSON (I2C)
+      - name: Write TestPlan JSON input
+        shell: bash
         run: |
-          python tools/generate_testplan.py \
-            --json tools/i2c_testplan_json.json \
-            --output-dir Test_Output/I2C/TestPlan \
-            --ip-name I2C \
-            --source-path "TestRepo/i2c"
+          mkdir -p .github/scripts
+          cat > .github/scripts/input_testplan.json << 'JSON'
+{
+  "context_folder_list": [
+    "i2c_reg_rd_wr_test/ – https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/i2c/i2c_reg_rd_wr_test",
+    "test_i2c0_mst_i2c1_slv_dma_hs_md/ – https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/i2c/test_i2c0_mst_i2c1_slv_dma_hs_md",
+    "test_i2c0_mst_i2c1_slv_dma_st_md/ – https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/i2c/test_i2c0_mst_i2c1_slv_dma_st_md"
+  ],
+  "test_cases": [
+    {"Index":1,"SS / Module":"I2C","Feature":"AHB interface to access its register space","Test Case Name":"i2c_reg_rd_wr_test/", "Test Description":"Verifies initial register reset values...","Speed":"NA","Mode":"NA","Memory Start Offset":"NA","Memory End Offset":"NA","Remarks":"Non-readable locations...","Test Steps / Procedure":["Entry: the test starts...","Phase 1 – Reset value verification loop...","For each compared register...","Phase 2 – Write/read verification for data patterns...","Within each register iteration, skip entries...","If a register is indicated as non-writable, skip the write...","After completing writes for the current pattern...","Within the readback loop, skip entries from the skip list...","For each validated register, read back the value...","Compare the readback value...","Completion: declare overall pass..."],"Impacted Registers":"NA","Validation / Acceptance Criteria":["Reset value check...","Write/read check...","Overall result: Pass..."],"Code Generation (Required / Not)":"","Hidden_Test_Case_Name":"i2c_reg_rd_wr_test/","Hidden_Test_Description":"Two-phase test: (1) chk_rst_val() loops...","Hidden_Remarks":"Skip conditions...","Hidden_Test_Steps_Procedure":["Entry: int test_case() -> calls chk_rst_val()...","chk_rst_val(): for(i=0;i<CNT;i"){...}","chk_rd_wr(): unsigned int chk_val[6]={...}; for(j=0;j<6;j"){...}","soft_reset_chk() (not called): default_value=read_reg(...); ..."],"Hidden_Impacted_Registers":"MIZAR_I2C_DEV_CTRL, ... MIZAR_I2C_I2CSMB_DATA_SETUP","Hidden_Validation_Acceptance_Criteria":["If (read_mask_array[i] != 0) then read_reg(addr_array[i]) must equal default_value_array[i]; ...","For each pattern, if write_mask_array[i] != 0 ...","finish(0) if (def_fail_cnt==0 && wr_fail_cnt==0); otherwise finish(1)."]},
+    {"Index":2,"SS / Module":"I2C","Feature":"Set the High Speed High Count and Low Count registers...","Test Case Name":"test_i2c0_mst_i2c1_slv_dma_hs_md/","Test Description":"Transfers a small block of data ... high-speed timing ...","Speed":"High-speed","Mode":"DMA, Interrupt","Memory Start Offset":"0xA0243E00","Memory End Offset":"0xA0243F10","Remarks":"The interconnect slave interface is explicitly configured ...","Test Steps / Procedure":["Entry: the test starts...","Configure system interconnect...","Enable two relevant interrupt lines ...","Enable I2C-related interrupts ...","Initialize both controller instances ...","Program addressing ...","Set byte count to five ...","Program timing ...","Program master code ...","Configure transmit and receive FIFO thresholds ...","Enable DMA on the initiator-side instance ...","Prepare data in memory ...","Configure the first DMA channel ...","Wait for the first DMA channel to complete ...","Start the I2C transfer ...","Poll the current byte-count register ...","Wait in a loop for the transfer-complete interrupt ...","Enable DMA reception ...","Configure the second DMA channel ...","Wait for the second DMA channel to complete ...","Verify end-to-end data integrity ...","Delay briefly and finish ...","Interrupt service: upon entry ..."],"Impacted Registers":"NA","Validation / Acceptance Criteria":["During ISR: the initiator’s interrupt status must indicate transfer completion ...","After the second DMA completes ...","Overall result: Pass if no errors ..."],"Code Generation (Required / Not)":"","Hidden_Test_Case_Name":"test_i2c0_mst_i2c1_slv_dma_hs_md/","Hidden_Test_Description":"Prints banner ... HS timing is set via ...","Hidden_Remarks":"Precondition: Set multiple 0xA17000xx ...","Hidden_Test_Steps_Procedure":["void test_case(): int_pend=1;","Write sequence: write_reg(0xA1700008,1), ...","GIC_EnableIRQ(80); GIC_EnableIRQ(81);","write_reg(MIZAR_LSS_SYSREG_INTR_EN0, ...);","I2C init: write_reg(MIZAR_I2C0_FF,0x3); ...","Clear interrupts: write_reg(MIZAR_I2C0_INTR_CLR,0xFFFFFFFF); ...","Device control: write_reg(MIZAR_I2C0_DEV_CTRL,0x38A); ...","Addressing: write_reg(MIZAR_I2C1_SLV_ADDR,0x37); ...","Byte count: write_reg(MIZAR_I2C0_I2C_BYTE_CNT,0x5); ...","Timing: write_reg(MIZAR_I2C0_SF_LCNT,0x2C); ...","Master code & mask: write_reg(MIZAR_I2C0_I2C_MSTR_CODE,0x2); ...","FIFO thresholds: write_reg(MIZAR_I2C0_TX_FIFO_THLD,0x5); ...","Enable DMA on I2C0: write_reg(MIZAR_I2C0_DMA_CTRL,0x2);","src_addr=SRAM_ADDR_1(0xA0243F00); dest_addr=MIZAR_I2C0_SMB_HST_BLOCK_DATA;","Data preload: for(i=0,addr=src_addr; i<5; i++, addr+=4){ ... }","DMA CH0 setup: write_reg(MIZAR_DMA_CH0_CTRL,0x8028028); ...","dma_disable(): while(read_reg(MIZAR_DMA_DMA_CH_EN)) { wait_on(100); }","Start I2C transfer: write_reg(MIZAR_I2C0_TSFR_CTRL,0x2);","Poll TX bytes: data_rd=read_reg(MIZAR_I2C0_I2C_CURRENT_BYTECNT); ...","Wait for interrupt: while(int_pend){ wait_on(10);} ","Initiate receive DMA: write_reg(MIZAR_I2C1_DMA_CTRL,0x1); ...","DMA CH1 setup: write_reg(MIZAR_DMA_CH1_CTRL,0x8024028); ...","dma_disable(): while(read_reg(MIZAR_DMA_DMA_CH_EN)) { wait_on(100); }","Data check loop: for(i=0;i<5;i"){ ... }","wait_on(100); finish(test_err);","void Default_IRQHandler(): int_pend=0; int_status=read_reg(MIZAR_I2C0_INTR_STS); if(int_status==0x0010){ ... } else { test_err++; }
+      ],"Hidden_Impacted_Registers":"MIZAR_LSS_SYSREG_INTR_EN0, ... MIZAR_LSS_SYSREG_RAW_STCR0","Hidden_Validation_Acceptance_Criteria":["ISR: int_status==0x0010 required; ...","After DMA CH1 completes: ...","finish(test_err) with pass when test_err==0."]},
+    {"Index":3,"SS / Module":"I2C","Feature":"Set the Standard/Fast Mode High Count and Low Count registers ...","Test Case Name":"test_i2c0_mst_i2c1_slv_dma_st_md/","Test Description":"Executes a DMA-assisted transfer ... standard timing ...","Speed":"Standard","Mode":"DMA, Interrupt","Memory Start Offset":"0xA0243FC0","Memory End Offset":"0xA0243FF0","Remarks":"The interconnect slave interface is configured ...","Test Steps / Procedure":["Entry: begin at the test case entry point.","Configure system interconnect ...","Enable two relevant interrupt lines ...","Enable I2C-related interrupts ...","Initialize both controller instances ...","Program addressing ...","Set byte count to five ...","Program standard/fast timing counters ...","Configure FIFO thresholds and enable DMA ...","Load five words into the source SRAM region ...","Configure the first DMA channel ...","Wait for the first DMA transfer to complete ...","Start the controller transfer ...","Poll the current byte-count register ...","Set the pending flag and wait ...","Enable DMA on the receiver-side instance ...","Wait for the second DMA transfer to complete ...","Verify memory data ...","Delay briefly, then finish ...","Interrupt service: upon interrupt ..."],"Impacted Registers":"NA","Validation / Acceptance Criteria":["The initiator’s transfer-complete status must be set ...","Post-transfer, all five destination SRAM words must match ...","The test passes when the accumulated error count is zero."],"Code Generation (Required / Not)":"","Hidden_Test_Case_Name":"test_i2c0_mst_i2c1_slv_dma_st_md/","Hidden_Test_Description":"Prints banner ... standard mode. Moves 5 words ...","Hidden_Remarks":"LSS NIC non-secure configuration via 0xA1700008..0xA1700054 ...","Hidden_Test_Steps_Procedure":["void test_case():","Write 0x1 to 0xA1700008, ... 0xA1700054;","GIC_EnableIRQ(80); GIC_EnableIRQ(81);","write_reg(MIZAR_LSS_SYSREG_INTR_EN0, ...);","write_reg(MIZAR_I2C0_FF,0x3); write_reg(MIZAR_I2C1_FF,0x3);","write_reg(MIZAR_I2C0_INTR_CLR,0xFFFFFFFF); ...","write_reg(MIZAR_I2C0_DEV_CTRL,0x382); ...","write_reg(MIZAR_I2C1_SLV_ADDR,0x37); ...","write_reg(MIZAR_I2C0_I2C_BYTE_CNT,0x5); ...","write_reg(MIZAR_I2C0_SF_LCNT,0x12C); write_reg(MIZAR_I2C0_SF_HCNT,0xC8);","write_reg(MIZAR_I2C0_MASK_INTR,0XFFFFFFEF);","write_reg(MIZAR_I2C0_TX_FIFO_THLD,0x5); ...","write_reg(MIZAR_I2C0_DMA_CTRL,0x2);","src_addr=0xA0243FC0; dest_addr=MIZAR_I2C0_SMB_HST_BLOCK_DATA;","for(i=0,addr=src_addr; i<5; i++, addr+=4){ ... }","DMA CH0: write_reg(MIZAR_DMA_CH0_CTRL,0x8028028); ...","dma_disable(): while(read_reg(MIZAR_DMA_DMA_CH_EN)) { wait_on(100); }","write_reg(MIZAR_I2C0_TSFR_CTRL,0x2);","data_rd=read_reg(MIZAR_I2C0_I2C_CURRENT_BYTECNT); ...","int_pend=1; while(int_pend){ wait_on(10);} ","write_reg(MIZAR_I2C1_DMA_CTRL,0x1); src_addr=MIZAR_I2C1_SMB_HST_BLOCK_DATA; dest_addr=0xA0243FE0;","DMA CH1: write_reg(MIZAR_DMA_CH1_CTRL,0x8024028); ...","dma_disable(): while(read_reg(MIZAR_DMA_DMA_CH_EN)) { wait_on(100); }","addr=0xA0243FC0; addr1=0xA0243FE0; for(i=0;i<5;i"){ ... }","wait_on(100); finish(test_err);","void Default_IRQHandler(): int_pend=0; int_status=read_reg(MIZAR_I2C0_INTR_STS); if(int_status==0x0010){ ... } else { test_err++; }
+      ],"Hidden_Impacted_Registers":"MIZAR_LSS_SYSREG_INTR_EN0, ... MIZAR_LSS_SYSREG_RAW_STCR0","Hidden_Validation_Acceptance_Criteria":["ISR: require int_status==0x0010; ...","Memory integrity: for i=0..4, ...","finish(test_err) passes when test_err==0."]}
+  ]
+}
+JSON
 
-      - name: Validate Stage1 formatting
+      - name: Generate Excel
+        shell: bash
         run: |
-          python tools/validate_stage1.py --output-path-file tools/output_path.txt
+          python .github/scripts/generate_testplan_excel.py \
+            --json-file .github/scripts/input_testplan.json \
+            --outdir "Test_Output/I2C/TestPlan" \
+            --ip "I2C" \
+            --git_message_out .github/scripts/commit_message.txt \
+            --output_path_out .github/scripts/last_output_path.txt
 
-      - name: Read output file path
-        id: read_out
+      - name: Commit Excel to repo
+        shell: bash
         run: |
-          echo "outfile=$(cat tools/output_path.txt)" >> $GITHUB_OUTPUT
-
-      - name: Commit Excel artifact
-        id: commit_excel
-        env:
-          OUTFILE: ${{ steps.read_out.outputs.outfile }}
-        run: |
-          ist_ts=$(python - << 'PY'
-from datetime import datetime
-from zoneinfo import ZoneInfo
-print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M:%S'))
-PY
-)
+          set -e
+          OUT_PATH=$(cat .github/scripts/last_output_path.txt)
+          COMMIT_MSG=$(cat .github/scripts/commit_message.txt)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$OUTFILE"
-          git commit -m "Add auto-generated I2C TestPlan Excel from TestRepo/i2c at ${ist_ts}" || echo "No changes to commit"
-          git push || true
-          # Fetch latest main and output the SHA after push
-          git fetch origin main --depth=1
-          sha=$(git ls-remote origin refs/heads/main | cut -f1)
-          echo "sha=$sha" >> $GITHUB_OUTPUT
-
-      - name: Write status JSON
-        env:
-          OUTFILE: ${{ steps.read_out.outputs.outfile }}
-          SHA: ${{ steps.commit_excel.outputs.sha }}
-        run: |
-          url="https://github.com/${{ github.repository }}/blob/main/${OUTFILE}"
-          echo "{\"outfile\": \"$OUTFILE\", \"commit_sha\": \"$SHA\", \"url\": \"$url\"}" > tools/i2c_testplan_status.json
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/i2c_testplan_status.json
-          git commit -m "Record I2C TestPlan Excel status JSON" || echo "No status changes to commit"
-          git push || true
-
-      - name: Output file info
-        env:
-          OUTFILE: ${{ steps.read_out.outputs.outfile }}
-          SHA: ${{ steps.commit_excel.outputs.sha }}
-        run: |
-          echo "Excel path: $OUTFILE"
-          echo "Excel commit SHA: $SHA"
-          url="https://github.com/${{ github.repository }}/blob/main/${OUTFILE}"
-          echo "Excel URL: $url"
+          git add "$OUT_PATH"
+          if ! git diff --cached --quiet; then
+            git commit -m "$COMMIT_MSG"
+            git push origin HEAD:main
+          else
+            echo "No changes to commit."
+          fi
