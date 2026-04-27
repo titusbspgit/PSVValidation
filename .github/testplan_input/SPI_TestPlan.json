@@ -1,0 +1,160 @@
+{
+  "IP": "SPI",
+  "TestCases": [
+    {
+      "Index": 1,
+      "SS / Module": "SPI",
+      "Feature": "In PIO mode, the communication between host processor and the IP is through transmit and receive interrupts",
+      "Test Case Name": "spi_pio_full_duplex",
+      "Test Description": "Performs interrupt-driven transfers using the DATA_REG and MIS registers with a VIP handshake, repeatedly waiting for RX/TX FIFO interrupts and servicing them to exchange data, then checks the VIP scoreboard result.",
+      "Speed": "NA",
+      "Mode": "Interrupt",
+      "Memory Start Offset": "0xA0000018",
+      "Memory End Offset": "0xA000001C",
+      "Remarks": "System interrupt enable and clear are performed at addresses 0xA000001C and 0xA0000018 for SPI instances selected via compile-time macros, and GIC IRQ lines 76–79 are used. VIP handshake and scoreboard are required for completion.",
+      "Test Steps / Procedure": [
+        "Entry point is invoked.",
+        "Enable the SPI system interrupt by writing to 0xA000001C for the selected instance, then enable the corresponding GIC IRQ (76–79).",
+        "Initialize the SPI controller.",
+        "Perform VIP handshake to start the exchange.",
+        "Repeat eight times: set a pending flag and wait in a loop, sleeping for 10 time units each iteration, until the interrupt handler clears the flag; then increment the internal counter.",
+        "Query the VIP scoreboard status and end the test with that result.",
+        "Interrupt handler flow: clear the pending flag; read MIS to obtain masked interrupt status; if the RX FIFO interrupt is set, read from DATA_REG a number of times equal to the configured receive threshold; else if the TX FIFO interrupt is set, write the current counter value to DATA_REG a number of times equal to the configured transmit threshold; acknowledge by writing to 0xA0000018 and clear the corresponding GIC IRQ."
+      ],
+      "Impacted Registers": "DATA_REG, MIS",
+      "Validation / Acceptance Criteria": [
+        "The test passes if the VIP scoreboard status indicates success (zero) when queried at the end of execution."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "spi_pio_full_duplex",
+      "Hidden_Test_Description": "Interrupt-driven full-duplex style flow: test_case() enables sysreg SPIx intr (0xA000001C) and GIC IRQ (76–79), calls spi_cntrl_config(), then spi_vip_handshake(), loops 8 times setting int_pend=1 and while(int_pend){wait_on(10);}; ISR Default_IRQHandler() sets int_pend=0, reads MIZAR_SPI_MIS, if RX bit (0x2) set then reads MIZAR_SPI_DATA_REG SPI_RX_FIFO_THLD times; else if TX bit (0x1) set then writes MIZAR_SPI_DATA_REG SPI_TX_FIFO_THLD times with 'count'; finally writes 0xA0000018 and calls GIC_ClearIRQ(). After the loop, err1=spi_vip_scbd_status(); finish(err1).",
+      "Hidden_Remarks": "SPI instance selection via SPI0/SPI1/SPI2/SPI3 macros controls sysreg address masks and GIC IRQ numbers; VIP handshake and spi_vip_scbd_status() are required; thresholds SPI_RX_FIFO_THLD/SPI_TX_FIFO_THLD control loop counts in ISR.",
+      "Hidden_Test_Steps_Procedure": [
+        "test_case(): err1=0; count=1;",
+        "#ifdef SPI0 write_reg(0xA000001C,0x01000000); GIC_EnableIRQ(76); #endif",
+        "#ifdef SPI1 write_reg(0xA000001C,0x02000000); GIC_EnableIRQ(77); #endif",
+        "#ifdef SPI2 write_reg(0xA000001C,0x04000000); GIC_EnableIRQ(78); #endif",
+        "#ifdef SPI3 write_reg(0xA000001C,0x08000000); GIC_EnableIRQ(79); #endif",
+        "spi_cntrl_config();",
+        "spi_vip_handshake();",
+        "for (j=0;j<8;j++): int_pend=1; while(int_pend){ wait_on(10); } count++;",
+        "err1 = spi_vip_scbd_status(); finish(err1);",
+        "Default_IRQHandler(): int_pend=0; data_addr=MIZAR_SPI_DATA_REG; mis_addr=MIZAR_SPI_MIS;",
+        "MaskedInterrupt = read_reg(MIZAR_SPI_MIS);",
+        "if ((MaskedInterrupt & 0x2)==0x2): for(i=0;i<SPI_RX_FIFO_THLD;i++) rd_data=read_reg(MIZAR_SPI_DATA_REG);",
+        "else if ((MaskedInterrupt & 0x1)==0x1): for(j=0;j<SPI_TX_FIFO_THLD;j++) write_reg(MIZAR_SPI_DATA_REG,count);",
+        "#ifdef SPI0 write_reg(0xA0000018,0x01000000); GIC_ClearIRQ(76); #endif (similar for SPI1..3)"
+      ],
+      "Hidden_Impacted_Registers": "MIZAR_SPI_DATA_REG, MIZAR_SPI_MIS",
+      "Hidden_Validation_Acceptance_Criteria": "finish(err1) is called with err1 = spi_vip_scbd_status(); pass if err1 == 0."
+    },
+    {
+      "Index": 2,
+      "SS / Module": "SPI",
+      "Feature": "Write to the SPI_DATA register based on the transmit interrupt triggered or the DMA transmit requests in DMA enable mode; Read from the SPI_DATA register to get the data received",
+      "Test Case Name": "spi_pio_rx_dma_tx",
+      "Test Description": "Configures DMA to move data from memory into DATA_REG with a VIP handshake, unmasks the transmit interrupt via IMSC, waits for the interrupt, then masks it in the handler; final status is determined by the VIP scoreboard.",
+      "Speed": "NA",
+      "Mode": "DMA, Interrupt",
+      "Memory Start Offset": "0xA0000018",
+      "Memory End Offset": "0xA1700054",
+      "Remarks": "System interrupt enable and clear are performed at addresses 0xA000001C and 0xA0000018 for the selected SPI instance; several DMA-related registers at 0xA1700008–0xA1700054 are written with 0x1. Source memory is initialized at 0xA0243E6C.",
+      "Test Steps / Procedure": [
+        "Entry point is invoked.",
+        "Enable the SPI system interrupt by writing to 0xA000001C for the selected instance, then enable the corresponding GIC IRQ (76–79).",
+        "Write 0x1 to a series of DMA control addresses from 0xA1700008 through 0xA1700054.",
+        "Initialize the DMA transfer parameters, including a source at 0xA0243E6C and eight 32-bit words.",
+        "Store eight incrementing values to source memory starting at 0xA0243E6C with 4-byte increments.",
+        "Initialize the SPI controller.",
+        "Perform VIP handshake to start the exchange.",
+        "Configure the DMA to transfer data from source memory to DATA_REG.",
+        "Prepare the DMA as required and unmask the transmit interrupt by writing to IMSC.",
+        "Set a pending flag and wait in a loop, sleeping for 5 time units each iteration, until the interrupt handler clears the flag.",
+        "Query the VIP scoreboard status and end the test with that result.",
+        "Interrupt handler flow: clear the pending flag; read MIS to obtain masked interrupt status; if the transmit interrupt is set, mask the transmit interrupt by writing to IMSC; acknowledge by writing to 0xA0000018 and clear the corresponding GIC IRQ."
+      ],
+      "Impacted Registers": "DATA_REG, IMSC, MIS",
+      "Validation / Acceptance Criteria": [
+        "The test passes if the VIP scoreboard status indicates success (zero) when queried at the end of execution."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "spi_pio_rx_dma_tx",
+      "Hidden_Test_Description": "DMA TX with PIO/RX-disabled path: test_case() enables sysreg SPIx intr (0xA000001C) and GIC IRQ (76–79), writes 0x1 to 0xA1700008..0xA1700054, sets ch_num=0, src_addr=0xA0243E6C, src_xcnt=8, tx_rx=0, tc_intr_en=0, spi_mst=0, src_req=SPI_TX_SRC_REQ; fills memory at 0xA0243E6C+i*4 with 0xaaaaaaa1+i; calls spi_cntrl_config(); spi_vip_handshake(); sets dst_addr=MIZAR_SPI_DATA_REG; calls dma_config(ch_num, src_addr, dst_addr, src_xcnt, tx_rx, tc_intr_en, src_req, spi_mst); dma_disable(); unmasks TX interrupt with write_reg(MIZAR_SPI_IMSC,0x1); sets int_pend=1 and while(int_pend){wait_on(5);} err1=spi_vip_scbd_status(); finish(err1). ISR Default_IRQHandler(): int_pend=0; data_addr=MIZAR_SPI_DATA_REG; mis_addr=MIZAR_SPI_MIS; MaskedInterrupt=read_reg(MIZAR_SPI_MIS); if ((MaskedInterrupt & 0x1)==0x1) { write_reg(MIZAR_SPI_IMSC,0x0);} then write_reg(0xA0000018,mask) and GIC_ClearIRQ().",
+      "Hidden_Remarks": "Uses DMA control block at 0xA1700008..0xA1700054 (value 0x1). Source load at 0xA0243E6C with eight words. TX interrupt masking via MIZAR_SPI_IMSC. VIP handshake and spi_vip_scbd_status() used for result.",
+      "Hidden_Test_Steps_Procedure": [
+        "test_case(): initialize locals; count=1; err1=0;",
+        "#ifdef SPI0 write_reg(0xA000001C,0x01000000); GIC_EnableIRQ(76); #endif (similar for SPI1..3)",
+        "write_reg(0xA1700008,0x1); write_reg(0xA170000C,0x1); write_reg(0xA1700014,0x1); write_reg(0xA1700018,0x1); write_reg(0xA170001C,0x1); write_reg(0xA1700020,0x1); write_reg(0xA1700024,0x1); write_reg(0xA1700028,0x1); write_reg(0xA170002C,0x1); write_reg(0xA1700030,0x1); write_reg(0xA1700034,0x1); write_reg(0xA1700038,0x1); write_reg(0xA170003C,0x1); write_reg(0xA1700044,0x1); write_reg(0xA1700048,0x1); write_reg(0xA1700050,0x1); write_reg(0xA1700054,0x1);",
+        "ch_num=0; src_addr=0xA0243E6C; src_xcnt=8; tx_rx=0; tc_intr_en=0; spi_mst=0; src_req=SPI_TX_SRC_REQ;",
+        "for(i=0;i<src_xcnt;i++) write_reg(src_addr + (i*4), 0xaaaaaaa1+i);",
+        "spi_cntrl_config();",
+        "spi_vip_handshake();",
+        "dst_addr = MIZAR_SPI_DATA_REG;",
+        "dma_config(ch_num, src_addr, dst_addr, src_xcnt, tx_rx, tc_intr_en, src_req, spi_mst);",
+        "dma_disable();",
+        "write_reg(MIZAR_SPI_IMSC,0x1); int_pend=1; while(int_pend){wait_on(5);} ",
+        "err1=spi_vip_scbd_status(); finish(err1);",
+        "Default_IRQHandler(): int_pend=0; data_addr=MIZAR_SPI_DATA_REG; mis_addr=MIZAR_SPI_MIS; MaskedInterrupt=read_reg(MIZAR_SPI_MIS); if((MaskedInterrupt & 0x1)==0x1){ write_reg(MIZAR_SPI_IMSC,0x0);} #ifdef SPIx write_reg(0xA0000018,mask); GIC_ClearIRQ(76..79); #endif"
+      ],
+      "Hidden_Impacted_Registers": "MIZAR_SPI_DATA_REG, MIZAR_SPI_IMSC, MIZAR_SPI_MIS",
+      "Hidden_Validation_Acceptance_Criteria": "finish(err1) is called with err1 = spi_vip_scbd_status(); pass if err1 == 0."
+    },
+    {
+      "Index": 3,
+      "SS / Module": "SPI",
+      "Feature": "Register access and reset value verification",
+      "Test Case Name": "spi_reg_wr_rd_test",
+      "Test Description": "Checks default values and read/write behavior for a defined set of SPI registers using readable and writable masks; failures are counted and reported, and the test passes only if no mismatches are found.",
+      "Speed": "NA",
+      "Mode": "NA",
+      "Memory Start Offset": "NA",
+      "Memory End Offset": "NA",
+      "Remarks": "Readable and writable masks control which registers are accessed and which bits participate in comparisons; six data patterns are used for write/read checks; addresses and masks are provided by included definitions.",
+      "Test Steps / Procedure": [
+        "Entry point is invoked.",
+        "Default value check: for each listed register that is readable, read the register and compare against the expected default value; count any mismatches.",
+        "Write/read check for six data patterns: for each pattern, write it to each listed register that is writable and not skipped; then for each register that is both readable and writable and not skipped, read back and compare to a value composed of the writable and readable bits of the write data with the remaining readable bits from the default value; count any mismatches.",
+        "End the test and report pass if no mismatches were counted; otherwise report failure."
+      ],
+      "Impacted Registers": "RSM_CR0, RSM_CR1, RSM_DMA_CR, RSM_BAUD_RATE, RSM_TIMEOUT, RSM_FIFO, RSM_DMA, TX_FIFO_LEVEL_REG, RX_FIFO_LEVEL_REG, TRQ_LEVEL_REG, STS, IMSC, RIS, MIS, IC, RSM_TRQ_DATA_REG, RSM_TXTEST_DATA_REG, DATA_REG, RSM_TS_CTRL, SPI_TLEAD, SPI_TTRAIL, SPI_TIDLE",
+      "Validation / Acceptance Criteria": [
+        "The test passes if both the default-value check and the write/read check complete with zero failures (no increments to the default or write/read failure counters)."
+      ],
+      "Code Generation (Required / Not)": "",
+      "Hidden_Test_Case_Name": "spi_reg_wr_rd_test",
+      "Hidden_Test_Description": "program.c includes test_define.c and runs: chk_rst_val(); chk_rd_wr(); then if (def_fail_cnt>0 || wr_fail_cnt>0) finish(1) else finish(0). chk_rst_val(): for i in 0..CNT-1, addr=addr_array[i]; if read_mask_array[i]==0 skip; data_rd=read_reg(addr); compare to default_value_array[i]; if mismatch def_fail_cnt++. chk_rd_wr(): for six patterns in chk_val[], write each to all addresses with write_mask!=0 and not skipped; then read back for those with read_mask!=0 and write_mask!=0 and not skipped; compute exp_val=((data_wr & read_mask & write_mask) | ((~write_mask) & read_mask & default_value)); compare and increment wr_fail_cnt on mismatch.",
+      "Hidden_Remarks": "Masks and defaults come from arrays in test_define.c; skip_array entries control per-register skipping; SOFT_RST_REG_* macros exist but soft_reset_chk() is commented out.",
+      "Hidden_Test_Steps_Procedure": [
+        "test_case(): chk_rst_val(); chk_rd_wr(); if(def_fail_cnt>0 || wr_fail_cnt>0) finish(1) else finish(0).",
+        "chk_rst_val(): for(i=0;i<CNT;i++){ addr=addr_array[i]; if(read_mask_array[i]==0) continue; data_rd=read_reg(addr); if(data_rd==default_value_array[i]) PASS else {def_fail_cnt++; printf failure}; }",
+        "chk_rd_wr(): for(j=0;j<6;j++){ data_wr=chk_val[j]; for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0) continue; write_reg(addr,data_wr);} for(i=0;i<CNT;i++){ addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0) continue; if(read_mask_array[i]==0) continue; data_rd=read_reg(addr); wr_n=(write_mask_array[i]^0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if(data_rd==exp_val) PASS else {wr_fail_cnt++; printf failure}; } }"
+      ],
+      "Hidden_Impacted_Registers": "MIZAR_SPI_RSM_CR0, MIZAR_SPI_RSM_CR1, MIZAR_SPI_RSM_DMA_CR, MIZAR_SPI_RSM_BAUD_RATE, MIZAR_SPI_RSM_TIMEOUT, MIZAR_SPI_RSM_FIFO, MIZAR_SPI_RSM_DMA, MIZAR_SPI_TX_FIFO_LEVEL_REG, MIZAR_SPI_RX_FIFO_LEVEL_REG, MIZAR_SPI_TRQ_LEVEL_REG, MIZAR_SPI_STS, MIZAR_SPI_IMSC, MIZAR_SPI_RIS, MIZAR_SPI_MIS, MIZAR_SPI_IC, MIZAR_SPI_RSM_TRQ_DATA_REG, MIZAR_SPI_RSM_TXTEST_DATA_REG, MIZAR_SPI_DATA_REG, MIZAR_SPI_RSM_TS_CTRL, MIZAR_SPI_SPI_TLEAD, MIZAR_SPI_SPI_TTRAIL, MIZAR_SPI_SPI_TIDLE",
+      "Hidden_Validation_Acceptance_Criteria": "Pass if def_fail_cnt == 0 and wr_fail_cnt == 0; otherwise fail."
+    }
+  ],
+  "META_DATA": {
+    "Repository": "https://github.com/titusbspgit/PSVValidation",
+    "Branch": "main",
+    "Scope Root": "TestRepo/spi",
+    "Sources": [
+      {
+        "name": "spi_pio_full_duplex/program.c",
+        "link": "https://github.com/titusbspgit/PSVValidation/blob/main/TestRepo/spi/spi_pio_full_duplex/program.c"
+      },
+      {
+        "name": "spi_pio_rx_dma_tx/program.c",
+        "link": "https://github.com/titusbspgit/PSVValidation/blob/main/TestRepo/spi/spi_pio_rx_dma_tx/program.c"
+      },
+      {
+        "name": "spi_reg_wr_rd_test/program.c",
+        "link": "https://github.com/titusbspgit/PSVValidation/blob/main/TestRepo/spi/spi_reg_wr_rd_test/program.c"
+      },
+      {
+        "name": "spi_reg_wr_rd_test/test_define.c",
+        "link": "https://github.com/titusbspgit/PSVValidation/blob/main/TestRepo/spi/spi_reg_wr_rd_test/test_define.c"
+      }
+    ],
+    "MacroToRegisterMappingNote": "Main-field 'Impacted Registers' values are register names obtained via Rg-Emb-Mpsoc-Macro-Reg-Map; hidden fields retain original macro names."
+  }
+}
