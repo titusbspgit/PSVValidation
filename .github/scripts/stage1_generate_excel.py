@@ -175,7 +175,7 @@ def normalize_main_sheet(wb, data_ws, data_keys):
     code_col = header_map.get("Code Generation (Required / Not)")
     if code_col:
         col_letter = data_ws.cell(row=1, column=code_col).column_letter
-        dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True)
+        dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True)
         data_ws.add_data_validation(dv)
         dv.add(f"{col_letter}2:{col_letter}{data_ws.max_row}")
 
