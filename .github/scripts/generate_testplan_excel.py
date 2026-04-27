@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import argparse
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -48,29 +49,21 @@ ALL_BORDERS = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
 
 def normalize_value(val: Any) -> Any:
+    # Convert arrays to newline-joined strings; keep scalars as-is
     if isinstance(val, list):
-        # Join list values with newline without altering inner values
         return "\n".join(str(x) for x in val)
     return val
 
 
-def make_rows(testcases: List[Dict[str, Any]]):
-    main_rows = []
-    meta_rows = []
-    for tc in testcases:
-        main_row = {}
-        meta_row = {}
-        # Fill main columns
-        for col in MAIN_COLUMNS:
-            v = tc.get(col, "")
-            main_row[col] = normalize_value(v)
-        # Fill meta columns
-        for mcol in META_COLUMNS:
-            mv = tc.get(mcol, "")
-            meta_row[mcol] = normalize_value(mv)
-        main_rows.append(main_row)
-        meta_rows.append(meta_row)
-    return main_rows, meta_rows
+def union_keys_preserve_order(records: List[Dict[str, Any]]) -> List[str]:
+    seen: List[str] = []
+    s = set()
+    for rec in records:
+        for k in rec.keys():
+            if k not in s:
+                s.add(k)
+                seen.append(k)
+    return seen
 
 
 def autofit_columns(ws):
@@ -79,22 +72,17 @@ def autofit_columns(ws):
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
-            try:
-                val = cell.value
-                if val is None:
-                    continue
-                l = len(str(val))
-                if l > max_len:
-                    max_len = l
-            except Exception:
-                pass
-        # Add padding; limit width to a reasonable max
+            val = cell.value
+            if val is None:
+                continue
+            # consider wrapped content lines length
+            for part in str(val).split("\n"):
+                max_len = max(max_len, len(part))
         width = min(max_len + 4, 100)
-        ws.column_dimensions[col_letter].width = width
+        ws.column_dimensions[col_letter].width = max(10, width)
 
 
 def apply_header_format(ws):
-    # Header is first row
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -103,10 +91,10 @@ def apply_header_format(ws):
 
 
 def apply_data_format(ws):
-    # Data rows formatting
+    headers = [c.value for c in ws[1]]
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
         for cell in row:
-            header = ws.cell(row=1, column=cell.column).value
+            header = headers[cell.column - 1]
             if header in WRAP_COLUMNS:
                 cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
             elif header == "Index":
@@ -117,7 +105,6 @@ def apply_data_format(ws):
 
 
 def add_codegen_dropdown(ws):
-    # Find the Code Generation (Required / Not) column
     headers = [c.value for c in ws[1]]
     try:
         idx = headers.index("Code Generation (Required / Not)") + 1
@@ -129,74 +116,142 @@ def add_codegen_dropdown(ws):
     ws.add_data_validation(dv)
 
 
-def write_sheet(ws, headers: List[str], rows: List[Dict[str, Any]]):
-    ws.append(headers)
-    for r in rows:
-        ws.append([r.get(h, "") for h in headers])
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
-    apply_header_format(ws)
-    apply_data_format(ws)
-    autofit_columns(ws)
+def set_hyperlinks(ws, testcases: List[Dict[str, Any]], context_list: List[str]):
+    # Build mapping from "<name>/ – <url>"
+    mapping: Dict[str, str] = {}
+    for entry in context_list:
+        if " – " in entry:
+            name, url = entry.split(" – ", 1)
+        elif " - " in entry:
+            name, url = entry.split(" - ", 1)
+        else:
+            continue
+        mapping[name.strip()] = url.strip()
+
+    headers = [c.value for c in ws[1]]
+    try:
+        col_idx = headers.index("Test Case Name") + 1
+    except ValueError:
+        return
+
+    for r, tc in enumerate(testcases, start=2):
+        name = tc.get("Test Case Name")
+        if not name:
+            continue
+        url = mapping.get(str(name).strip())
+        if url:
+            cell = ws.cell(row=r, column=col_idx)
+            cell.hyperlink = url
 
 
-def create_workbook(data: Dict[str, Any], ip: str):
-    # Extract testcases
-    testcases = []
-    if isinstance(data, dict) and isinstance(data.get("TestCases"), list):
-        testcases = data["TestCases"]
-    elif isinstance(data, list):
-        testcases = data
-    elif isinstance(data, dict):
-        testcases = [data]
+def build_workbook(data: Dict[str, Any]) -> Workbook:
+    # Determine testcases array
+    testcases: List[Dict[str, Any]] = []
+    if isinstance(data, dict):
+        if isinstance(data.get("test_cases"), list):
+            testcases = data["test_cases"]
+        elif isinstance(data.get("TestCases"), list):
+            testcases = data["TestCases"]
+        else:
+            raise ValueError("JSON must contain a non-empty array under 'test_cases' or 'TestCases'")
     else:
-        raise ValueError("Unsupported JSON format for test plan")
+        raise ValueError("Root JSON must be an object")
 
-    main_rows, meta_rows = make_rows(testcases)
+    if not testcases:
+        raise ValueError("Test cases array is empty")
 
+    # Normalize values
+    norm = []
+    for tc in testcases:
+        norm.append({k: normalize_value(v) for k, v in tc.items()})
+
+    # Phase 1: Data sheet with union of all keys preserving first-seen order
     wb = Workbook()
     ws_data = wb.active
-    ws_data.title = "Data"  # temporary; will rename to TestPlan later
+    ws_data.title = "Data"
 
-    write_sheet(ws_data, MAIN_COLUMNS, main_rows)
+    all_keys = union_keys_preserve_order(norm)
+    ws_data.append(all_keys)
+    for rec in norm:
+        ws_data.append([rec.get(k, "") for k in all_keys])
+    ws_data.freeze_panes = "A2"
+    for c in ws_data[1]:
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+    autofit_columns(ws_data)
 
-    # Meta sheet
+    # Phase 2: Meta_data_sheet with META columns (veryHidden)
     ws_meta = wb.create_sheet("Meta_data_sheet")
-    # For meta, avoid styling except basic header to ensure readability; will set veryHidden later
     ws_meta.append(META_COLUMNS)
-    for r in meta_rows:
-        ws_meta.append([r.get(h, "") for h in META_COLUMNS])
-    # Very hidden
+    for tc in norm:
+        ws_meta.append([tc.get(k, "") for k in META_COLUMNS])
     ws_meta.sheet_state = 'veryHidden'
 
-    # Rename Data -> TestPlan and ensure dropdown on CodeGen column
-    ws_data.title = "TestPlan"
-    add_codegen_dropdown(ws_data)
+    # Phase 2: Build TestPlan from Data with only MAIN columns in strict order
+    # Create a temporary sheet and then rename
+    ws_tmp = wb.create_sheet("TestPlan_tmp")
+    ws_tmp.append(MAIN_COLUMNS)
+
+    # Map headers in Data to indices
+    head_map = {ws_data.cell(row=1, column=i).value: i for i in range(1, ws_data.max_column + 1)}
+
+    for r in range(2, ws_data.max_row + 1):
+        row_vals = []
+        for col in MAIN_COLUMNS:
+            src_idx = head_map.get(col)
+            row_vals.append(ws_data.cell(row=r, column=src_idx).value if src_idx else "")
+        ws_tmp.append(row_vals)
+
+    # Remove Data and set TestPlan
+    wb.remove(ws_data)
+    ws_tmp.title = "TestPlan"
+    ws_test = ws_tmp
+
+    # Hyperlinks on Test Case Name
+    context_list = data.get("context_folder_list", []) if isinstance(data, dict) else []
+    if isinstance(context_list, list):
+        set_hyperlinks(ws_test, testcases=testcases, context_list=context_list)
+
+    # Strict formatting for TestPlan
+    apply_header_format(ws_test)
+    apply_data_format(ws_test)
+    autofit_columns(ws_test)
+    add_codegen_dropdown(ws_test)
 
     return wb
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--json-file", required=True, help="Path to JSON test plan input")
-    ap.add_argument("--ip", required=True, help="IP name for filename prefix")
-    ap.add_argument("--outdir", required=True, help="Output directory inside repo")
+    ap = argparse.ArgumentParser(description="Generate formatted TestPlan Excel from JSON (Stage1 rules)")
+    ap.add_argument("--json-file", "-i", required=True, help="Path to JSON test plan input")
+    ap.add_argument("--ip", "-n", required=True, help="IP name for filename prefix")
+    ap.add_argument("--outdir", "-o", required=True, help="Output directory inside repo")
+    ap.add_argument("--git_message_out", "-gmsg_out", required=False, help="Path to write commit message text")
+    ap.add_argument("--output_path_out", "-outpath_out", required=False, help="Path to write final Excel relative path")
     args = ap.parse_args()
 
     with open(args.json_file, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    wb = create_workbook(data, args.ip)
+    wb = build_workbook(data)
 
     ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     ts = ist_now.strftime("%Y%m%d_%H%M%S")
-    filename = f"{args.ip}_TestPlan_{ts}.xlsx"
+    commit_ts = ist_now.strftime("%Y-%m-%d %H:%M:%S IST")
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    outfile = outdir / filename
+    outfile = outdir / f"{args.ip}_TestPlan_{ts}.xlsx"
 
     wb.save(str(outfile))
+
+    commit_msg = f"Add {args.ip} TestPlan generated on {commit_ts} via Stage1 pipeline"
+
+    if args.git_message_out:
+        Path(args.git_message_out).write_text(commit_msg, encoding="utf-8")
+    if args.output_path_out:
+        Path(args.output_path_out).write_text(str(outfile), encoding="utf-8")
+
     print(f"WROTE:{outfile}")
 
 if __name__ == "__main__":
