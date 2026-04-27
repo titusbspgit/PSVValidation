@@ -7,6 +7,7 @@ on:
       - ".github/workflows/generate_i2c_testplan.yml"
       - "tools/generate_testplan.py"
       - "tools/i2c_testplan_json.json"
+      - "tools/validate_stage1.py"
 
 permissions:
   contents: write
@@ -36,12 +37,17 @@ jobs:
             --ip-name I2C \
             --source-path "TestRepo/i2c"
 
+      - name: Validate Stage1 formatting
+        run: |
+          python tools/validate_stage1.py --output-path-file tools/output_path.txt
+
       - name: Read output file path
         id: read_out
         run: |
           echo "outfile=$(cat tools/output_path.txt)" >> $GITHUB_OUTPUT
 
       - name: Commit Excel artifact
+        id: commit_excel
         env:
           OUTFILE: ${{ steps.read_out.outputs.outfile }}
         run: |
@@ -55,4 +61,18 @@ PY
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$OUTFILE"
           git commit -m "Add auto-generated I2C TestPlan Excel from TestRepo/i2c at ${ist_ts}" || echo "No changes to commit"
-          git push
+          git push || true
+          # Fetch latest main and output the SHA after push
+          git fetch origin main --depth=1
+          sha=$(git ls-remote origin refs/heads/main | cut -f1)
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+
+      - name: Output file info
+        env:
+          OUTFILE: ${{ steps.read_out.outputs.outfile }}
+          SHA: ${{ steps.commit_excel.outputs.sha }}
+        run: |
+          echo "Excel path: $OUTFILE"
+          echo "Excel commit SHA: $SHA"
+          url="https://github.com/${{ github.repository }}/blob/main/${OUTFILE}"
+          echo "Excel URL: $url"
