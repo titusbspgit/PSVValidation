@@ -137,12 +137,9 @@ def create_workbook(data, rows):
     # Build union keys preserving first appearance
     keys = build_union_keys(rows)
 
-    # Write header
+    # Write header (temporary; this sheet will be removed)
     for c, k in enumerate(keys, start=1):
-        cell = ws_data.cell(row=1, column=c, value=k)
-        cell.font = HEADER_FONT
-        cell.alignment = HEADER_ALIGN
-        cell.fill = HEADER_FILL
+        ws_data.cell(row=1, column=c, value=k)
 
     # Freeze top row
     ws_data.freeze_panes = 'A2'
@@ -154,18 +151,10 @@ def create_workbook(data, rows):
             val = normalize_arrays(val, k)
             ws_data.cell(row=r_idx, column=c_idx, value=val)
 
-    # Basic formatting
-    auto_width(ws_data)
-    apply_borders(ws_data)
-    adjust_row_heights(ws_data)
-
-    # Create Meta_data_sheet and copy META columns
+    # Create Meta_data_sheet and copy META columns, no formatting per Stage1
     ws_meta = wb.create_sheet('Meta_data_sheet')
     for c, k in enumerate(META_COLS, start=1):
-        cell = ws_meta.cell(row=1, column=c, value=k)
-        cell.font = HEADER_FONT
-        cell.alignment = HEADER_ALIGN
-        cell.fill = HEADER_FILL
+        ws_meta.cell(row=1, column=c, value=k)
     for r_idx, row in enumerate(rows, start=2):
         for c_idx, k in enumerate(META_COLS, start=1):
             val = row.get(k, '')
@@ -176,9 +165,9 @@ def create_workbook(data, rows):
     ws_meta.sheet_state = 'veryHidden'
 
     # Prepare TestPlan sheet by filtering/remapping columns from Data
-    ws_testplan_tmp = wb.create_sheet('TestPlan_tmp')
+    ws_testplan = wb.create_sheet('TestPlan')
     for c, k in enumerate(MAIN_COLS, start=1):
-        cell = ws_testplan_tmp.cell(row=1, column=c, value=k)
+        cell = ws_testplan.cell(row=1, column=c, value=k)
         cell.font = HEADER_FONT
         cell.alignment = HEADER_ALIGN
         cell.fill = HEADER_FILL
@@ -192,27 +181,16 @@ def create_workbook(data, rows):
             val = ''
             if src_ci is not None:
                 val = ws_data.cell(row=r, column=src_ci).value
-            ws_testplan_tmp.cell(row=r, column=c, value=val)
+            ws_testplan.cell(row=r, column=c, value=val)
 
-    # Formatting for TestPlan_tmp per strict rules
-    ws_testplan_tmp.freeze_panes = 'A2'
-
-    # Wrap text for specific columns
-    header_to_col_letter = { ws_testplan_tmp.cell(row=1, column=ci).value: ws_testplan_tmp.cell(row=1, column=ci).column_letter for ci in range(1, ws_testplan_tmp.max_column+1) }
-
-    for c in range(1, ws_testplan_tmp.max_column + 1):
-        header = ws_testplan_tmp.cell(row=1, column=c).value
-        # Header style
-        hcell = ws_testplan_tmp.cell(row=1, column=c)
-        hcell.font = HEADER_FONT
-        hcell.alignment = HEADER_ALIGN
-        hcell.fill = HEADER_FILL
+    # Formatting for TestPlan per strict rules
+    ws_testplan.freeze_panes = 'A2'
 
     # Alignments and wrapping for data rows
-    for r in range(2, ws_testplan_tmp.max_row + 1):
-        for c in range(1, ws_testplan_tmp.max_column + 1):
-            header = ws_testplan_tmp.cell(row=1, column=c).value
-            cell = ws_testplan_tmp.cell(row=r, column=c)
+    for r in range(2, ws_testplan.max_row + 1):
+        for c in range(1, ws_testplan.max_column + 1):
+            header = ws_testplan.cell(row=1, column=c).value
+            cell = ws_testplan.cell(row=r, column=c)
             if header in WRAP_COLS:
                 cell.alignment = DATA_ALIGN_WRAP
             elif header == 'Index':
@@ -220,22 +198,22 @@ def create_workbook(data, rows):
             else:
                 cell.alignment = DATA_ALIGN_LEFT
 
-    auto_width(ws_testplan_tmp)
-    apply_borders(ws_testplan_tmp)
-    adjust_row_heights(ws_testplan_tmp)
+    # Autofit and borders for visible TestPlan only
+    auto_width(ws_testplan)
+    apply_borders(ws_testplan)
+    adjust_row_heights(ws_testplan)
 
     # Data validation for Code Generation (Required / Not)
-    if 'Code Generation (Required / Not)' in header_to_col_letter:
-        col_letter = header_to_col_letter['Code Generation (Required / Not)']
-        dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True, showErrorMessage=True)
-        ws_testplan_tmp.add_data_validation(dv)
-        dv.ranges.append(f"{col_letter}2:{col_letter}{ws_testplan_tmp.max_row}")
+    for c in range(1, ws_testplan.max_column + 1):
+        if ws_testplan.cell(row=1, column=c).value == 'Code Generation (Required / Not)':
+            col_letter = ws_testplan.cell(row=1, column=c).column_letter
+            dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True, showErrorMessage=True)
+            ws_testplan.add_data_validation(dv)
+            dv.add(f"{col_letter}2:{col_letter}{ws_testplan.max_row}")
+            break
 
-    # Rename Data -> TestPlan, then replace contents with tmp
-    ws_data.title = 'TestPlan'
-    # Remove old TestPlan content by deleting the sheet and renaming tmp
+    # Remove the temporary Data sheet
     wb.remove(ws_data)
-    ws_testplan_tmp.title = 'TestPlan'
 
     return wb
 
