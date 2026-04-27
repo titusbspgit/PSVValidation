@@ -1,0 +1,1 @@
+#pragma once\n#include <stdint.h>\n\n#define SPI_TX_SRC_REQ (0x1u)\n\nvoid dma_config(int ch, uint32_t src, uint32_t dst, uint32_t xcnt, int tx_rx, int tc_intr_en, uint32_t src_req, int spi_mst);\nvoid dma_disable(void);\n

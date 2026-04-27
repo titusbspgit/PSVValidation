@@ -1,0 +1,1 @@
+#include "test_define.h"\n\nint main(void){\n    int def_fail = chk_rst_val();\n    int wr_fail  = chk_rd_wr();\n    if (def_fail > 0 || wr_fail > 0) finish(1); else finish(0);\n    return 0;\n}\n

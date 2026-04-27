@@ -1,0 +1,1 @@
+#pragma once\n#include <stdint.h>\n\n#define SYSREG_INTR_EN      0xA000001CUL\n#define SYSREG_INTR_CLR     0xA0000018UL\n\n#define MIZAR_SPI_DATA_REG  0xA0300008UL\n#define MIZAR_SPI_MIS       0xA0300000UL\n#define MIZAR_SPI_IMSC      0xA0300004UL\n\n#define DMA_BASE            0xA1700000UL\n\n#define SPI0_IRQ 76\n#define SPI1_IRQ 77\n#define SPI2_IRQ 78\n#define SPI3_IRQ 79\n

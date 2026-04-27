@@ -1,0 +1,1 @@
+#pragma once\n#include <stdint.h>\n#include <stdio.h>\n#include "spi_regs.h"\n\nint chk_rst_val(void);\nint chk_rd_wr(void);\n\nuint32_t read_reg(uint32_t addr);\nvoid     write_reg(uint32_t addr, uint32_t val);\nvoid finish(int status);\n

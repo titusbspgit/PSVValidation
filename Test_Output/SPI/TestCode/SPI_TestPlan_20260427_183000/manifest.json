@@ -1,0 +1,27 @@
+{
+  "ip": "SPI",
+  "generation_timestamp_ist": "2026-04-27 18:30:00",
+  "template_fallback": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/TemplateSrc/spi/spi_soft_reset",
+  "source_repo_mapping": {
+    "spi_pio_full_duplex": "TestRepo/spi/spi_pio_full_duplex",
+    "spi_pio_rx_dma_tx": "TestRepo/spi/spi_pio_rx_dma_tx",
+    "spi_reg_wr_rd_test": "TestRepo/spi/spi_reg_wr_rd_test"
+  },
+  "required_testcases": [
+    {
+      "name": "spi_pio_full_duplex",
+      "acceptance_criteria": "finish(err1) is called with err1 = spi_vip_scbd_status(); pass if err1 == 0.",
+      "impacted_registers": ["MIZAR_SPI_DATA_REG","MIZAR_SPI_MIS"]
+    },
+    {
+      "name": "spi_pio_rx_dma_tx",
+      "acceptance_criteria": "finish(err1) is called with err1 = spi_vip_scbd_status(); pass if err1 == 0.",
+      "impacted_registers": ["MIZAR_SPI_DATA_REG","MIZAR_SPI_IMSC","MIZAR_SPI_MIS"]
+    },
+    {
+      "name": "spi_reg_wr_rd_test",
+      "acceptance_criteria": "Pass if def_fail_cnt == 0 and wr_fail_cnt == 0; otherwise fail.",
+      "impacted_registers": ["MIZAR_SPI_RSM_CR0","MIZAR_SPI_RSM_CR1","MIZAR_SPI_RSM_DMA_CR","MIZAR_SPI_RSM_BAUD_RATE","MIZAR_SPI_RSM_TIMEOUT","MIZAR_SPI_RSM_FIFO","MIZAR_SPI_RSM_DMA","MIZAR_SPI_TX_FIFO_LEVEL_REG","MIZAR_SPI_RX_FIFO_LEVEL_REG","MIZAR_SPI_TRQ_LEVEL_REG","MIZAR_SPI_STS","MIZAR_SPI_IMSC","MIZAR_SPI_RIS","MIZAR_SPI_MIS","MIZAR_SPI_IC","MIZAR_SPI_RSM_TRQ_DATA_REG","MIZAR_SPI_RSM_TXTEST_DATA_REG","MIZAR_SPI_DATA_REG","MIZAR_SPI_RSM_TS_CTRL","MIZAR_SPI_SPI_TLEAD","MIZAR_SPI_SPI_TTRAIL","MIZAR_SPI_SPI_TIDLE"]
+    }
+  ]
+}

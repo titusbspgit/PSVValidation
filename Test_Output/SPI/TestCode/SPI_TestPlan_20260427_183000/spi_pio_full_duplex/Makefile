@@ -1,0 +1,1 @@
+CC ?= gcc\nCFLAGS ?= -Wall -Wextra -std=c11\nTARGET := spi_pio_full_duplex.elf\nSRCS := program.c isr.c test_define.c\nOBJS := $(SRCS:.c=.o)\n\nall: $(TARGET)\n\n$(TARGET): $(OBJS)\n\t$(CC) $(CFLAGS) -o $@ $(OBJS)\n\n%.o: %.c\n\t$(CC) $(CFLAGS) -c $< -o $@\n\nclean:\n\trm -f $(OBJS) $(TARGET)\n
