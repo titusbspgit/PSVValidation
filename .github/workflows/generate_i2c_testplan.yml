@@ -67,6 +67,19 @@ PY
           sha=$(git ls-remote origin refs/heads/main | cut -f1)
           echo "sha=$sha" >> $GITHUB_OUTPUT
 
+      - name: Write status JSON
+        env:
+          OUTFILE: ${{ steps.read_out.outputs.outfile }}
+          SHA: ${{ steps.commit_excel.outputs.sha }}
+        run: |
+          url="https://github.com/${{ github.repository }}/blob/main/${OUTFILE}"
+          echo "{\"outfile\": \"$OUTFILE\", \"commit_sha\": \"$SHA\", \"url\": \"$url\"}" > tools/i2c_testplan_status.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/i2c_testplan_status.json
+          git commit -m "Record I2C TestPlan Excel status JSON" || echo "No status changes to commit"
+          git push || true
+
       - name: Output file info
         env:
           OUTFILE: ${{ steps.read_out.outputs.outfile }}
