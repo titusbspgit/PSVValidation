@@ -8,19 +8,21 @@ Key behaviors:
 - Validate JSON structure (object with non-empty 'tests' array)
 - Build Data sheet from union of keys (first-seen order), one row per test
 - Create Meta_data_sheet with META columns; set sheet_state to veryHidden
-- Rename Data -> TestPlan, drop META columns, enforce MAIN column order
+- Rename Data -> TestPlan, drop META columns, enforce MAIN column order ONLY
 - Visual formatting only on TestPlan: blue header fill, bold, wraps, borders, alignment
 - Add drop-down list to 'Code Generation (Required / Not)' with values: Required, Not Required, and allow blank
-- Filename: SPI_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx where timestamp is IST provided by --timestamp
-- Output path: Test_Output/SPI/TestPlan/
+- Set workbook metadata 'created' to IST timestamp provided by --timestamp (YYYYMMDD_HHMMSS)
+- Filename: <IP_NAME>_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx where timestamp is IST provided by --timestamp
+- Output path: Test_Output/<IP_NAME>/TestPlan/
 
-No mutation of values. Arrays/objects are JSON-encoded unless they are specifically multi-line content which remains as JSON strings.
+No mutation of values. Arrays/objects are JSON-encoded to preserve exact content.
 """
 
 import argparse
 import json
 from copy import deepcopy
 from pathlib import Path
+from datetime import datetime
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -260,14 +262,6 @@ def compute_union_keys_preserve_order(objs):
     return seen
 
 
-def col_letter(n):
-    s = ''
-    while n:
-        n, r = divmod(n-1, 26)
-        s = chr(65+r) + s
-    return s
-
-
 def autofit_columns(ws):
     for col in ws.columns:
         max_len = 0
@@ -276,7 +270,8 @@ def autofit_columns(ws):
             if v is None:
                 continue
             for line in str(v).split('\n'):
-                max_len = max(max_len, len(line))
+                if len(line) > max_len:
+                    max_len = len(line)
         width = min(max(10, max_len + 2), 90)
         ws.column_dimensions[col[0].column_letter].width = width
 
@@ -289,12 +284,19 @@ def apply_table_borders(ws):
             cell.border = border
 
 
-def build_workbook(data_tests):
+def build_workbook(data_tests, ist_timestamp_str):
     wb = Workbook()
+    # Set workbook metadata created to IST timestamp
+    try:
+        created_dt = datetime.strptime(ist_timestamp_str, '%Y%m%d_%H%M%S')
+        wb.properties.created = created_dt
+    except Exception:
+        pass
+
     ws = wb.active
     ws.title = 'Data'
 
-    # Normalize schema
+    # Normalize schema for Data sheet
     union_keys = compute_union_keys_preserve_order(data_tests)
 
     # Base Data sheet
@@ -317,12 +319,10 @@ def build_workbook(data_tests):
             meta_ws.cell(row=r, column=c, value=json_value_to_cell(item.get(key, '')))
     meta_ws.sheet_state = 'veryHidden'
 
-    # Transform Data -> TestPlan, drop META columns, enforce order
+    # Transform Data -> TestPlan, drop META columns, enforce MAIN column order ONLY
     header_row = [ws.cell(row=1, column=i).value for i in range(1, ws.max_column + 1)]
     keep_headers = [h for h in header_row if h not in META_COLUMNS]
-    ordered_headers = [h for h in MAIN_COLUMNS if h in keep_headers]
-    extras = [h for h in keep_headers if h not in MAIN_COLUMNS]
-    final_headers = ordered_headers + extras
+    final_headers = [h for h in MAIN_COLUMNS if h in keep_headers]
 
     tmp = wb.create_sheet('TMP')
     for c, key in enumerate(final_headers, start=1):
@@ -335,11 +335,13 @@ def build_workbook(data_tests):
             val = ws.cell(row=r, column=src_col).value if src_col else ''
             tmp.cell(row=r, column=c, value=val)
 
+    # Replace Data with TestPlan
+    from openpyxl.workbook.workbook import Workbook as _WB
     wb.remove(ws)
     tmp.title = 'TestPlan'
     ws = tmp
 
-    # Strict formatting
+    # Strict formatting for TestPlan
     header_font = Font(bold=True, color='FFFFFFFF')
     header_fill = PatternFill(fill_type='solid', fgColor='FF1F4E79')
 
@@ -364,6 +366,7 @@ def build_workbook(data_tests):
             else:
                 cell.alignment = Alignment(vertical='top', horizontal='left')
 
+    ws.freeze_panes = 'A2'
     autofit_columns(ws)
     apply_table_borders(ws)
 
@@ -398,9 +401,9 @@ def main():
 
     tests = deepcopy(parsed['tests'])
 
-    wb = build_workbook(tests)
+    wb = build_workbook(tests, args.timestamp)
 
-    out_dir = Path('Test_Output') / args.ip-name / 'TestPlan'
+    out_dir = Path('Test_Output') / args.ip_name / 'TestPlan'
     out_dir.mkdir(parents=True, exist_ok=True)
     out_name = f"{args.ip_name}_TestPlan_{args.timestamp}.xlsx"
     out_path = out_dir / out_name
