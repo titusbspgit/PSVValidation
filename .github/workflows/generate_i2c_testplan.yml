@@ -2,6 +2,9 @@ name: Generate I2C TestPlan Excel (Stage1)
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/triggers/i2c_testplan.run"
 
 permissions:
   contents: write
