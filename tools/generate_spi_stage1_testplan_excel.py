@@ -7,7 +7,7 @@ Ag-Emb-Mpsoc-Stage1 rules and commit-ready structure.
 Key behaviors:
 - Validate JSON structure (object with non-empty 'tests' array)
 - Build Data sheet from union of keys (first-seen order), one row per test
-- Create Meta_data_sheet with META columns; set sheet_state to veryHidden
+- Create Meta_data_sheet with META columns; set sheet_state to veryHidden (no formatting applied)
 - Rename Data -> TestPlan, drop META columns, enforce MAIN column order ONLY
 - Visual formatting only on TestPlan: blue header fill, bold, wraps, borders, alignment
 - Add drop-down list to 'Code Generation (Required / Not)' with values: Required, Not Required, and allow blank
@@ -309,11 +309,10 @@ def build_workbook(data_tests, ist_timestamp_str):
             ws.cell(row=r, column=c, value=json_value_to_cell(item.get(key, '')))
     ws.freeze_panes = 'A2'
 
-    # Meta_data_sheet
+    # Meta_data_sheet (no formatting)
     meta_ws = wb.create_sheet('Meta_data_sheet')
     for c, key in enumerate(META_COLUMNS, start=1):
-        cell = meta_ws.cell(row=1, column=c, value=key)
-        cell.font = Font(bold=True)
+        meta_ws.cell(row=1, column=c, value=key)
     for r, item in enumerate(data_tests, start=2):
         for c, key in enumerate(META_COLUMNS, start=1):
             meta_ws.cell(row=r, column=c, value=json_value_to_cell(item.get(key, '')))
@@ -336,7 +335,6 @@ def build_workbook(data_tests, ist_timestamp_str):
             tmp.cell(row=r, column=c, value=val)
 
     # Replace Data with TestPlan
-    from openpyxl.workbook.workbook import Workbook as _WB
     wb.remove(ws)
     tmp.title = 'TestPlan'
     ws = tmp
