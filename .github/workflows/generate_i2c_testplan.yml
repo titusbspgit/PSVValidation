@@ -1,183 +1,47 @@
-name: Generate I2C TestPlan
+name: Generate I2C Test Plan
 
 on:
   push:
-    branches: [ main ]
     paths:
+      - 'tools/generate_testplan_i2c.py'
+      - 'TestPlan_Input/I2C_TestPlan.json'
       - '.github/workflows/generate_i2c_testplan.yml'
-      - 'TestRepo/i2c/**'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Install Python deps
-        run: pip install openpyxl pytz
-      - name: Generate I2C TestPlan workbook
+
+      - name: Install dependencies
         run: |
-          python - << 'PY'
-          from openpyxl import Workbook
-          from openpyxl.utils import get_column_letter
-          from datetime import datetime
-          import pytz, os
+          python -m pip install --upgrade pip
+          pip install openpyxl
 
-          tz = pytz.timezone('Asia/Kolkata')
-          now = datetime.now(tz)
-          ts_date = now.strftime('%Y%m%d')
-          ts_time = now.strftime('%H%M%S')
-          ip_name = 'I2C'
-
-          out_dir = 'Test_Output/I2C/TestPlan'
-          os.makedirs(out_dir, exist_ok=True)
-          filename = f'{ip_name}_TestPlan_{ts_date}_{ts_time}.xlsx'
-          out_path = os.path.join(out_dir, filename)
-
-          wb = Workbook()
-          # Sheets
-          ws_overview = wb.active
-          ws_overview.title = 'Overview_Scope'
-          ws_assump = wb.create_sheet('Assumptions')
-          ws_env = wb.create_sheet('Environment_Dependencies')
-          ws_cases = wb.create_sheet('Test_Cases')
-          ws_trace = wb.create_sheet('Traceability_Mapping')
-          ws_exec = wb.create_sheet('Execution_Matrix')
-          ws_risks = wb.create_sheet('Risks')
-
-          repo_base = 'https://github.com/titusbspgit/PSVValidation/tree/main'
-          i2c_base = f'{repo_base}/TestRepo/i2c'
-
-          tests = [
-            {
-              'ID': 'I2C_TC_001',
-              'Name': 'i2c_reg_rd_wr_test',
-              'Objective': 'Validate I2C IP register read/write accessibility and correctness across key registers and boundary addresses.',
-              'Preconditions': 'Board powered; PSV platform booted; I2C clocks enabled; Access permissions to I2C registers.',
-              'Setup': 'Ensure pull-ups present on SDA/SCL; Load low-level access utility/driver; Reset I2C IP to known state.',
-              'Steps': '1) Read default values; 2) Write test patterns to RW regs; 3) Read-back and compare; 4) Write-to-RO (expect no change); 5) Soft reset and re-verify defaults.',
-              'Expected': 'All RW registers read-back match writes; RO regs unchanged; Status/interrupt bits behave per spec.',
-              'PassFail': 'PASS if all comparisons succeed and no bus errors/timeouts; else FAIL.',
-              'Logs': 'Console/UART logs; register dump CSV.',
-              'Link': f'{i2c_base}/i2c_reg_rd_wr_test'
-            },
-            {
-              'ID': 'I2C_TC_002',
-              'Name': 'test_i2c0_mst_i2c1_slv_dma_hs_md',
-              'Objective': 'Validate HS-mode (3.4MHz) data transfers using DMA with I2C0 as Master and I2C1 as Slave.',
-              'Preconditions': 'I2C0 and I2C1 wired; HS-capable pull-ups; DMA engine enabled; Proper board power/clocking.',
-              'Setup': 'Configure I2C0 Master HS mode; I2C1 Slave address; Configure DMA channels and descriptors; Allocate buffers.',
-              'Steps': '1) Program HS mode on I2C0; 2) Arm I2C1 slave; 3) Start DMA TX from memory via I2C0 to I2C1; 4) Verify RX buffer; 5) Repeat with varying sizes and addresses.',
-              'Expected': 'No NACK/timeouts; Data integrity preserved (CRC/byte compare matches).',
-              'PassFail': 'PASS if all transfers succeed with zero data mismatches and no HW errors; else FAIL.',
-              'Logs': 'DMA/I2C driver logs; buffer hexdumps; timing stats.',
-              'Link': f'{i2c_base}/test_i2c0_mst_i2c1_slv_dma_hs_md'
-            },
-            {
-              'ID': 'I2C_TC_003',
-              'Name': 'test_i2c0_mst_i2c1_slv_dma_st_md',
-              'Objective': 'Validate Standard-mode (100kHz) data transfers using DMA with I2C0 as Master and I2C1 as Slave.',
-              'Preconditions': 'I2C0 and I2C1 wired; Standard-mode pull-ups; DMA engine enabled.',
-              'Setup': 'Configure I2C0 Master Standard mode; I2C1 Slave address; Setup DMA; Allocate buffers.',
-              'Steps': '1) Program Standard mode on I2C0; 2) Arm I2C1 slave; 3) Start DMA TX; 4) Verify RX buffer; 5) Try varied payload sizes and repeated starts.',
-              'Expected': 'Stable transfers; No arbitration loss; Data integrity OK.',
-              'PassFail': 'PASS if integrity and error-free operation across matrix; else FAIL.',
-              'Logs': 'Driver logs; buffer comparisons.',
-              'Link': f'{i2c_base}/test_i2c0_mst_i2c1_slv_dma_st_md'
-            }
-          ]
-
-          # Overview
-          ws_overview.append(['IP Name', ip_name])
-          ws_overview.append(['Scope', 'Covers register access validation and I2C0<->I2C1 DMA-based transfers in HS and Standard modes.'])
-          ws_overview.append(['Out of Scope', 'Electrical characterization, third-party device interoperability beyond internal I2C0/I2C1.'])
-          ws_overview.append(['Generated (IST)', now.strftime('%Y-%m-%d %H:%M:%S IST')])
-          ws_overview.append(['Source Directory', i2c_base])
-
-          # Assumptions
-          ws_assump.append(['Assumptions'])
-          for a in [
-            'On-chip I2C0 (master) and I2C1 (slave) available on board.',
-            'Pull-ups sized appropriately (e.g., 4.7k) for target speeds.',
-            'DMA engine functional and accessible to I2C controller.',
-            'Clocks and resets configured; no other master contending the bus.',
-          ]:
-            ws_assump.append([a])
-
-          # Environment & Dependencies
-          ws_env.append(['Item', 'Detail'])
-          for r in [
-            ['Board', 'PSV Platform'],
-            ['OS/FW', 'Linux/Baremetal (as applicable)'],
-            ['Kernel/Driver', 'I2C + DMA drivers loaded/enabled'],
-            ['Tools', 'Register access tool; log capture'],
-            ['Connections', 'I2C0<->I2C1 wired; UART for logs'],
-          ]:
-            ws_env.append(r)
-
-          # Test Cases
-          headers = ['ID','Name','Objective','Preconditions','Setup','Steps','Expected Results','Pass/Fail Criteria','Logs/Artifacts','Links']
-          ws_cases.append(headers)
-          for t in tests:
-            ws_cases.append([
-              t['ID'], t['Name'], t['Objective'], t['Preconditions'], t['Setup'],
-              t['Steps'], t['Expected'], t['PassFail'], t['Logs'], t['Link']
-            ])
-
-          # Traceability
-          ws_trace.append(['Requirement/Feature','Test Case IDs'])
-          for m in [
-            ['Register accessibility (R/W/RO)', 'I2C_TC_001'],
-            ['DMA-based transfers', 'I2C_TC_002, I2C_TC_003'],
-            ['High-Speed mode operation', 'I2C_TC_002'],
-            ['Standard mode operation', 'I2C_TC_003'],
-            ['Master-Slave role correctness', 'I2C_TC_002, I2C_TC_003'],
-          ]:
-            ws_trace.append(m)
-
-          # Execution Matrix
-          ws_exec.append(['Test ID','Mode','Payload Sizes','Runs','Result'])
-          for row in [
-            ['I2C_TC_001','N/A','N/A','1','TBD'],
-            ['I2C_TC_002','HS (3.4MHz)','64B, 256B, 1KB','3 each','TBD'],
-            ['I2C_TC_003','Standard (100kHz)','64B, 256B, 1KB','3 each','TBD'],
-          ]:
-            ws_exec.append(row)
-
-          # Risks
-          ws_risks.append(['Risk','Impact','Mitigation'])
-          for r in [
-            ['HS timing margins insufficient','Data errors','Use proper pull-ups; verify clock config'],
-            ['DMA misconfiguration','Transfer failures','Use validated descriptors; sanity tests'],
-            ['Bus contention/locks','Timeouts','Ensure exclusive access; bus recovery'],
-          ]:
-            ws_risks.append(r)
-
-          # Basic column width tuning
-          for ws in [ws_overview, ws_assump, ws_env, ws_cases, ws_trace, ws_exec, ws_risks]:
-            dims = {}
-            for row in ws.rows:
-              for cell in row:
-                if cell.value:
-                  dims[cell.column_letter] = max(dims.get(cell.column_letter, 0), len(str(cell.value))+2)
-            for col, width in dims.items():
-              ws.column_dimensions[col].width = min(width, 80)
-
-          wb.save(out_path)
-          print(out_path)
-          PY
-      - name: Commit and push generated TestPlan
+      - name: Generate Excel from JSON (Stage1 rules)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/I2C/TestPlan/*.xlsx
-          git commit -m "feat(testplan): add I2C TestPlan generated in IST" || echo "No changes to commit"
+          python tools/generate_testplan_i2c.py
+
+      - name: Commit Excel output
+        run: |
+          set -e
+          if [ ! -f Test_Output/I2C/TestPlan/.latest ]; then
+            echo ".latest file not found; nothing to commit" && exit 0
+          fi
+          fname=$(grep '^filename=' Test_Output/I2C/TestPlan/.latest | cut -d= -f2)
+          ist=$(grep '^ist=' Test_Output/I2C/TestPlan/.latest | cut -d= -f2)
+          if [ ! -f "Test_Output/I2C/TestPlan/${fname}" ]; then
+            echo "Expected output file not found: Test_Output/I2C/TestPlan/${fname}" && exit 1
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "Test_Output/I2C/TestPlan/${fname}"
+          git commit -m "Add I2C Test Plan (${fname}) generated on ${ist} for IP I2C" || echo "No changes to commit"
           git push
