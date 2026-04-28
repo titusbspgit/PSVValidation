@@ -1,12 +1,12 @@
-name: Generate and Commit I2C TestPlan Excel
+name: Generate I2C Test Plan Excel
 
 on:
   push:
-    branches: [ main ]
     paths:
-      - '.github/scripts/generate_testplan_excel.py'
-      - '.github/workflows/generate_i2c_testplan.yml'
-  workflow_dispatch: {}
+      - .github/workflows/generate_i2c_testplan.yml
+      - tools/generate_i2c_testplan.py
+      - tools/i2c_testplan_input.json
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,19 +15,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+          persist-credentials: true
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install openpyxl
-
       - name: Generate and commit Excel
+        env:
+          OUTPUT_DIR: Test_Output/I2C/TestPlan
+          IP_NAME: I2C
+          COMMIT_MESSAGE_TEMPLATE: Add I2C Test Plan generated on <IST YYYY-MM-DD HH:MM:SS> (IST)
+          BRANCH: main
         run: |
-          python .github/scripts/generate_testplan_excel.py
+          python tools/generate_i2c_testplan.py
