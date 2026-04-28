@@ -1,2 +1,33 @@
-name: Generate and Commit I2C TestPlan Excel\n\non:\n  workflow_dispatch: {}\n\npermissions:\n  contents: write\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.11'\n\n      - name: Install dependencies\n        run: pip install openpyxl\n\n      - name: Generate and commit Excel\n        run: |
+name: Generate and Commit I2C TestPlan Excel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_i2c_testplan.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate and commit Excel
+        run: |
           python .github/scripts/generate_testplan_excel.py
