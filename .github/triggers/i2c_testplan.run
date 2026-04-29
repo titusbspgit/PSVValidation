@@ -1,2 +1,0 @@
-trigger=I2C
-note=workflow_dispatch alternative trigger via push to this path
