@@ -1,339 +1,260 @@
-import argparse, json, os, sys, zipfile
+#!/usr/bin/env python3
+import argparse, json, os, re
 from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from pytz import timezone as ZoneInfo
+from zoneinfo import ZoneInfo
+from zipfile import ZipFile
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 
 META_COLS = [
-    "Hidden_Test_Case_Name",
-    "Hidden_Test_Description",
-    "Hidden_Remarks",
-    "Hidden_Test_Steps_Procedure",
-    "Hidden_Impacted_Registers",
-    "Hidden_Validation_Acceptance_Criteria",
+    'Hidden_Test_Case_Name',
+    'Hidden_Test_Description',
+    'Hidden_Remarks',
+    'Hidden_Test_Steps_Procedure',
+    'Hidden_Impacted_Registers',
+    'Hidden_Validation_Acceptance_Criteria',
 ]
 
-MAIN_COLS = [
-    "Index",
-    "SS / Module",
-    "Feature",
-    "Test Case Name",
-    "Test Description",
-    "Speed",
-    "Mode",
-    "Memory Start Offset",
-    "Memory End Offset",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Impacted Registers",
-    "Validation / Acceptance Criteria",
-    "Code Generation (Required / Not)",
+MAIN_ORDER = [
+    'Index',
+    'SS / Module',
+    'Feature',
+    'Test Case Name',
+    'Test Description',
+    'Speed',
+    'Mode',
+    'Memory Start Offset',
+    'Memory End Offset',
+    'Remarks',
+    'Test Steps / Procedure',
+    'Imparted Registers',  # typo-safe alias will be corrected to 'Impacted Registers' below if present
+    'Impacted Registers',
+    'Validation / Acceptance Criteria',
+    'Code Generation (Required / Not)'
 ]
 
 WRAP_COLS = {
-    "Test Description",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Validation / Acceptance Criteria",
+    'Test Description',
+    'Remarks',
+    'Test Steps / Procedure',
+    'Validation / Acceptance Criteria',
 }
 
-VALIDATION_COL = "Code Generation (Required / Not)"
-VALIDATION_LIST = "Required,Blank,Not Required"
+ALLOWED_DV = ['Required', 'Blank', 'Not Required']
 
 
-def load_json_records(path):
+def natural_tc_key(k: str):
+    m = re.match(r'^(?:TC|tc)(\d+)$', k.strip())
+    return (int(m.group(1)) if m else 10**9, k)
+
+
+def load_json_records(path: str):
     with open(path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    # Normalize to list of dicts
+    if isinstance(data, list):
+        if not data:
+            raise SystemExit('JSON array is empty')
+        return data
     if isinstance(data, dict):
-        items = []
-        # Prefer numeric Index if present
-        def key_fn(kv):
-            k, v = kv
-            idx = None
-            if isinstance(v, dict) and "Index" in v:
-                try:
-                    idx = int(str(v["Index"]))
-                except Exception:
-                    idx = None
-            if idx is None:
-                # fallback to TC number in key (e.g., TC3)
-                import re
-                m = re.search(r"(\d+)$", str(k))
-                if m:
-                    return int(m.group(1))
-                return sys.maxsize
-            return idx
-        for k, v in sorted(data.items(), key=key_fn):
-            if isinstance(v, dict):
-                items.append(v)
-    elif isinstance(data, list):
-        items = data
-    else:
-        raise ValueError("Top-level JSON must be object or array")
-    if not items:
-        raise ValueError("Empty JSON input after normalization")
-    # Ensure all elements are dicts
-    for r in items:
-        if not isinstance(r, dict):
-            raise ValueError("All records must be JSON objects")
-    return items
+        # Deterministically convert dict of testcases to array ordered by TC1..TCN
+        ordered = []
+        for k in sorted(data.keys(), key=natural_tc_key):
+            ordered.append(data[k])
+        if not ordered:
+            raise SystemExit('JSON object contains no test case entries')
+        return ordered
+    raise SystemExit('Unsupported JSON top-level type; expected array or object of test cases')
 
 
-def build_key_order(records):
+def union_keys_preserve_first_order(records):
     seen = []
-    sset = set()
-    for r in records:
-        for k in r.keys():
-            if k not in sset:
-                sset.add(k)
+    s = set()
+    for rec in records:
+        if not isinstance(rec, dict):
+            raise SystemExit('Each JSON record must be an object')
+        for k in rec.keys():
+            if k not in s:
+                s.add(k)
                 seen.append(k)
     return seen
 
 
-def ensure_dir(p):
-    os.makedirs(p, exist_ok=True)
+def to_str(v):
+    if v is None:
+        return ''
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, list):
+        # Preserve raw list; caller will format if needed
+        return v
+    return str(v)
 
 
-def value_to_str(v):
-    if isinstance(v, (list, dict)):
-        return json.dumps(v, ensure_ascii=False)
-    return v
+def build_numbered_text(value):
+    # Number list items inside a single wrapped cell
+    if isinstance(value, list):
+        items = [str(x).strip() for x in value if str(x).strip()]
+    else:
+        s = str(value)
+        if '\n' in s:
+            items = [line.strip() for line in s.split('\n') if line.strip()]
+        else:
+            # Single item; return as-is
+            items = [s.strip()] if s.strip() else []
+    if not items:
+        return ''
+    return '\n'.join(f"{i+1}. {items[i]}" for i in range(len(items)))
 
 
-def join_numbered(items):
-    out_lines = []
-    for i, it in enumerate(items, start=1):
-        s = it if isinstance(it, str) else json.dumps(it, ensure_ascii=False)
-        out_lines.append(f"{i}. {s}")
-    return "\n".join(out_lines)
-
-
-def autofit(ws):
-    # Approximate autofit by character length
-    dims = {}
-    for row in ws.iter_rows(values_only=False):
-        for cell in row:
-            v = cell.value
-            if v is None:
-                l = 0
-            else:
+def auto_widths(ws):
+    from openpyxl.utils import get_column_letter
+    widths = {}
+    for row in ws.iter_rows(values_only=True):
+        for i, v in enumerate(row, start=1):
+            s = ''
+            if isinstance(v, list):
+                s = '\n'.join(str(x) for x in v)
+            elif v is not None:
                 s = str(v)
-                l = max(len(line) for line in s.splitlines())
-            dims[cell.column_letter] = max(dims.get(cell.column_letter, 0), l)
-    for col, width in dims.items():
-        ws.column_dimensions[col].width = min(max(width + 2, 12), 80)
+            w = max((len(line) for line in s.split('\n')), default=0)
+            widths[i] = max(widths.get(i, 0), min(80, max(10, w + 2)))
+    for i, w in widths.items():
+        ws.column_dimensions[get_column_letter(i)].width = w
 
 
 def apply_borders(ws):
-    thin = Side(border_style="thin", color="000000")
+    thin = Side(style='thin', color='000000')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     for row in ws.iter_rows():
-        for cell in row:
-            cell.border = border
-
-
-def set_header_style(ws):
-    header_fill = PatternFill("solid", fgColor="4472C4")
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.fill = header_fill
-
-
-def set_data_alignment(ws):
-    max_row = ws.max_row
-    max_col = ws.max_column
-    headers = [ws.cell(row=1, column=i).value for i in range(1, max_col+1)]
-    for r in range(2, max_row+1):
-        for c in range(1, max_col+1):
-            cell = ws.cell(row=r, column=c)
-            h = headers[c-1]
-            if h == "Index":
-                cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=False)
-            elif h in WRAP_COLS:
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            else:
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=False)
-
-
-def estimate_row_heights(ws):
-    for row in ws.iter_rows(min_row=2):
-        max_lines = 1
-        for cell in row:
-            if cell.value is None:
-                continue
-            s = str(cell.value)
-            lines = s.count("\n") + 1
-            if lines > max_lines:
-                max_lines = lines
-        ws.row_dimensions[cell.row].height = min(15 * max_lines, 300)
-
-
-def add_validation(ws):
-    # Apply only to data rows for the specific column
-    headers = [ws.cell(row=1, column=i).value for i in range(1, ws.max_column+1)]
-    try:
-        col_idx = headers.index(VALIDATION_COL) + 1
-    except ValueError:
-        return
-    max_row = ws.max_row
-    dv = DataValidation(type="list", formula1=f'"{VALIDATION_LIST}"', allow_blank=True)
-    ws.add_data_validation(dv)
-    rng = f"{ws.cell(row=2, column=col_idx).coordinate}:{ws.cell(row=max_row, column=col_idx).coordinate}"
-    dv.add(rng)
-
-
-def validate_ooxml(path):
-    if not zipfile.is_zipfile(path):
-        return False
-    with zipfile.ZipFile(path, 'r') as z:
-        needed = {"[Content_Types].xml", "xl/workbook.xml"}
-        names = set(z.namelist())
-        if not needed.issubset(names):
-            return False
-        ws_files = [n for n in names if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
-        return len(ws_files) >= 1
+        for c in row:
+            c.border = border
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--input', required=True)
-    ap.add_argument('--output-dir', required=True)
+    ap.add_argument('--json', required=True)
+    ap.add_argument('--outdir', required=True)
     ap.add_argument('--ip-name', required=True)
     args = ap.parse_args()
 
-    records = load_json_records(args.input)
-
-    # Build union key order (not strictly needed since we later restrict to MAIN_COLS)
-    _ = build_key_order(records)
+    records = load_json_records(args.json)
+    all_keys = union_keys_preserve_first_order(records)
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Data"
+    ws.title = 'Data'
 
-    # Stage: write all keys in union order for staging
-    # But we will directly create columns for MAIN+META union to preserve available data
-    # Compose staging headers as union of MAIN_COLS + META_COLS preserving occurrence in records
-    staging_keys = []
-    for k in MAIN_COLS + META_COLS:
-        staging_keys.append(k)
     # Write header
-    for c, h in enumerate(staging_keys, start=1):
-        ws.cell(row=1, column=c, value=h)
-    # Write rows
-    for r_idx, rec in enumerate(records, start=2):
-        for c, h in enumerate(staging_keys, start=1):
-            v = rec.get(h, "")
-            ws.cell(row=r_idx, column=c, value=value_to_str(v))
+    ws.append(all_keys)
+    # Write rows preserving exact values (no mutation)
+    for rec in records:
+        row = [rec.get(k, '') for k in all_keys]
+        ws.append(row)
 
     # Base formatting
-    ws.freeze_panes = "A2"
-    set_header_style(ws)
+    header_font = Font(bold=True)
+    header_align = Alignment(horizontal='center', vertical='center')
+    blue_fill = PatternFill('solid', fgColor='4472C4')
 
-    # Create META sheet and copy columns AS-IS
-    meta = wb.create_sheet(title="Meta_data_sheet")
-    for c, h in enumerate(META_COLS, start=1):
-        meta.cell(row=1, column=c, value=h)
-    for r_idx, rec in enumerate(records, start=2):
-        for c, h in enumerate(META_COLS, start=1):
-            v = rec.get(h, "")
-            # Preserve raw content exactly; dump lists/dicts as JSON text
-            meta.cell(row=r_idx, column=c, value=value_to_str(v))
-    # Very hidden
-    meta.sheet_state = 'veryHidden'
+    for c in ws[1]:
+        c.font = header_font
+        c.alignment = header_align
+        c.fill = blue_fill
 
-    # Normalize MAIN sheet on the SAME worksheet
-    # Build a new table with only MAIN_COLS in specified order
-    # Collect current values into memory to rebuild sheet
-    rows = []
-    for r in range(2, ws.max_row+1):
-        rowd = {}
-        for c in range(1, ws.max_column+1):
-            h = ws.cell(row=1, column=c).value
-            rowd[h] = ws.cell(row=r, column=c).value
-        rows.append(rowd)
+    ws.freeze_panes = 'A2'
 
-    # Clear ws
-    for row in ws[ws.dimensions]:
-        for cell in row:
-            cell.value = None
+    # Create META sheet and copy meta columns AS-IS
+    ws_meta = wb.create_sheet('Meta_data_sheet')
+    meta_present = [c for c in META_COLS if c in all_keys]
+    if meta_present:
+        ws_meta.append(meta_present)
+        for rec in records:
+            ws_meta.append([rec.get(k, '') for k in meta_present])
+    ws_meta.sheet_state = 'veryHidden'
 
-    # Write MAIN headers
-    for c, h in enumerate(MAIN_COLS, start=1):
-        ws.cell(row=1, column=c, value=h)
-    set_header_style(ws)
+    # Normalize main sheet: remove meta columns, enforce MAIN order, then append any extra non-meta columns in first-seen order
+    main_cols = [c for c in MAIN_ORDER if c in all_keys]
+    # Insert missing MAIN columns explicitly as blanks in visible sheet
+    for c in MAIN_ORDER:
+        if c not in main_cols:
+            main_cols.append(c)
+    extra_cols = [k for k in all_keys if k not in META_COLS and k not in MAIN_ORDER]
+    final_cols = main_cols + extra_cols
 
-    # Write MAIN rows with numbering where required
-    for r_idx, rowd in enumerate(rows, start=2):
-        for c, h in enumerate(MAIN_COLS, start=1):
-            v = rowd.get(h, "")
-            if h in {"Test Steps / Procedure", "Validation / Acceptance Criteria"}:
-                # If value is JSON array text, attempt to parse
-                if isinstance(v, str):
-                    try:
-                        parsed = json.loads(v)
-                    except Exception:
-                        parsed = None
-                else:
-                    parsed = v
-                if isinstance(parsed, list):
-                    v = join_numbered(parsed)
-            ws.cell(row=r_idx, column=c, value=v)
+    # Rebuild Data sheet content in-memory, then replace values
+    data_rows = []
+    for rec in records:
+        row = []
+        for col in final_cols:
+            v = rec.get(col, '')
+            # In-cell numbering for specific columns
+            if col in ('Test Steps / Procedure', 'Validation / Acceptance Criteria'):
+                v = build_numbered_text(v)
+            row.append(v)
+        data_rows.append(row)
+
+    # Replace sheet with final_cols and data_rows
+    ws.delete_rows(1, ws.max_row)
+    ws.append(final_cols)
+    for row in data_rows:
+        ws.append(row)
 
     # Rename Data -> TestPlan
-    ws.title = "TestPlan"
+    ws.title = 'TestPlan'
 
-    # Formatting
-    autofit(ws)
-    set_data_alignment(ws)
-    estimate_row_heights(ws)
+    # Text wrapping, alignments, borders
+    wrap_cols_set = set(WRAP_COLS)
+    col_index = {ws.cell(row=1, column=i).value: i for i in range(1, ws.max_column+1)}
+
+    for r in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+        for c in r:
+            header = ws.cell(row=1, column=c.column).value
+            if header in wrap_cols_set:
+                c.alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
+            else:
+                c.alignment = Alignment(vertical='top')
+
+    # Header formatting already applied; ensure alignment and fill preserved
+    for c in ws[1]:
+        c.font = header_font
+        c.alignment = header_align
+        c.fill = blue_fill
+
+    auto_widths(ws)
     apply_borders(ws)
 
-    # Wrap specific columns
-    headers = [ws.cell(row=1, column=i).value for i in range(1, ws.max_column+1)]
-    for c, h in enumerate(headers, start=1):
-        if h in WRAP_COLS:
-            for r in range(2, ws.max_row+1):
-                ws.cell(row=r, column=c).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    # Data validation for Code Generation (Required / Not)
+    if 'Code Generation (Required / Not)' in col_index:
+        idx = col_index['Code Generation (Required / Not)']
+        from openpyxl.utils import get_column_letter
+        col_letter = get_column_letter(idx)
+        dv = DataValidation(type='list', formula1='"' + ','.join(ALLOWED_DV) + '"', allow_blank=True, error='Select a value from the list')
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}{ws.max_row}")
 
-    # Data validation on specific column only
-    add_validation(ws)
+    # Safety check: ensure no sheet named 'Data' remains
+    if any(sh.title == 'Data' for sh in wb.worksheets):
+        # Delete any residual 'Data' sheet
+        for sh in list(wb.worksheets):
+            if sh.title == 'Data':
+                wb.remove(sh)
 
-    # Final sheet visibility enforcement: ensure no 'Data' sheet exists
-    for sht in list(wb.sheetnames):
-        if sht == 'Data':
-            # If somehow exists, delete it
-            del wb[sht]
-
-    # Save
-    tz = None
-    try:
-        tz = ZoneInfo('Asia/Kolkata')
-    except Exception:
-        pass
-    now = datetime.now(tz) if tz else datetime.utcnow()
-    ymd = now.strftime('%Y%m%d')
-    hms = now.strftime('%H%M%S')
-    out_name = f"{args.ip_name}_TestPlan_{ymd}_{hms}.xlsx"
-    ensure_dir(args.output_dir)
-    out_path = os.path.join(args.output_dir, out_name)
-    wb.save(out_path)
+    # Save with IST timestamp and naming rule
+    os.makedirs(args.outdir, exist_ok=True)
+    now = datetime.now(ZoneInfo('Asia/Kolkata'))
+    fname = f"{args.ip_name}_TestPlan_{now.strftime('%Y%m%d')}_{now.strftime('%H%M%S')}.xlsx"
+    outpath = os.path.join(args.outdir, fname)
+    wb.save(outpath)
 
     # OOXML validation
-    if not validate_ooxml(out_path):
-        print("XLSX validation failed", file=sys.stderr)
-        sys.exit(2)
+    with ZipFile(outpath, 'r') as z:
+        names = set(z.namelist())
+        assert '[Content_Types].xml' in names
+        assert 'xl/workbook.xml' in names
+        assert any(n.startswith('xl/worksheets/') for n in names)
 
-    # Emit path for workflow
-    relpath = out_path
-    with open('gen_path.txt', 'w', encoding='utf-8') as f:
-        f.write(relpath)
-    print(relpath)
+    print(outpath)
 
 if __name__ == '__main__':
     main()
