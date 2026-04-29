@@ -1,3 +1,4 @@
+# retrigger
 name: Generate GPIO TestPlan
 
 on:
