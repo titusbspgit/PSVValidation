@@ -174,18 +174,18 @@
       "write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF); write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF);",
       "wait_on(10);",
       "write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);",
-      "for(i=0;i<32;i++){ write_reg(0xA0243ffc, 0x00000000); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xFFFFFFFF); int timeout=2000; while((int_pend==1) && (--timeout>0)) { wait_on(10); } if(timeout==0){ printf(\\"ERROR: Timeout waiting for GPIO IRQ at i=%u\\\\n\\", i); test_err++; break; } write_reg(0xA0243ffc, 0x00000000); wait_on(10); }",
+      "for(i=0;i<32;i++){ write_reg(0xA0243ffc, 0x00000000); wait_on(10); int_pend=1; write_reg(0xA0243ffc, 0xFFFFFFFF); int timeout=2000; while((int_pend==1) && (--timeout>0)) { wait_on(10); } if(timeout==0){ printf(\\\"ERROR: Timeout waiting for GPIO IRQ at i=%u\\\\n\\\", i); test_err++; break; } write_reg(0xA0243ffc, 0x00000000); wait_on(10); }",
       "finish(test_err);",
       "void Default_IRQHandler():",
       "unsigned int wr_val = 1<<i; int_pend=0;",
       "rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);",
       "write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000);",
-      "if ((rdata_grp & (0xffffffff)) != 0) { /* success path */ } else { printf(\\"ERROR: Group Interrupt not occured\\\\n\\"); test_err = test_err + 1; }",
+      "if ((rdata_grp & (0xffffffff)) != 0) { /* success path */ } else { printf(\\\"ERROR: Group Interrupt not occured\\\\n\\\"); test_err = test_err + 1; }",
       "for (j=0;j<32;j++){ write_reg(MIZAR_GPIO_GP0_GPIO_8 + (j*4), 0x00010000); }",
       "wait_on(2);",
-      "rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) { /* success */ } else { printf(\\"ERROR : Group Interrupt clear failed: Interrupt value:%x\\\\n\\", rdata_grp); test_err = test_err + 1; }",
-      "#ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) != 0) { printf(\\"sysreg status not cleared : %0x\\\\n\\", MIZAR_LSS_SYSREG_RAW_STCR1); test_err++; } #endif",
-      "#ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) != 0) { printf(\\"sysreg status not cleared : %0x\\\\n\\", MIZAR_LSS_SYSREG_RAW_STCR1); test_err++; } #endif",
+      "rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) { /* success */ } else { printf(\\\"ERROR : Group Interrupt clear failed: Interrupt value:%x\\\\n\\\", rdata_grp); test_err = test_err + 1; }",
+      "#ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) != 0) { printf(\\\"sysreg status not cleared : %0x\\\\n\\\", MIZAR_LSS_SYSREG_RAW_STCR1); test_err++; } #endif",
+      "#ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata=read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) != 0) { printf(\\\"sysreg status not cleared : %0x\\\\n\\\", MIZAR_LSS_SYSREG_RAW_STCR1); test_err++; } #endif",
       "write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);",
       "#ifdef GPIO0 GIC_ClearIRQ(87); #endif",
       "#ifdef GPIO1 GIC_ClearIRQ(88); #endif"
@@ -375,3 +375,4 @@
     ]
   }
 }
+
