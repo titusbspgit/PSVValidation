@@ -2,6 +2,10 @@ name: Generate GPIO TestPlan XLSX
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/trigger/gpio-testplan-run
 
 permissions:
   contents: write
