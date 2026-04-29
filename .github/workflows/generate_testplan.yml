@@ -1,20 +1,14 @@
-name: Generate TestPlan XLSX from JSON
-
-on:
-  workflow_dispatch:
-    inputs:
-      json_data:
-        description: 'JSON input (array or TC-keyed object)'
-        required: true
-        type: string
-      ip_name:
-        description: 'IP name for file naming'
-        required: false
-        default: 'GPIO'
-        type: string
+name: Generate GPIO TestPlan Excel
 
 permissions:
   contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/generate_testplan.py
+      - .github/workflows/generate_testplan.yml
 
 jobs:
   build:
@@ -22,8 +16,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,27 +27,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate formatted Excel (.xlsx)
-        env:
-          TZ: Asia/Kolkata
+      - name: Generate Excel from embedded JSON
+        id: gen
         run: |
-          python scripts/json_to_testplan_xlsx.py \
-            --json '${{ inputs.json_data }}' \
-            --ip-name '${{ inputs.ip_name }}' \
-            --output-dir 'Test_Output/GPIO/TestPlan'
+          python scripts/generate_testplan.py --ip "GPIO" --output-dir "Test_Output/GPIO/TestPlan"
 
-      - name: Commit finalized Excel only
-        env:
-          TZ: Asia/Kolkata
+      - name: Commit final Excel only
         run: |
           set -e
+          FILE_PATH="${{ steps.gen.outputs.output_path }}"
+          echo "Committing: ${FILE_PATH}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILE=$(ls -1t Test_Output/GPIO/TestPlan/*_TestPlan_*.xlsx | head -n1)
-          if [ -z "$FILE" ]; then
-            echo "No XLSX file generated" >&2
-            exit 1
-          fi
-          git add "$FILE"
+          git add --force "${FILE_PATH}"
           git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
           git push
