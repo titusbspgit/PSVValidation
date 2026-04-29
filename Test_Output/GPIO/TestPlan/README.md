@@ -1,0 +1,1 @@
+This directory contains the generated GPIO TestPlan Excel workbooks. Use the GitHub Action "Generate GPIO TestPlan from JSON" to (re)generate the latest workbook. Only finalized .xlsx files are committed by the workflow.
