@@ -1,21 +1,33 @@
-name: Generate GPIO TestPlan from JSON
+name: Generate GPIO TestPlan Excel
 
 on:
-  workflow_dispatch: {}
   push:
-    branches: [ main ]
     paths:
-      - .github/tools/generate_gpio_testplan.py
       - .github/workflows/generate_gpio_testplan.yml
+      - tools/generate_testplan_gpio.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      - name: Set up Python
+      - name: Set IST timestamp
+        id: ist
+        run: |
+          IST_TS=$(TZ='Asia/Kolkata' date +'%Y-%m-%d %H:%M:%S IST')
+          FILE_STAMP=$(TZ='Asia/Kolkata' date +'%Y%m%d_%H%M%S')
+          echo "ist_ts=$IST_TS" >> $GITHUB_OUTPUT
+          echo "file_stamp=$FILE_STAMP" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -25,38 +37,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel from embedded JSON (deterministic IST timestamp)
-        id: gen
+      - name: Generate Excel (.xlsx)
         env:
-          IP_NAME: GPIO
-          OUTPUT_DIR: Test_Output/GPIO/TestPlan
-          BRANCH: main
+          IST_TS: ${{ steps.ist.outputs.ist_ts }}
+          FILE_STAMP: ${{ steps.ist.outputs.file_stamp }}
         run: |
-          FIXED_TIMESTAMP=$(python - <<'PY'
-from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    from backports.zoneinfo import ZoneInfo  # if available
-print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y%m%d_%H%M%S'))
-PY
-          )
-          export FIXED_TIMESTAMP
-          echo "Using FIXED_TIMESTAMP=${FIXED_TIMESTAMP}"
-          python .github/tools/generate_gpio_testplan.py
+          python tools/generate_testplan_gpio.py \
+            --ist-ts "$IST_TS" \
+            --output-dir "Test_Output/GPIO/TestPlan" \
+            --ip-name "GPIO" \
+            --file-stamp "$FILE_STAMP"
 
-      - name: Commit final Excel only
-        if: success() && steps.gen.outputs.xlsx_path != ''
+      - name: Commit Excel to repository
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IST_TS: ${{ steps.ist.outputs.ist_ts }}
+          FILE_STAMP: ${{ steps.ist.outputs.file_stamp }}
         run: |
-          echo "Committing: ${{ steps.gen.outputs.xlsx_path }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${{ steps.gen.outputs.xlsx_path }}"
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
+          set -e
+          FILE_NAME="GPIO_TestPlan_${FILE_STAMP}.xlsx"
+          FILE_PATH="Test_Output/GPIO/TestPlan/${FILE_NAME}"
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "Expected Excel file not found: $FILE_PATH" >&2
+            exit 1
           fi
-          git commit -m "Final formatted Excel generated from JSON input"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE_PATH"
+          git commit -m "Final formatted Excel generated from JSON input — $IST_TS"
           git push
