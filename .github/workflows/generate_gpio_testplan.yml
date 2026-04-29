@@ -1,8 +1,15 @@
 name: Generate and commit GPIO TestPlan
+
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/generate_gpio_testplan.yml'
+      - 'tools/generate_testplan_excel.py'
+
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -10,29 +17,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
-      - name: Set timezone to IST
-        run: |
-          sudo timedatectl set-timezone Asia/Kolkata
-          date
+          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
+
       - name: Generate Excel
+        id: gen
+        env:
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          IP_NAME: GPIO
         run: |
-          python .github/scripts/generate_gpio_testplan.py
-      - name: Commit Excel artifact
-        if: success()
+          python3 tools/generate_testplan_excel.py
+          echo "output_path=$(cat tools/.last_output_path.txt)" >> $GITHUB_OUTPUT
+
+      - name: Commit Excel
         run: |
-          FILE_PATH=$(cat .github/scripts/output_path.txt)
-          echo "File: $FILE_PATH"
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILE_PATH"
-          git commit -m "Final formatted Excel generated from JSON input" || echo "Nothing to commit"
+          FILE='${{ steps.gen.outputs.output_path }}'
+          if [ ! -f "$FILE" ]; then
+            echo "Expected Excel file not found: $FILE" >&2
+            exit 1
+          fi
+          git add "$FILE"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
           git push
