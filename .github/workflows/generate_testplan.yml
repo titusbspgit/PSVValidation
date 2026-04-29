@@ -1,0 +1,61 @@
+name: Generate TestPlan XLSX from JSON
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_data:
+        description: 'JSON input (array or TC-keyed object)'
+        required: true
+        type: string
+      ip_name:
+        description: 'IP name for file naming'
+        required: false
+        default: 'GPIO'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate formatted Excel (.xlsx)
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          python scripts/json_to_testplan_xlsx.py \
+            --json '${{ inputs.json_data }}' \
+            --ip-name '${{ inputs.ip_name }}' \
+            --output-dir 'Test_Output/GPIO/TestPlan'
+
+      - name: Commit finalized Excel only
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          FILE=$(ls -1t Test_Output/GPIO/TestPlan/*_TestPlan_*.xlsx | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "No XLSX file generated" >&2
+            exit 1
+          fi
+          git add "$FILE"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
+          git push
