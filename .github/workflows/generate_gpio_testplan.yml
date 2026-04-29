@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - .github/tools/generate_gpio_testplan.py
+      - .github/workflows/generate_gpio_testplan.yml
 
 jobs:
   build:
@@ -24,15 +25,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel from embedded JSON (IST timestamp)
+      - name: Generate Excel from embedded JSON (deterministic IST timestamp)
         id: gen
         env:
           IP_NAME: GPIO
           OUTPUT_DIR: Test_Output/GPIO/TestPlan
           BRANCH: main
-          # Optionally pass a fixed timestamp (YYYYMMDD_HHMMSS) to make the filename deterministic per run
-          # FIXED_TIMESTAMP: ''
         run: |
+          FIXED_TIMESTAMP=$(python - <<'PY'
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    from backports.zoneinfo import ZoneInfo  # if available
+print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y%m%d_%H%M%S'))
+PY
+          )
+          export FIXED_TIMESTAMP
+          echo "Using FIXED_TIMESTAMP=${FIXED_TIMESTAMP}"
           python .github/tools/generate_gpio_testplan.py
 
       - name: Commit final Excel only
