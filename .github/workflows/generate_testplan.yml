@@ -1,4 +1,4 @@
-# retrigger (poll cycle 3)
+# retrigger (poll cycle 4)
 name: Generate GPIO TestPlan
 
 on:
