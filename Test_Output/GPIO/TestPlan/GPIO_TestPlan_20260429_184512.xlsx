@@ -1,0 +1,8 @@
+Test Plan for GPIO
+Generated On (IST),2026-04-29 18:45:12
+Source Directory,TestRepo/gpio
+
+TestCaseID,Title,Objective,Preconditions,Steps,Expected Results,Priority,Owner,Status,Tags,Path
+GPIO_REG_WR_RD_BASIC,GPIO register write/read basic test,Verify basic read/write functionality of GPIO registers,"SoC booted, GPIO clock enabled","1) Write test patterns to GPIO registers; 2) Read back registers",Values read must match values written,High,validation,Planned,gpio;registers,TestRepo/gpio/gpio_reg_wr_rd_test
+GPIO_NEGEDGE_INTR_EN,GPIO negative edge interrupt enable,Validate GPIO interrupt configuration for negative edge on selected pad,"SoC booted, GPIO pad configured as input with pull-up","1) Enable neg-edge interrupt; 2) Toggle pad high->low; 3) Check interrupt status","Interrupt asserted; status/clear works as expected",Medium,validation,Planned,gpio;interrupts,TestRepo/gpio/test_gpio_negedge_intr_en
+GPIO_PEDGE_ALL_PADS_EN,GPIO positive edge interrupt enable on all pads,Validate enabling positive-edge interrupts across all pads,"SoC booted, All GPIO pads configured as inputs","1) Enable pos-edge interrupt on all pads; 2) Toggle pads low->high; 3) Check interrupts","Interrupts asserted for each pad; mask/clear verified",Medium,validation,Planned,gpio;interrupts,TestRepo/gpio/test_gpio_pedge_all_pads_en
