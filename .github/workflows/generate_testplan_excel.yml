@@ -1,0 +1,48 @@
+name: Generate GPIO Test Plan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/generate_testplan_excel.py'
+      - 'Test_Output/GPIO/TestPlan/input/GPIO_TestPlan.json'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install openpyxl
+      - name: Generate Excel
+        id: gen
+        run: |
+          python tools/generate_testplan_excel.py --json "Test_Output/GPIO/TestPlan/input/GPIO_TestPlan.json" --output-dir "Test_Output/GPIO/TestPlan" --ip-name "GPIO" --emit-outputs "$GITHUB_OUTPUT"
+      - name: Commit Excel
+        env:
+          EXCEL_PATH: ${{ steps.gen.outputs.excel_path }}
+          IST_TS: ${{ steps.gen.outputs.ist_timestamp }}
+        run: |
+          echo "Excel path: $EXCEL_PATH"
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          if [ -n "$EXCEL_PATH" ] && [ -f "$EXCEL_PATH" ]; then
+            git add "$EXCEL_PATH"
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+            else
+              git commit -m "Add GPIO Test Plan Excel generated on ${IST_TS}"
+              git push origin HEAD:main
+            fi
+          else
+            echo "Excel file not found; skipping commit."
+          fi
