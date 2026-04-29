@@ -1,0 +1,82 @@
+name: Generate and commit I2C TestPlan (Stage1) v2
+
+on:
+  push:
+    paths:
+      - 'scripts/generate_testplan_i2c_stage1.py'
+      - '.github/workflows/generate_i2c_testplan_v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Compute current IST timestamps
+        id: ist
+        shell: bash
+        run: |
+          set -e
+          IST_TS=$(python - <<'PY'
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo('Asia/Kolkata')
+except Exception:
+    tz = None
+now = datetime.now(tz) if tz else datetime.utcnow()
+print(now.strftime('%Y%m%d_%H%M%S'))
+PY
+          )
+          IST_HUMAN=$(python - <<'PY'
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo('Asia/Kolkata')
+except Exception:
+    tz = None
+now = datetime.now(tz) if tz else datetime.utcnow()
+print(now.strftime('%Y-%m-%d %H:%M:%S'))
+PY
+          )
+          echo "IST_TS=$IST_TS" >> $GITHUB_OUTPUT
+          echo "IST_HUMAN=$IST_HUMAN" >> $GITHUB_OUTPUT
+
+      - name: Generate Excel from embedded JSON (Stage1 rules)
+        env:
+          IST_TS: ${{ steps.ist.outputs.IST_TS }}
+          IST_HUMAN: ${{ steps.ist.outputs.IST_HUMAN }}
+        run: |
+          python scripts/generate_testplan_i2c_stage1.py
+
+      - name: Commit and push finalized Excel only
+        env:
+          IST_HUMAN: ${{ steps.ist.outputs.IST_HUMAN }}
+        run: |
+          set -e
+          FILE="Test_Output/I2C/TestPlan/I2C_TestPlan_${{ steps.ist.outputs.IST_TS }}.xlsx"
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: Expected output file not found: $FILE" >&2
+            ls -R
+            exit 1
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "$FILE"
+          git commit -m "Add I2C TestPlan generated on ${IST_HUMAN} IST" || echo "No changes to commit"
+          git push || echo "No changes to push"
