@@ -5,7 +5,7 @@ Deterministic fallback automation to generate GPIO TestPlan Excel (.xlsx)
 - Consumes embedded JSON (from Stage1 TestPlan JSON payload)
 - Produces Excel with exact formatting/visibility rules
 - Validates XLSX structure
-- Writes commit message with IST timestamp for the workflow commit step
+- Emits IST timestamp and output path to stdout for logs
 """
 import json
 import os
@@ -87,8 +87,8 @@ def approx_autofit(ws):
             s = "" if val is None else str(val)
             maxlen[idx] = max(maxlen.get(idx, 0), len(s))
     for idx, m in maxlen.items():
+        from openpyxl.utils import get_column_letter
         col = get_column_letter(idx)
-        # 1.2 factor, cap width between 10 and 80
         width = max(10, min(80, int(m * 1.2) + 2))
         ws.column_dimensions[col].width = width
 
@@ -105,20 +105,16 @@ def add_thin_borders(ws):
 def normalize_numbering(text: str) -> str:
     if not text:
         return ""
-    # Split by lines, strip bullets like '-', '*', or existing 1) style; re-number 1., 2., ...
     lines = [ln.strip() for ln in str(text).splitlines() if ln.strip()]
     if not lines:
         return str(text)
     out = []
     n = 1
     for ln in lines:
-        # Remove common bullet prefixes
         for p in ["- ", "* ", "• "]:
             if ln.startswith(p):
                 ln = ln[len(p):]
-        # Convert prefix forms like '1) ' or '1.' back to plain text
         if len(ln) > 2 and ln[0].isdigit() and (ln[1] in [')', '.'] or (ln[1].isdigit() and ln[2] in [')', '.'])):
-            # find first space after number+sep
             parts = ln.split(' ', 1)
             ln = parts[1] if len(parts) > 1 else ln
         out.append(f"{n}. {ln}")
@@ -132,7 +128,6 @@ def set_meta_very_hidden(wb):
 
 
 def main():
-    # PHASE 1 — JSON TO EXCEL GENERATION
     rows = tc_dict_to_rows(TP_DICT)
     if not rows:
         print("ERROR: No rows in input JSON")
@@ -140,18 +135,14 @@ def main():
 
     headers = build_schema(rows)
 
-    # Create workbook and Data sheet
     wb = Workbook()
     ws = wb.active
     ws.title = 'Data'
 
-    # Write headers
     ws.append(headers)
-    # Write rows preserving exact values
     for r in rows:
         ws.append(ensure_values(r, headers))
 
-    # Base formatting: bold header, freeze top row
     header_font = Font(bold=True)
     for c in range(1, len(headers) + 1):
         ws.cell(row=1, column=c).font = header_font
@@ -159,10 +150,8 @@ def main():
 
     approx_autofit(ws)
 
-    # PHASE 2 — Create META sheet and copy META columns AS-IS
     ws_meta = wb.create_sheet('Meta_data_sheet')
     ws_meta.append(META_COLS)
-    # Map headers to index
     idx_map = {h: i+1 for i, h in enumerate(headers)}
     for r in range(2, ws.max_row + 1):
         row_vals = []
@@ -173,14 +162,10 @@ def main():
                 row_vals.append("")
         ws_meta.append(row_vals)
 
-    # Hide META sheet (Very Hidden)
     set_meta_very_hidden(wb)
 
-    # STEP 7 — Normalize MAIN Sheet directly on 'Data'
-    # Rename Data -> TestPlan
     ws.title = 'TestPlan'
 
-    # Build a list of dict rows from current ws (with headers)
     current_headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
     data_dicts = []
     for r in range(2, ws.max_row + 1):
@@ -189,29 +174,18 @@ def main():
             d[h] = ws.cell(row=r, column=c).value
         data_dicts.append(d)
 
-    # Remove META columns from main sheet and reorder to MAIN_ORDER
     new_headers = MAIN_ORDER
-    # Rebuild entire sheet content in place (no new visible worksheet)
-    for row in ws[2:ws.max_row]:
-        pass  # no-op; we will clear and rewrite
-    # Clear sheet content and set new header
     ws.delete_rows(1, ws.max_row)
     ws.delete_cols(1, ws.max_column)
     ws.append(new_headers)
     for d in data_dicts:
         row_vals = [d.get(h, "") for h in new_headers]
-        # Enforce numbering in specific columns
-        td_idx = new_headers.index("Test Description")
-        rem_idx = new_headers.index("Remarks")
         ts_idx = new_headers.index("Test Steps / Procedure")
         vac_idx = new_headers.index("Validation / Acceptance Criteria")
-        # Apply numbering only to Test Steps / Procedure and Validation / Acceptance Criteria
         row_vals[ts_idx] = normalize_numbering(row_vals[ts_idx])
         row_vals[vac_idx] = normalize_numbering(row_vals[vac_idx])
         ws.append(row_vals)
 
-    # STEP 7A — FORMAT MAIN SHEET (STRICT)
-    # Header formatting
     blue_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     center = Alignment(horizontal='center', vertical='center', wrap_text=False)
     for c in range(1, len(new_headers) + 1):
@@ -220,7 +194,6 @@ def main():
         cell.alignment = center
         cell.fill = blue_fill
 
-    # Wrap text columns
     wrap_cols = {
         new_headers.index("Test Description") + 1,
         new_headers.index("Remarks") + 1,
@@ -229,11 +202,9 @@ def main():
     }
     for r in range(2, ws.max_row + 1):
         for c in range(1, len(new_headers) + 1):
-            val = ws.cell(row=r, column=c).value
             if c in wrap_cols:
                 ws.cell(row=r, column=c).alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
             else:
-                # Default alignments
                 if new_headers[c-1] == 'Index':
                     ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='top')
                 else:
@@ -241,7 +212,6 @@ def main():
 
     approx_autofit(ws)
 
-    # Approximate row height based on line breaks in wrapped columns
     base_height = 15
     for r in range(2, ws.max_row + 1):
         max_lines = 1
@@ -254,20 +224,14 @@ def main():
 
     add_thin_borders(ws)
 
-    # Data validation ONLY for Code Generation (Required / Not)
     if "Code Generation (Required / Not)" in new_headers:
+        from openpyxl.utils import get_column_letter
         col_idx = new_headers.index("Code Generation (Required / Not)") + 1
         last_row = ws.max_row
         dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True)
         dv.ranges.append(f"{get_column_letter(col_idx)}2:{get_column_letter(col_idx)}{last_row}")
         ws.add_data_validation(dv)
 
-    # Safety check: Only TestPlan (visible) and Meta_data_sheet (Very Hidden)
-    if 'Data' in wb.sheetnames and wb['Data'] is not ws:
-        # Should not happen; but if it does, delete
-        del wb['Data']
-
-    # PHASE 3 — SAVE & VALIDATE
     ist = timezone(timedelta(hours=5, minutes=30))
     now_ist = datetime.now(ist)
     ts_fname = now_ist.strftime('%Y%m%d_%H%M%S')
@@ -278,7 +242,6 @@ def main():
 
     wb.save(out_path)
 
-    # Validate ZIP OOXML structure
     required_parts = {'[Content_Types].xml', 'xl/workbook.xml'}
     try:
         with ZipFile(out_path, 'r') as zf:
@@ -291,13 +254,6 @@ def main():
         print(f"ERROR: XLSX validation failed to open ZIP: {e}")
         sys.exit(4)
 
-    # Write commit message with IST timestamp for the workflow step
-    cm_path = os.path.join('.github', 'scripts', 'last_commit_message.txt')
-    os.makedirs(os.path.dirname(cm_path), exist_ok=True)
-    with open(cm_path, 'w', encoding='utf-8') as fh:
-        fh.write(f"Add GPIO TestPlan Excel generated by Stage1 [IST {ts_human}]\n")
-
-    # Emit summary
     print("XLSX_GENERATION_SUCCESS")
     print(f"OUTPUT_FILE={out_path}")
     print(f"IST_TIMESTAMP={ts_human}")
