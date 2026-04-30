@@ -154,29 +154,6 @@ def renumber_multiline(text):
     return "\n".join(out)
 
 
-def autofit_columns(ws):
-    max_width = {}
-    for row in ws.iter_rows(values_only=True):
-        for idx, val in enumerate(row, 1):
-            txt = "" if val is None else str(val)
-            length = max(len(part) for part in txt.split("\n")) if txt else 0
-            max_width[idx] = max(max_width.get(idx, 0), length)
-    for idx, width in max_width.items():
-        adj = min(max(10, int(width * 1.1)), 120)
-        ws.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = adj
-
-
-def set_row_heights(ws):
-    for row in ws.iter_rows():
-        max_lines = 1
-        for cell in row:
-            txt = "" if cell.value is None else str(cell.value)
-            lines = txt.count("\n") + 1 if txt else 1
-            if lines > max_lines:
-                max_lines = lines
-        ws.row_dimensions[row[0].row].height = max(15, min(15 * max_lines + 5, 409))
-
-
 def apply_styles(ws, visible_headers):
     # Header styles
     for c, header in enumerate(visible_headers, 1):
@@ -192,7 +169,6 @@ def apply_styles(ws, visible_headers):
         for c in range(1, max_col + 1):
             cell = ws.cell(row=r, column=c)
             cell.border = BORDER_THIN
-            # Alignment rules
             header = visible_headers[c-1]
             if header == "Index":
                 cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
@@ -241,7 +217,6 @@ def main():
 
     # Map current headers
     current_headers = [ws.cell(row=1, column=i).value for i in range(1, ws.max_column+1)]
-    # Build visible headers list (ensure all exist; if missing, we will create blank column)
     visible_headers = VISIBLE_ORDER[:]
 
     # Build data matrix for visible headers
@@ -254,8 +229,8 @@ def main():
                 val = ws.cell(row=r, column=c_idx).value
             else:
                 val = ""
-            # Renumbering for specific columns
             if header in ("Test Steps / Procedure", "Validation / Acceptance Criteria"):
+                # Renumber lines
                 val = renumber_multiline(val)
             row_vals.append(val)
         rows_out.append(row_vals)
@@ -270,23 +245,29 @@ def main():
 
     # Apply data validation to Code Generation (Required / Not)
     try:
+        from openpyxl.worksheet.datavalidation import DataValidation
         col_idx = visible_headers.index("Code Generation (Required / Not)") + 1
         dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True, showErrorMessage=True)
         dv.error = 'Invalid value. Allowed: Required, Blank, Not Required.'
         dv.errorTitle = 'Invalid Option'
         ws.add_data_validation(dv)
         last_row = ws.max_row
-        dv.add(f"{chr(64+col_idx)}2:{chr(64+col_idx)}{last_row}")
+        # Columns beyond Z: compute properly
+        def col_letter(n):
+            s = ""
+            while n:
+                n, r = divmod(n-1, 26)
+                s = chr(65+r) + s
+            return s
+        col = col_letter(col_idx)
+        dv.add(f"{col}2:{col}{last_row}")
     except Exception as e:
         print(f"WARN: Data validation not applied: {e}")
 
-    # Formatting
+    # Formatting and styling
     apply_styles(ws, visible_headers)
 
-    # Wrap text for specified columns already handled via alignment; adjust column widths and row heights
-    # Approximate autofit
-    # Compute widths
-    # Use openpyxl utility
+    # Autofit columns and row heights
     from openpyxl.utils import get_column_letter
     max_width = {}
     for r in range(1, ws.max_row+1):
@@ -300,7 +281,6 @@ def main():
     for c, width in max_width.items():
         adj = min(max(12, int(width * 1.1)), 120)
         ws.column_dimensions[get_column_letter(c)].width = adj
-    # Row heights
     for r in range(1, ws.max_row+1):
         max_lines = 1
         for c in range(1, len(visible_headers)+1):
@@ -311,20 +291,18 @@ def main():
                 max_lines = lines
         ws.row_dimensions[r].height = max(18, min(16 * max_lines + 4, 409))
 
-    # Safety check: only TestPlan (visible) and Meta_data_sheet (veryHidden)
+    # Safety check on sheets
     names = [s.title for s in wb.worksheets]
     if "Data" in names:
-        # Delete any stray 'Data' worksheet
         for s in wb.worksheets:
             if s.title == 'Data':
                 wb.remove(s)
-    # Validate final names
     names = [s.title for s in wb.worksheets]
     if set(names) != set(["TestPlan", "Meta_data_sheet"]):
         print(f"ERROR: Unexpected worksheets present: {names}", file=sys.stderr)
         sys.exit(3)
 
-    # Compute IST time for naming and commit message
+    # Compute IST time for naming
     now_ist = get_ist_now()
     date_tag = now_ist.strftime("%Y%m%d")
     time_tag = now_ist.strftime("%H%M%S")
@@ -335,19 +313,15 @@ def main():
     out_name = f"I2C_TestPlan_{date_tag}_{time_tag}.xlsx"
     out_path = os.path.join(out_dir, out_name)
 
-    # Save workbook
     wb.save(out_path)
 
-    # Validate xlsx as ZIP OOXML and readable by openpyxl
     with zipfile.ZipFile(out_path, 'r') as zf:
         names = zf.namelist()
         if '[Content_Types].xml' not in names or 'xl/workbook.xml' not in names:
             print('ERROR: Not a valid XLSX structure', file=sys.stderr)
             sys.exit(4)
-    # Load back
     load_workbook(out_path)
 
-    # Write metadata for the workflow to consume
     meta = {
         "output_path": out_path.replace('\\', '/'),
         "commit_message": f"Add I2C TestPlan generated on {human_ts} (GMT+05:30)",
