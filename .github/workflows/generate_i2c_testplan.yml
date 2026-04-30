@@ -1,55 +1,47 @@
 name: Generate I2C TestPlan XLSX
-
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'scripts/generate_i2c_testplan.py'
-      - '.github/workflows/generate_i2c_testplan.yml'
   workflow_dispatch:
-
+  push:
+    paths:
+      - ".github/workflows/generate_i2c_testplan.yml"
+      - ".github/scripts/generate_testplan_xlsx.py"
+      - "tools/testplan/i2c_testplan_input.json"
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: "3.11"
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
           python -m pip install --upgrade pip
           pip install openpyxl
-
-      - name: Generate Stage1-formatted Excel
+      - name: Generate Excel
+        env:
+          IP_NAME: I2C
+          OUTPUT_DIR: Test_Output/I2C/TestPlan
         run: |
-          python scripts/generate_i2c_testplan.py
-
-      - name: Commit Excel to repository
-        shell: bash
+          python .github/scripts/generate_testplan_xlsx.py --json-path tools/testplan/i2c_testplan_input.json --ip-name "$IP_NAME" --output-dir "$OUTPUT_DIR"
+      - name: Commit Excel
         run: |
-          set -e
-          META="scripts/.gen_meta.json"
-          if [ ! -f "$META" ]; then
-            echo "Generator meta file not found; failing job." >&2
-            exit 1
-          fi
-          COMMIT_MESSAGE=$(jq -r '.commit_message' "$META")
-          OUTPUT_PATH=$(jq -r '.output_path' "$META")
-          echo "Committing $OUTPUT_PATH"
+          IST_NOW=$(python - <<'PY'
+from datetime import datetime, timezone, timedelta
+ist = timezone(timedelta(hours=5, minutes=30))
+print(datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S"))
+PY
+)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$OUTPUT_PATH"
-          git commit -m "$COMMIT_MESSAGE" || echo "No changes to commit"
-          git push
+          git add Test_Output/I2C/TestPlan/*.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Add I2C TestPlan generated on ${IST_NOW} (GMT+05:30)"
+            git push origin main
+          fi
