@@ -1,0 +1,4 @@
+Test Name,Path,Description,Dependencies
+GPIO Register Write/Read Test,TestRepo/gpio/gpio_reg_wr_rd_test,Verifies GPIO register write/read operations,"Assumes standard GPIO test harness, DUT configured for register access"
+GPIO Negedge Interrupt Enable,TestRepo/gpio/test_gpio_negedge_intr_en,Validates interrupt triggering on negative edge when enabled,"Requires GPIO interrupt line routing and IRQ controller setup"
+GPIO Posedge All Pads Enable,TestRepo/gpio/test_gpio_pedge_all_pads_en,Checks positive edge interrupts when all pads are enabled,"Requires all GPIO pads to be configured as inputs with pull settings as needed"
