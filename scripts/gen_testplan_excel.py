@@ -81,19 +81,16 @@ def normalize_numbering(text: str) -> str:
     for ln in lines:
         if not ln:
             continue
-        # remove leading bullets/numbers
+        # strip common list markers and leading index/paren
         l = ln
-        while l and (l[0] in '*-•·•' or l[:2].isdigit() or (len(l) > 1 and l[1] in ').')):
-            # strip common patterns like '1) ', '1. ', '- '
-            if l[:2].isdigit():
-                # unlikely as two digits at start; break
-                break
-            if l[0] in '*-•·':
-                l = l[1:].lstrip()
-            elif len(l) > 1 and l[1] in ').':
-                l = l[2:].lstrip()
-            else:
-                break
+        # remove leading bullets or dashes
+        while l and l[0] in '*-•·':
+            l = l[1:].lstrip()
+        # remove leading indexes like '1) ' or '1. '
+        if len(l) > 2 and l[0].isdigit() and l[1] in ').':
+            l = l[2:].lstrip()
+        elif len(l) > 2 and l[0].isdigit() and l[1] == '.' and l[2] == ' ':
+            l = l[3:]
         out.append(f"{idx}. {l}")
         idx += 1
     return '\n'.join(out)
@@ -106,10 +103,6 @@ def autosize_columns(ws):
             s = '' if val is None else str(val)
             l = len(s)
             maxlen[i] = max(maxlen.get(i, 0), l)
-    for col_idx, l in maxlen.items():
-        width = min(max(12, l + 2), 80)
-        ws.column_dimensions[chr(64 + col_idx) if col_idx <= 26 else None]
-    # openpyxl doesn't auto map >Z; compute column letters properly
     from openpyxl.utils import get_column_letter
     for col_idx, l in maxlen.items():
         width = min(max(12, l + 2), 80)
@@ -158,7 +151,6 @@ def main():
     # Transform main sheet in place: rename and reorder/remove
     ws.title = 'TestPlan'
 
-    # Build in-place reordered data for MAIN_ORDER
     # Create a snapshot of current data rows (excluding header)
     data_rows = list(ws.iter_rows(min_row=2, values_only=True))
     # Map header to index
@@ -212,13 +204,12 @@ def main():
     apply_borders(ws)
 
     # Data validation for Code Generation (Required / Not)
-    dv = DataValidation(type='list', formula1='"Required,Blank, Not Required"', allow_blank=True)
+    dv = DataValidation(type='list', formula1='"Required,Blank,Not Required"', allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"{ws.cell(row=2, column=cg_col).coordinate}:{ws.cell(row=ws.max_row, column=cg_col).coordinate}")
 
     # Ensure no sheet named 'Data'
     if 'Data' in wb.sheetnames:
-        # Attempt delete; if cannot, fail
         try:
             del wb['Data']
         except Exception:
