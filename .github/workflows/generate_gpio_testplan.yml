@@ -7,22 +7,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          python-version: '3.x'
-      - run: pip install openpyxl
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --upgrade pip openpyxl
       - name: Generate Excel
-        run: |
-          python tools/generate_testplan.py
-      - name: Capture generated path
-        id: path
-        run: |
-          echo "file_path=$(cat tools/generated_path.txt)" >> $GITHUB_OUTPUT
+        env:
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+        run: python tools/generate_gpio_testplan.py
       - name: Commit Excel
-        uses: EndBug/add-and-commit@v9
-        with:
-          add: ${{ steps.path.outputs.file_path }}
-          message: Final formatted Excel generated from JSON input
-          default_author: github_actions
-          push: true
+        run: |
+          FILES=$(ls Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx)
+          if [ -z "$FILES" ]; then
+            echo "No Excel generated"; exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
