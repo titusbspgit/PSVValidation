@@ -1,9 +1,0 @@
-Generated TestPlan placeholder for IP: GPIO
-
-Notes:
-- Auto-generated on IST (GMT+05:30): 2026-05-04 12:00:00
-- Source tests directory analyzed: TestRepo/gpio
-- Populate this workbook with detailed test cases, owners, priorities, and pass/fail criteria.
-
-Suggested Columns:
-Test ID, Test Name, Description, Category, Directory/Path, Preconditions, Steps, Expected Result, Pass/Fail Criteria, Owner, Priority, Tags
