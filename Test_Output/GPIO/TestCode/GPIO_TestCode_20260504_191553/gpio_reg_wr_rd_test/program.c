@@ -31,7 +31,7 @@ static void chk_rst_val(void)
 static void chk_rd_wr(void)
 {
     const unsigned int chk_val[] = {
-        0xFFFFFFFFu, 0xAAAAAAA Au, 0x55555555u, 0xF5F5F5F5u, 0xA5A5A5A5u, 0xFFFF0000u
+        0xFFFFFFFFu, 0xAAAAAAAAu, 0x55555555u, 0xF5F5F5F5u, 0xA5A5A5A5u, 0xFFFF0000u
     };
     const int npat = (int)(sizeof(chk_val)/sizeof(chk_val[0]));
 
