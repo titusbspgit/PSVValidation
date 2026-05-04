@@ -1,37 +1,52 @@
-name: Generate GPIO TestPlan XLSX
+name: Generate GPIO TestPlan from JSON
 
 on:
-  workflow_dispatch:
   push:
+    branches: [ "main" ]
     paths:
-      - tools/generate_testplan.py
-      - .github/workflows/generate_testplan.yml
-
-permissions:
-  contents: write
+      - ".github/workflows/generate_testplan.yml"
+      - "tools/generate_testplan.py"
+      - "requirements.txt"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          python-version: '3.11'
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl==3.1.2
-      - name: Generate XLSX
+        run: pip install -r requirements.txt
+      - name: Generate Excel
+        env:
+          JSON_DATA: |
+            { "TC1": { "Index": "1", "SS / Module": "gpio", "Feature": "GPIO negative-edge interrupt enable and servicing", "Test Case Name": "test_gpio_negedge_intr_en", "Test Description": "Verifies that negative-edge interrupts on GPIO pins 8–39 can be enabled, triggered, and correctly handled.", "Speed": "NA", "Mode": "Interrupt", "Memory Start Offset": "0xA0243ffc", "Memory End Offset": "0xA0243ffc", "Remarks": "Timeout value is 5000 iterations and may need adjustment for the simulation time base. Assumes the raw interrupt clear register uses write‑1‑to‑clear behavior. All pads are driven high initially to establish a known state.", "Test Steps / Procedure": "1) Enable the platform interrupt for the GPIO block in the interrupt controller and system controller. 2) Drive all GPIO outputs high to set a known baseline. 3) For pins 8–39, configure each pin as input, enable negative-edge detection, and clear any pending status. 4) For each pin, clear the corresponding group raw interrupt bit. 5) Enable the interrupt mask only for the current pin. 6) Arm the wait flag, generate a falling edge on the current pin, and wait for the interrupt with a timeout. 7) In the interrupt handler, restore the pad state to high, read the pin status, and verify the input reads low. 8) Read the group status and verify the bit for the current pin is set. 9) Clear the per-pin raw status and the group raw status, then read back to confirm the group status is cleared. 10) Clear the system-level raw status and the interrupt in the interrupt controller.", "Imparted Registers": "", "Impacted Registers": "", "Validation / Acceptance Criteria": "- A falling edge on each tested pin causes an interrupt before the timeout; PASS if no timeout occurs for any pin.\n- The input value for the serviced pin is low when read in the handler; PASS if the read value is 0.\n- The group status bit for the serviced pin is set on entry to the handler; PASS if the bit is 1 prior to clears.\n- After clearing the per-pin and group raw status, the group status reads 0; PASS if the readback is 0 for the group.", "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en", "Hidden_Test_Description": "Test negative-edge GPIO interrupts for pins 8..39. Sequence: enable platform IRQ (GIC) and system interrupt for GPIO, set pads high, configure pins 8..39 as input with negedge and clear per-pin raw, then for each bit enable only that interrupt, generate a falling edge via 0xA0243ffc (drive all high then drive the specific bit low), wait for ISR with timeout, and in ISR verify DIN=0, per-pin raw (bit1) set, group status bit set, perform clears per-pin and group, verify group cleared, clear system RAW and GIC pending. Finish with test_err as pass/fail aggregator.", "Hidden_Remarks": "1) The bounded wait uses timeout = 5000 and wait_on(10) per poll; comment notes it may need adjustment for simulation time base. 2) Assumes RAW_STCLR1 is write-1-to-clear. 3) All pads are driven high initially using address 0xA0243ffc. 4) The handler computes the current bit mask from the global loop index i.", "Hidden_Test_Steps_Procedure": "Entry Points:\nA) test_case()\nB) Default_IRQHandler() [invoked by hardware on GPIO interrupt]\n\nRuntime Trace (in order):\n1. test_case(): Initialize test_err = 0.\n2. Conditional enable of GIC interrupt:\n - If GPIO0 is defined: call GIC_EnableIRQ(87).\n - If GPIO1 is defined: call GIC_EnableIRQ(88).\n3. Conditional enable of system-level interrupt for GPIO:\n - If GPIO0 is defined: WRITE MIZAR_LSS_SYSREG_INTR_EN1 <- LSS_SYSREG_INTR_EN1_GPIO0_INTR.\n - If GPIO1 is defined: WRITE MIZAR_LSS_SYSREG_INTR_EN1 <- LSS_SYSREG_INTR_EN1_GPIO1_INTR.\n4. Set pad driver to a known state: WRITE 0xA0243ffc <- 0xffffffff (all high).\n\nPhase 1: Configure pins 8..39 for input + negedge, clear pending raw\n5. Loop entry: for (i = 0; i < 32; i++):\n 5.1 Loop body (per iteration i):\n - Compute addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n - WRITE addr1 <- ((1 << 20) | (1 << 18) | (1 << 16)) // doe=1 (input), neie=1, iclr=1.\n - Call wait_on(10).\n 5.2 Exit condition: i reaches 32.\n\nPhase 2: Per-pin enable, edge generation, and wait with timeout\n6. Loop entry: for (i = 0; i < 32; i++):\n 6.1 Set wr_val = (1u << i).\n 6.2 Pre-clear group raw status for this bit: WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 <- wr_val.\n 6.3 Enable only this pin's interrupt: WRITE MIZAR_GPIO_GP0_INTR1_INTR_EN1 <- wr_val.\n 6.4 Call wait_on(10).\n 6.5 Prepare to wait for interrupt: int_pend = 1.\n 6.6 Generate a falling edge on bit i:\n - WRITE 0xA0243ffc <- 0xffffffff (ensure all high).\n - Call wait_on(30).\n - WRITE 0xA0243ffc <- bitwise_not(wr_val) (drive current bit low; others high).\n 6.7 Bounded wait for ISR to clear int_pend:\n - Initialize unsigned int timeout = 5000.\n - While (int_pend && timeout--): call wait_on(10) each iteration.\n - On exit: if (timeout == 0):\n - printf(\"ERROR: Timeout waiting for GPIO%u negedge interrupt\", i + 8).\n - test_err++.\n 6.8 Continue loop to next i.\n 6.9 Exit condition: i reaches 32.\n7. Call finish(test_err).\n\nInterrupt Handler (invoked during step 6.7 for each pin that interrupts):\n8. Default_IRQHandler():\n 8.1 Local variables: rdata_grp, raddr, raddr2; compute local_wr = (1u << i).\n 8.2 Signal main loop to proceed: int_pend = 0.\n 8.3 Restore pad driver to known state: WRITE 0xA0243ffc <- 0xffffffff.\n 8.4 Compute raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n 8.5 READ rdata <- read_reg(raddr).\n 8.6 Check DIN value for falling edge: if ((rdata & 0x1) != 0) then test_err++.\n 8.7 Check per-pin raw interrupt bit (bit1 expected set):\n - If ((rdata & 0x2) != 0x0) then:\n a) READ rdata_grp <- read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1).\n b) If ((rdata_grp & local_wr) == 0) then test_err++.\n c) Compute raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n d) Clear per-pin raw while keeping direction: WRITE raddr2 <- ((1 << 20) | (1 << 16)).\n e) Clear group raw bit: WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 <- local_wr.\n f) Verify group clear: READ rdata_grp <- read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp != 0x0) then test_err++.\n g) Clear system raw and GIC pending:\n - If GPIO0 is defined: WRITE MIZAR_LSS_SYSREG_RAW_STCR1 <- LSS_SYSREG_RAW_STCR1_GPIO0_INTR; call GIC_ClearIRQ(87).\n - If GPIO1 is defined: WRITE MIZAR_LSS_SYSREG_RAW_STCR1 <- LSS_SYSREG_RAW_STCR1_GPIO1_INTR; call GIC_ClearIRQ(88).\n - Else (raw bit not set): test_err++.\n\nTiming Details:\n- wait_on(10) used after configuration and per iteration for bounded waits.\n- wait_on(30) used between setting all high and driving specific pin low to create a detectable falling edge.\n- Timeout counter initialized to 5000 for ISR wait loop; loop decrements once per wait_on(10) iteration.\n\nRegister Access Summary within execution:\n- WRITE MIZAR_LSS_SYSREG_INTR_EN1 (enable system-level GPIO interrupt).\n- WRITE 0xA0243ffc (pad drive control) multiple times to set/restore pin states.\n- WRITE MIZAR_GPIO_GP0_GPIO_8 + (i * 4) to configure per-pin doe/neie/iclr and to clear per-pin raw.\n- WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 to clear group raw bit for selected pin.\n- WRITE MIZAR_GPIO_GP0_INTR1_INTR_EN1 to enable interrupt mask for selected pin.\n- READ MIZAR_GPIO_GP0_GPIO_8 + (i * 4) to sample DIN and raw bit.\n- READ/WRITE MIZAR_GPIO_GP0_INTR1_INTR_STS1 to verify/clear group status.\n- WRITE MIZAR_LSS_SYSREG_RAW_STCR1 to clear system-level raw status.\n- GIC enable/clear APIs used to manage platform interrupts.", "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1", "Hidden_Validation_Acceptance_Criteria": "1) No timeout during bounded wait for any i in 0..31. If timeout==0 for any pin, test_err++.\n2) In ISR, DIN bit (bit0) of per-pin register reads 0 after the falling edge; else test_err++.\n3) In ISR, per-pin raw bit (bit1) is set; else test_err++.\n4) Group interrupt status register has the bit for the current pin set; else test_err++.\n5) After clearing per-pin raw and group raw, the group status register reads 0; else test_err++.\n6) Final finish(test_err) reflects aggregated result: PASS if test_err==0; FAIL otherwise." } }
+          IP_NAME: "GPIO"
+          OUTPUT_DIR: "Test_Output/GPIO/TestPlan"
         run: |
           python tools/generate_testplan.py
-          echo "Generated: $(cat tools/last_output_path.txt)"
-      - name: Commit XLSX
+      - name: Capture generated path
+        id: path
         run: |
-          set -e
-          OUT=$(cat tools/last_output_path.txt)
+          echo "final_path=$(cat final_path.txt)" >> $GITHUB_OUTPUT
+      - name: Validate and commit Excel
+        run: |
+          python - << 'PY'
+from openpyxl import load_workbook
+p = open('final_path.txt').read().strip()
+wb = load_workbook(p, read_only=True)
+wb.close()
+print('Validation OK for', p)
+PY
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$OUT"
-          git commit -m "Final formatted Excel generated from JSON input" || exit 0
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.path.outputs.final_path }}"
+          git commit -m "Final formatted Excel generated from JSON input"
           git push
