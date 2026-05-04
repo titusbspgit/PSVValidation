@@ -1,0 +1,50 @@
+Overview, 
+Field,Value
+IP_NAME,PCIE
+Repository,https://github.com/titusbspgit/PSVValidation
+Source Base Directory,TestRepo/pcie
+Branch,main
+Generated At (IST),2026-05-04 15:30:00 IST
+Generator,Ag-Emb-Mpsoc-Repo-Structure Agent
+
+TestCases, 
+Suite,Objective,Tags,Relative Path,GitHub URL,Status,Priority,Owner,Notes
+pcie0_dbi_dsp_reg_wr_rd_test,DBI DSP register read/write validation (PCIe0),"PCIE; DBI; DSP; RegRW; Instance0",TestRepo/pcie/pcie0_dbi_dsp_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie0_dbi_dsp_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie0_dbi_usp_reg_wr_rd_test,DBI USP register read/write validation (PCIe0),"PCIE; DBI; USP; RegRW; Instance0",TestRepo/pcie/pcie0_dbi_usp_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie0_dbi_usp_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie0_sii_rc_reg_wr_rd_test,SII RC register read/write validation (PCIe0),"PCIE; SII; RC; RegRW; Instance0",TestRepo/pcie/pcie0_sii_rc_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie0_sii_rc_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie1_dbi_dsp_reg_wr_rd_test,DBI DSP register read/write validation (PCIe1),"PCIE; DBI; DSP; RegRW; Instance1",TestRepo/pcie/pcie1_dbi_dsp_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie1_dbi_dsp_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie1_dbi_usp_reg_wr_rd_test,DBI USP register read/write validation (PCIe1),"PCIE; DBI; USP; RegRW; Instance1",TestRepo/pcie/pcie1_dbi_usp_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie1_dbi_usp_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie1_sii_rc_reg_wr_rd_test,SII RC register read/write validation (PCIe1),"PCIE; SII; RC; RegRW; Instance1",TestRepo/pcie/pcie1_sii_rc_reg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie1_sii_rc_reg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+pcie_cfg_wr_rd_test,PCIe configuration space read/write validation,"PCIE; CFG; RegRW",TestRepo/pcie/pcie_cfg_wr_rd_test,https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/pcie/pcie_cfg_wr_rd_test,Planned,Medium,,Top-level suite; drill down for individual tests
+
+Traceability, 
+Test/Suite,Requirement ID,Description,Verification Method,Status,Notes
+<placeholder>,<TBD>,<TBD>,<TBD>,Planned,
+
+Requirements, 
+Requirement ID,Title,Description,Priority,Owner,Notes
+<TBD>,<TBD>,<TBD>,Medium,,
+
+Configuration, 
+Parameter,Value,Scope,Notes
+Platform,<TBD>,Global,
+PCIe Instance,<TBD>,Per-Suite,
+Link Speed,<TBD>,Per-Suite,
+Width,<TBD>,Per-Suite,
+
+Coverage, 
+Coverage Item,Type,Target,Collected By,Status,Notes
+Register R/W paths,Functional,100%,Tests,Planned,
+CFG space fields,Functional,100%,Tests,Planned,
+DBI access (DSP/USP),Functional,100%,Tests,Planned,
+SII RC controls,Functional,100%,Tests,Planned,
+
+Execution Matrix, 
+Suite,Platform/Board,Build,Run Mode,Iterations,Estimated Time,Owner,Notes
+pcie0_dbi_dsp_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie0_dbi_usp_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie0_sii_rc_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie1_dbi_dsp_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie1_dbi_usp_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie1_sii_rc_reg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
+pcie_cfg_wr_rd_test,<TBD>,<TBD>,Automated,1,<TBD>,,
