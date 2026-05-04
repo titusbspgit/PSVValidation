@@ -6,6 +6,7 @@ on:
       - 'scripts/gpio_testplan.json'
       - 'scripts/generate_gpio_testplan_excel.py'
       - '.github/workflows/generate_gpio_testplan.yml'
+      - '.github/workflows/run_gpio_testplan_trigger.txt'
   workflow_dispatch:
 
 permissions:
