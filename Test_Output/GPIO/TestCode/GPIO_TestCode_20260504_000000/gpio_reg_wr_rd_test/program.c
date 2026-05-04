@@ -50,7 +50,7 @@ static int chk_rst_val(void) {
  */
 static int chk_rd_wr(void) {
     int wr_fail_cnt = 0;
-    const unsigned int chk_val[6] = {0xFFFFFFFFU, 0xAAAAAAA AU, 0x55555555U, 0xF5F5F5F5U, 0xA5A5A5A5U, 0xFFFF0000U};
+    const unsigned int chk_val[6] = {0xFFFFFFFFU, 0xAAAAAAAAU, 0x55555555U, 0xF5F5F5F5U, 0xA5A5A5A5U, 0xFFFF0000U};
 
     for (unsigned j = 0; j < 6U; ++j) {
         unsigned int data_wr = chk_val[j];
