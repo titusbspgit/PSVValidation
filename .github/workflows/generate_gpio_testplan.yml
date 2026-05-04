@@ -30,7 +30,7 @@ jobs:
           pip install openpyxl
       - name: Generate Excel
         run: |
-          python tools/ggenerate_testplan_excel.py \
+          python tools/generate_testplan_excel.py \
             --input tools/input/GPIO_TestPlan.json \
             --output-dir Test_Output/GPIO/TestPlan \
             --ip-name GPIO
