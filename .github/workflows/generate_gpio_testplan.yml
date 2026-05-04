@@ -1,12 +1,6 @@
-name: Generate GPIO Test Plan Excel
+name: Generate GPIO TestPlan (Stage1)
 
 on:
-  push:
-    paths:
-      - 'scripts/gpio_testplan.json'
-      - 'scripts/generate_gpio_testplan_excel.py'
-      - '.github/workflows/generate_gpio_testplan.yml'
-      - '.github/workflows/run_gpio_testplan_trigger.txt'
   workflow_dispatch:
 
 permissions:
@@ -16,54 +10,42 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel from JSON (Stage1 rules)
+      - name: Generate TestPlan Excel (.xlsx)
         run: |
-          python scripts/generate_gpio_testplan_excel.py \
-            --json scripts/gpio_testplan.json \
-            --ip GPIO \
-            --outdir Test_Output/GPIO/TestPlan \
-            --base-dir "TestRepo/gpio"
+          python tools/generate_gpio_testplan.py
 
-      - name: Read automation outputs
-        id: vars
+      - name: Locate generated file
+        id: locate
         shell: bash
         run: |
-          if [ ! -f scripts/_automation_output.env ]; then
-            echo "Automation output file missing" >&2; exit 1; fi
-          source scripts/_automation_output.env
-          echo "excel_file=$EXCEL_FILE" >> $GITHUB_OUTPUT
-          echo "ist_timestamp=$IST_TIMESTAMP" >> $GITHUB_OUTPUT
+          FILE=$(ls -1t Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "No XLSX generated" >&2
+            exit 1
+          fi
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          TS=$(basename "$FILE" .xlsx | sed -E 's/^GPIO_TestPlan_//')
+          echo "ts=$TS" >> $GITHUB_OUTPUT
 
-      - name: Commit Excel artifact
-        env:
-          EXCEL_FILE: ${{ steps.vars.outputs.excel_file }}
+      - name: Commit finalized Excel only
         run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$EXCEL_FILE"
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            ts=$(python - <<'PY'
-from datetime import datetime
-from zoneinfo import ZoneInfo
-print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y%m%d %H%M%S'))
-PY
-)
-            git commit -m "Add GPIO Test Plan ${ts} IST"
-            git push
-          fi
+          git add "${{ steps.locate.outputs.file }}"
+          git commit -m "Final formatted Excel generated from JSON input | IP: GPIO | IST: ${{ steps.locate.outputs.ts }}" || echo "Nothing to commit"
+          git push
