@@ -25,4 +25,7 @@ const unsigned long int impacted_registers[] = {
     MIZAR_LSS_SYSREG_RAW_STCR1
 };
 
+/* Skip registers metadata: none for this testcase */
+static const unsigned int skip_registers_count = 0U; /* no skipped registers */
+
 #endif /* TEST_GPIO_PEDGE_ALL_PADS_EN_DEFINE_H */
