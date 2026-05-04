@@ -1,78 +1,103 @@
-#include <lss_sysreg.h>
-#include <stdio.h>
-#include <test_common.h>
-#include <test_define.c>
+// Author - AI Force 1.3.2. Date 04-05-2026
+// (EMBENGG-SYSAPPS)
 
-static int def_fail_cnt = 0;
-static int wr_fail_cnt = 0;
+// High-level description (from META):
+// Default reset value verification for GPIO per-pin and group registers, followed by masked write/read
+// verification using multiple data patterns across all non-skipped registers.
 
-static inline unsigned int rd(unsigned long addr) { return read_reg(addr); }
-static inline void wr(unsigned long addr, unsigned int v) { write_reg(addr, v); }
+#include "test_define.c"
 
-static void chk_rst_val(void)
+// Forward declarations
+static int chk_rst_val(void);
+static int chk_rd_wr(void);
+
+// Function: chk_rst_val
+// Purpose: Verify reset values for all registers where reset check is enabled and readable per mask.
+static int chk_rst_val(void)
 {
-    for (int i = 0; i < CNT; i++) {
+    int def_fail_cnt = 0;
+    for (unsigned int i = 0; i < CNT; ++i) {
+        if (skip_rst_array[i] == 1u) {
+            continue; // Skip reset-check for this index
+        }
+        if (read_mask_array[i] == 0u) {
+            continue; // No readable fields
+        }
         unsigned long addr = addr_array[i];
-        if (skip_rst_array[i]) continue;
-        if ((unsigned int)read_mask_array[i] == 0u) continue;
-        unsigned int data_rd = rd(addr);
-        unsigned int data = (data_rd & 0xFFFFFFFEu); // ignore bit0 as per spec
-        unsigned int exp  = ((unsigned int)default_value_array[i]) & (unsigned int)read_mask_array[i];
-        unsigned int got  = data & (unsigned int)read_mask_array[i];
-        if (got != exp) {
-            #ifdef DEBUG_DISPLAY
-            printf("RSTVAL MISMATCH @%#lx: got=%#010x exp=%#010x (idx=%d)\n", addr, got, exp, i);
-            #endif
-            def_fail_cnt++;
+        unsigned int data_rd = read_reg(addr);
+        unsigned int data_cmp = (data_rd & 0xFFFFFFFEu); // Ignore LSB per META
+        unsigned int def_val = default_value_array[i];
+        if (data_cmp != def_val) {
+            ++def_fail_cnt;
+#ifdef DEBUG_DISPLAY
+            printf("[RSTCHK] Mismatch @idx=%u addr=0x%08lx rd=0x%08x cmp=0x%08x exp=0x%08x\n",
+                   i, addr, data_rd, data_cmp, def_val);
+#endif
         }
     }
+    return def_fail_cnt;
 }
 
-static void chk_rd_wr(void)
+// Function: chk_rd_wr
+// Purpose: Perform masked write then read-back verification for multiple data patterns across all registers.
+static int chk_rd_wr(void)
 {
-    const unsigned int chk_val[] = {
-        0xFFFFFFFFu, 0xAAAAAAAAu, 0x55555555u, 0xF5F5F5F5u, 0xA5A5A5A5u, 0xFFFF0000u
-    };
-    const int npat = (int)(sizeof(chk_val)/sizeof(chk_val[0]));
-
-    for (int p = 0; p < npat; p++) {
+    int wr_fail_cnt = 0;
+    for (unsigned int p = 0; p < (sizeof(chk_val)/sizeof(chk_val[0])); ++p) {
         unsigned int data_wr = chk_val[p];
         // Write phase
-        for (int i = 0; i < CNT; i++) {
-            if (skip_array[i]) continue;
-            unsigned int wmask = (unsigned int)write_mask_array[i];
-            if (wmask == 0u) continue;
-            wr(addr_array[i], (data_wr & wmask));
+        for (unsigned int i = 0; i < CNT; ++i) {
+            if (skip_array[i] == 1u) {
+                continue; // Skip per directive
+            }
+            unsigned int wmask = write_mask_array[i];
+            if (wmask == 0u) {
+                continue; // Nothing writable
+            }
+            unsigned long addr = addr_array[i];
+            write_reg(addr, (data_wr & wmask));
         }
-        wait_on(2);
         // Read/verify phase
-        for (int i = 0; i < CNT; i++) {
-            if (skip_array[i]) continue;
-            unsigned int wmask = (unsigned int)write_mask_array[i];
-            unsigned int rmask = (unsigned int)read_mask_array[i];
-            if (wmask == 0u || rmask == 0u) continue;
-            unsigned int data_rd = rd(addr_array[i]) & rmask;
-            unsigned int wr_n   = ~wmask;
-            unsigned int exp    = ((data_wr & rmask & wmask) | (wr_n & rmask & (unsigned int)default_value_array[i]));
-            if (data_rd != exp) {
-                #ifdef DEBUG_DISPLAY
-                printf("WRRD MISMATCH @%#lx: got=%#010x exp=%#010x pat=%#010x idx=%d\n", addr_array[i], data_rd, exp, data_wr, i);
-                #endif
-                wr_fail_cnt++;
+        for (unsigned int i = 0; i < CNT; ++i) {
+            if (skip_array[i] == 1u) {
+                continue; // Skip
+            }
+            unsigned int wmask = write_mask_array[i];
+            unsigned int rmask = read_mask_array[i];
+            if (wmask == 0u || rmask == 0u) {
+                continue; // Not verifiable
+            }
+            unsigned long addr = addr_array[i];
+            unsigned int data_rd = (read_reg(addr) & rmask);
+            unsigned int wr_n = (~wmask);
+            unsigned int exp_val = ((data_wr & rmask & wmask) | (wr_n & rmask & default_value_array[i]));
+            if (data_rd != exp_val) {
+                ++wr_fail_cnt;
+#ifdef DEBUG_DISPLAY
+                printf("[WRCHK] Mismatch @pat=%u idx=%u addr=0x%08lx rd=0x%08x exp=0x%08x wmask=0x%08x rmask=0x%08x\n",
+                       p, i, addr, data_rd, exp_val, wmask, rmask);
+#endif
             }
         }
     }
+    return wr_fail_cnt;
 }
 
-void test_case(void)
+// Function: test_case
+// Purpose: Execute reset check and read/write masked verification; conclude with finish() based on errors.
+int test_case(void)
 {
-    def_fail_cnt = 0;
-    wr_fail_cnt = 0;
-    chk_rst_val();
-    chk_rd_wr();
-    int fail = (def_fail_cnt > 0) || (wr_fail_cnt > 0);
-    #ifdef DEBUG_DISPLAY
-    printf("gpio_reg_wr_rd_test: def_fail_cnt=%d wr_fail_cnt=%d => %s\n", def_fail_cnt, wr_fail_cnt, fail?"FAIL":"PASS");
-    #endif
-    finish(fail ? 1 : 0);
+    int def_fail_cnt = chk_rst_val();
+    int wr_fail_cnt = chk_rd_wr();
+
+#ifdef DEBUG_DISPLAY
+    printf("[SUMMARY] def_fail_cnt=%d, wr_fail_cnt=%d\n", def_fail_cnt, wr_fail_cnt);
+#endif
+
+    if (def_fail_cnt > 0 || wr_fail_cnt > 0) {
+        finish(1); // FAIL
+    } else {
+        finish(0); // PASS
+    }
+    return 0;
 }
