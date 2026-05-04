@@ -1,0 +1,2 @@
+Trigger Generate GPIO TestPlan workflow at IST timestamp placeholder.
+This file change exists solely to trigger the GitHub Actions workflow on push for generating the GPIO TestPlan Excel.
