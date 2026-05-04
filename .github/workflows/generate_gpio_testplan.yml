@@ -50,14 +50,20 @@ jobs:
       - name: Commit Excel artifact
         env:
           EXCEL_FILE: ${{ steps.vars.outputs.excel_file }}
-          IST_TS: ${{ steps.vars.outputs.ist_timestamp }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$EXCEL_FILE"
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Add GPIO Test Plan Excel (IST: ${IST_TS}) generated from TestRepo/gpio"
+            ts=$(python - <<'PY'
+from datetime import datetime
+from zoneinfo import ZoneInfo
+print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y%m%d %H%M%S'))
+PY
+)
+            git commit -m "Add GPIO Test Plan ${ts} IST"
             git push
           fi
