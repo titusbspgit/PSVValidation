@@ -1,0 +1,33 @@
+name: Generate PCIE TestPlan Excel (Stage1 Fallback)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/generate_pcie_testplan_excel.py
+      - .github/workflows/generate_pcie_testplan.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate and commit PCIE TestPlan Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/generate_pcie_testplan_excel.py
