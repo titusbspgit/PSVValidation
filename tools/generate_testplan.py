@@ -1,273 +1,287 @@
-import json, sys, os, re, zipfile
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import List, Dict, Any
+#!/usr/bin/env python3
+# coding: utf-8
 
-from openpyxl import Workbook, load_workbook
+import os
+import re
+import math
+import json
+import zipfile
+from datetime import datetime, timezone, timedelta
+from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
-IP_NAME = 'GPIO'
-OUTPUT_DIR = Path('Test_Output') / IP_NAME / 'TestPlan'
-RAW_JSON = r'''{ "TC1": { "Index": "1", "SS / Module": "GPIO", "Feature": "Supports AHB 32-bit for the programming of CSR", "Test Case Name": "gpio_reg_wr_rd_test", "Test Description": "Verifies reset defaults and masked read/write behavior across a set of GPIO control and status registers, ensuring reads match documented defaults and writes are honored only for writable bits.", "Speed": "NA", "Mode": "NA", "Memory Start Offset": "NA", "Memory End Offset": "NA", "Remarks": "VRRW-type registers are skipped for write/read testing; group input registers are excluded from default-value checks. A known behavior is noted: input data may default high when not driven, affecting comparisons if external drive is not controlled.", "Test Steps / Procedure": "Entry: test_case\n1. Perform default value checks across the following registers: GP0_GPIO_8..GP0_GPIO_39, GPIO_INTR_RAW_STCLR1, GP0_INTR1_INTR_EN1, GP0_INTR1_INTR_STS1, GP0_INTR2_INTR_EN1, GP0_INTR2_INTR_STS1, GPIO_IO_CTRL_GROUP1..GPIO_IO_CTRL_GROUP4, GPIO_DOUT_GROUP1..GPIO_DOUT_GROUP4, GPIO_DIN_GROUP1..GPIO_DIN_GROUP4.\n - For each register in the list, if it is in the default-skip set, skip the read. If its read mask equals zero, skip the read. Otherwise, READ the register, clear the least-significant bit from the read value, and compare strictly against the documented default value for that register.\n2. Conduct masked write-read verification for six data patterns across the same register set (excluding those in the write-skip set and those with zero write mask):\n - For each pattern, for each register that is writable, WRITE the pattern masked by the register’s write-enable mask.\n - Then, for each register eligible for readback (nonzero read mask and nonzero write mask and not skipped), READ the register, apply the register’s read mask to the value, and compute the expected value as a composition of the written bits on writable positions and preserved default bits on non-writable positions. Compare readback versus expected; count mismatches.\n3. Completion: If any default mismatches or write/read mismatches were detected, declare failure; otherwise, declare pass.", "Impacted Registers": [ "GP0_GPIO_8, GP0_GPIO_9, GP0_GPIO_10, GP0_GPIO_11, GP0_GPIO_12, GP0_GPIO_13, GP0_GPIO_14, GP0_GPIO_15, GP0_GPIO_16, GP0_GPIO_17, GP0_GPIO_18, GP0_GPIO_19, GP0_GPIO_20, GP0_GPIO_21, GP0_GPIO_22, GP0_GPIO_23, GP0_GPIO_24, GP0_GPIO_25, GP0_GPIO_26, GP0_GPIO_27, GP0_GPIO_28, GP0_GPIO_29, GP0_GPIO_30, GP0_GPIO_31, GP0_GPIO_32, GP0_GPIO_33"], "Validation / Acceptance Criteria": "Pass if: (1) For every register included in default checks, the read value (after clearing bit 0) equals the documented default; (2) For each of the six test patterns and each register included in write/read checks, the readback (after the register’s read mask is applied) equals the expected value computed from the written pattern on writable bits and preserved default values on non-writable bits; and (3) the test ends with a zero failure count. Any mismatch in either phase constitutes failure.", "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "gpio_reg_wr_rd_test", "Hidden_Test_Description": "This test checks default (reset) values for a list of GPIO CSRs and verifies masked write/read functionality for each using provided read/write masks.", "Hidden_Remarks": "SKIPPING VRRW registers (write/read checks) and skipping default reads for certain group registers via skip_rst_array. Note: when reading default values, DIN becomes 1 automatically if no external force is applied; forcing zero changes bit-level selection and may cause mismatches with expected values.", "Hidden_Test_Steps_Procedure": "Entry point: test_case()\n1) Call chk_rst_val():\n - for (i = 0; i < CNT; i++):\n a) addr = addr_array[i] where addr_array = { MIZAR_GPIO_GP0_GPIO_8..MIZAR_GPIO_GP0_GPIO_39, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_GPIO_GP0_INTR2_INTR_EN1, MIZAR_GPIO_GP0_INTR2_INTR_STS1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1..MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GPIO_DOUT_GROUP1..MIZAR_GPIO_GPIO_DOUT_GROUP4, MIZAR_GPIO_GPIO_DIN_GROUP1..MIZAR_GPIO_GPIO_DIN_GROUP4 }.\n b) If (skip_rst_array[i] == 1) continue.\n c) If (read_mask_array[i] == 0x00000000) continue.\n d) READ: data_rd = read_reg(addr) [Operation: READ on macro addr].\n e) data = (data_rd & 0xFFFFFFFE).\n f) If (data == default_value_array[i]) pass; else def_fail_cnt++ and print failure.\n2) Call chk_rd_wr():\n - chk_val[6] = { 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000 }.\n - for (j = 0; j < 6; j++):\n a) data_wr = chk_val[j].\n b) Write phase: for (i = 0; i < CNT; i++):\n i) addr = addr_array[i].\n ii) If (skip_array[i] == 1) continue.\n iii) If (write_mask_array[i] == 0x00000000) continue.\n iv) WRITE: write_reg(addr, (data_wr & write_mask_array[i])) [Operation: WRITE on macro addr with write mask applied].\n c) Read/compare phase: for (i = 0; i < CNT; i++):\n i) addr = addr_array[i].\n ii) If (skip_array[i] == 1) continue.\n iii) If (write_mask_array[i] == 0x00000000) continue.\n iv) If (read_mask_array[i] == 0x00000000) continue.\n v) READ: data_rd = (read_reg(addr) & read_mask_array[i]) [Operation: READ on macro addr with read mask applied].\n vi) wr_n = (write_mask_array[i] ^ 0xFFFFFFFF).\n vii) exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])).\n viii) If (data_rd == exp_val) pass; else wr_fail_cnt++ and print failure.\n3) If (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1); else finish(0).\nTiming: No active waits in executed paths.\nPer-access macro references appear via addr_array as listed above.", "Hidden_Impacted_Registers": [ "MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_GPIO_9", "MIZAR_GPIO_GP0_GPIO_10", "MIZAR_GPIO_GP0_GPIO_11", "MIZAR_GPIO_GP0_GPIO_12", "MIZAR_GPIO_GP0_GPIO_13", "MIZAR_GPIO_GP0_GPIO_14", "MIZAR_GPIO_GP0_GPIO_15", "MIZAR_GPIO_GP0_GPIO_16", "MIZAR_GPIO_GP0_GPIO_17", "MIZAR_GPIO_GP0_GPIO_18", "MIZAR_GPIO_GP0_GPIO_19", "MIZAR_GPIO_GP0_GPIO_20", "MIZAR_GPIO_GP0_GPIO_21", "MIZAR_GPIO_GP0_GPIO_22", "MIZAR_GPIO_GP0_GPIO_23", "MIZAR_GPIO_GP0_GPIO_24", "MIZAR_GPIO_GP0_GPIO_25", "MIZAR_GPIO_GP0_GPIO_26", "MIZAR_GPIO_GP0_GPIO_27", "MIZAR_GPIO_GP0_GPIO_28", "MIZAR_GPIO_GP0_GPIO_29", "MIZAR_GPIO_GP0_GPIO_30", "MIZAR_GPIO_GP0_GPIO_31", "MIZAR_GPIO_GP0_GPIO_32", "MIZAR_GPIO_GP0_GPIO_33", "MIZAR_GPIO_GP0_GPIO_34", "MIZAR_GPIO_GP0_GPIO_35", "MIZAR_GPIO_GP0_GPIO_36", "MIZAR_GPIO_GP0_GPIO_37", "MIZAR_GPIO_GP0_GPIO_38", "MIZAR_GPIO_GP0_GPIO_39", "MIZAR_GPIO_GPIO_INTR_RAW_STCLR1", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_GPIO_GP0_INTR2_INTR_EN1", "MIZAR_GPIO_GP0_INTR2_INTR_STS1", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP1", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP2", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP3", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP4", "MIZAR_GPIO_GPIO_DOUT_GROUP1", "MIZAR_GPIO_GPIO_DOUT_GROUP2", "MIZAR_GPIO_GPIO_DOUT_GROUP3", "MIZAR_GPIO_GPIO_DOUT_GROUP4", "MIZAR_GPIO_GPIO_DIN_GROUP1", "MIZAR_GPIO_GPIO_DIN_GROUP2", "MIZAR_GPIO_GPIO_DIN_GROUP3", "MIZAR_GPIO_GPIO_DIN_GROUP4" ], "Hidden_Validation_Acceptance_Criteria": "Default check: (read_reg(addr) & 0xFFFFFFFE) == default_value_array[i] for each address not skipped and with nonzero read mask. Write/read check: For each pattern, for each address not skipped and with nonzero masks, (read_reg(addr) & read_mask) == ((data_wr & read_mask & write_mask) | ((~write_mask) & read_mask & default_value)). Test passes if def_fail_cnt == 0 and wr_fail_cnt == 0; otherwise fails." }, "TC2": { "Index": "2", "SS / Module": "GPIO", "Feature": "Interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input", "Test Case Name": "test_gpio_negedge_intr_en", "Test Description": "Configures input mode and negative-edge interrupts per pin, then for each pin creates a falling edge and verifies that the pin and group interrupt statuses set and clear correctly without timeouts.", "Speed": "NA", "Mode": "Interrupt", "Memory Start Offset": "0xA0243ffc", "Memory End Offset": "0xA0243ffc", "Remarks": "The wait flag is armed before generating the edge to avoid race conditions. A bounded wait with a timeout of 5000 iterations (with 10-unit waits per iteration) prevents infinite hangs. All pads are driven high initially to define a known state.", "Test Steps / Procedure": "Entry: test_case\n1. Enable platform interrupt source for the selected GPIO instance at the system register level, and enable the corresponding CPU interrupt line (87 or 88).\n2. Drive the pad driver to all-high at 0xA0243ffc to establish a known starting level.\n3. Configure per-pin control for pins 8 through 39: set input mode, enable negative-edge detection, and clear any latched raw status.\n - For each pin, perform a WRITE to the corresponding per-pin control register (GP0_GPIO_8..GP0_GPIO_39), then wait 10 time units.\n4. For each bit position 0..31 (corresponding to pins 8..39):\n a. Pre-clear the group raw status via GPIO_INTR_RAW_STCLR1 with a write-one-to-clear for the current bit.\n b. Enable only the current bit in the group enable register GP0_INTR1_INTR_EN1 and wait 10 time units.\n c. Arm the waiter flag and generate a falling edge for only the current bit: write all-ones to 0xA0243ffc, wait 30 time units, then write an all-ones pattern with the current bit held low to 0xA0243ffc.\n d. Wait for the interrupt with a timeout of 5000 iterations, waiting 10 time units per iteration. If the timeout expires, record an error for the corresponding pin.\n5. On interrupt, the handler runs:\n a. Deassert the waiter flag and restore the pad driver to all-high at 0xA0243ffc.\n b. READ the per-pin control register for the active pin (GP0_GPIO_8..GP0_GPIO_39) and verify the input state reflects a low level following the falling edge.\n c. If the per-pin raw status indicates an event, READ the group status (GP0_INTR1_INTR_STS1) and confirm the bit corresponding to the active pin is set.\n d. Clear per-pin raw status by writing the clear bit while keeping input mode asserted to the same per-pin control register; also clear the group raw bit via GPIO_INTR_RAW_STCLR1 for that pin.\n e. Verify the group status (GP0_INTR1_INTR_STS1) reads back as zero after clears.\n f. Clear the system-level raw status (RAW_STCR1) for the selected GPIO instance and clear the CPU interrupt (87 or 88).\n g. If the per-pin raw status was not set, record an error.\n6. Completion: Report the accumulated error count as the test result.", "Impacted Registers": [ "INTR_EN1", "GP0_GPIO_8", "GP0_GPIO_9", "GP0_GPIO_10", "GP0_GPIO_11", "GP0_GPIO_12", "GP0_GPIO_13", "GP0_GPIO_14", "GP0_GPIO_15", "GP0_GPIO_16", "GP0_GPIO_17", "GP0_GPIO_18", "GP0_GPIO_19", "GP0_GPIO_20", "GP0_GPIO_21", "GP0_GPIO_22", "GP0_GPIO_23", "GP0_GPIO_24", "GP0_GPIO_25", "GP0_GPIO_26", "GP0_GPIO_27", "GP0_GPIO_28", "GP0_GPIO_29", "GP0_GPIO_30", "GP0_GPIO_31", "GP0_GPIO_32", "GP0_GPIO_33", "GP0_GPIO_34", "GP0_GPIO_35", "GP0_GPIO_36", "GP0_GPIO_37", "GP0_GPIO_38", "GP0_GPIO_39", "GPIO_INTR_RAW_STCLR1", "GP0_INTR1_INTR_EN1", "GP0_INTR1_INTR_STS1", "RAW_STCR1" ], "Validation / Acceptance Criteria": "Per pin: No timeout occurs while waiting for the interrupt; per-pin input state indicates low immediately after the falling edge; per-pin raw status indicates an event; the group status bit corresponding to the pin is set and then reads as zero after per-pin and group clears; the system raw status is cleared after service. The overall test passes if the accumulated error count is zero.", "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en", "Hidden_Test_Description": "Negative-edge interrupt enable and verification across GPIO pins 8..39 with per-pin and group status checks and clears.", "Hidden_Remarks": "Arm the wait flag (int_pend=1) before generating the falling edge to avoid a race. Uses a bounded wait with timeout=5000 and wait_on(10) per poll. All pads are driven high initially (0xA0243ffc = 0xFFFFFFFF).", "Hidden_Test_Steps_Procedure": "Entry point: test_case()\n1) Initialize:\n - test_err = 0.\n - Conditionally enable GIC IRQ (87 or 88).\n - WRITE: MIZAR_LSS_SYSREG_INTR_EN1 = LSS_SYSREG_INTR_EN1_GPIO0_INTR or LSS_SYSREG_INTR_EN1_GPIO1_INTR (enable sysreg interrupt output).\n - WRITE: 0xA0243ffc = 0xFFFFFFFF (drive all pads high).\n2) Configure GPIOs 8..39 for input + negedge + clear raw:\n - for (i = 0; i < 32; i++): addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i4);\n WRITE: write_reg(addr1, (1<<20) | (1<<18) | (1<<16)); // doe=1, neie=1, iclr=1\n wait_on(10).\n3) For each bit (i = 0..31):\n - wr_val = 1u << i.\n - WRITE: MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 = wr_val (pre-clear group raw, W1C).\n - WRITE: MIZAR_GPIO_GP0_INTR1_INTR_EN1 = wr_val (enable only this bit).\n - wait_on(10).\n - int_pend = 1.\n - Generate falling edge on bit i:\n WRITE: 0xA0243ffc = 0xFFFFFFFF; wait_on(30);\n WRITE: 0xA0243ffc = ~wr_val; // bit i goes low\n - Poll for ISR: timeout=5000; while (int_pend && timeout--) wait_on(10);\n - If (timeout == 0) { print timeout error; test_err++; }\n4) ISR (Default_IRQHandler):\n - local_wr = 1u << i; int_pend = 0.\n - WRITE: 0xA0243ffc = 0xFFFFFFFF (restore high).\n - READ: rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i4)).\n - If ((rdata & 0x1) != 0) test_err++ (DIN should be 0 after negedge).\n - If ((rdata & 0x2) != 0x0) { // per-pin raw set\n READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n If ((rdata_grp & local_wr) == 0) test_err++;\n WRITE: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i4), (1<<20) | (1<<16)); // doe=1, iclr=1\n WRITE: MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 = local_wr; // clear group raw\n READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n If (rdata_grp != 0x0) test_err++;\n#ifdef GPIO0\n WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO0_INTR; GIC_ClearIRQ(87);\n#endif\n#ifdef GPIO1\n WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO1_INTR; GIC_ClearIRQ(88);\n#endif\n } else { test_err++; }\n5) finish(test_err).\nTiming: wait_on(10) after config and enables; wait_on(30) before forcing low; ISR polling loop uses timeout=5000 with wait_on(10) per iteration.", "Hidden_Impacted_Registers": [ "MIZAR_LSS_SYSREG_INTR_EN1", "MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_GPIO_9", "MIZAR_GPIO_GP0_GPIO_10", "MIZAR_GPIO_GP0_GPIO_11", "MIZAR_GPIO_GP0_GPIO_12", "MIZAR_GPIO_GP0_GPIO_13", "MIZAR_GPIO_GP0_GPIO_14", "MIZAR_GPIO_GP0_GPIO_15", "MIZAR_GPIO_GP0_GPIO_16", "MIZAR_GPIO_GP0_GPIO_17", "MIZAR_GPIO_GP0_GPIO_18", "MIZAR_GPIO_GP0_GPIO_19", "MIZAR_GPIO_GP0_GPIO_20", "MIZAR_GPIO_GP0_GPIO_21", "MIZAR_GPIO_GP0_GPIO_22", "MIZAR_GPIO_GP0_GPIO_23", "MIZAR_GPIO_GP0_GPIO_24", "MIZAR_GPIO_GP0_GPIO_25", "MIZAR_GPIO_GP0_GPIO_26", "MIZAR_GPIO_GP0_GPIO_27", "MIZAR_GPIO_GP0_GPIO_28", "MIZAR_GPIO_GP0_GPIO_29", "MIZAR_GPIO_GP0_GPIO_30", "MIZAR_GPIO_GP0_GPIO_31", "MIZAR_GPIO_GP0_GPIO_32", "MIZAR_GPIO_GP0_GPIO_33", "MIZAR_GPIO_GP0_GPIO_34", "MIZAR_GPIO_GP0_GPIO_35", "MIZAR_GPIO_GP0_GPIO_36", "MIZAR_GPIO_GP0_GPIO_37", "MIZAR_GPIO_GP0_GPIO_38", "MIZAR_GPIO_GP0_GPIO_39", "MIZAR_GPIO_GPIO_INTR_RAW_STCLR1", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1" ], "Hidden_Validation_Acceptance_Criteria": "For each i in 0..31: no timeout in wait loop; in ISR: (rdata & 0x1) == 0 for DIN after negedge; per-pin raw bit indicated (rdata & 0x2) != 0; group status has bit set for local_wr; after clearing per-pin (iclr=1) and group W1C, readback of GP0_INTR1_INTR_STS1 == 0; system RAW_STCR1 bit is cleared after write. Test passes if test_err == 0." }, "TC3": { "Index": "3", "SS / Module": "GPIO", "Feature": "Interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input", "Test Case Name": "test_gpio_pedge_all_pads_en", "Test Description": "Enables positive-edge detection for all pins, configures input mode via group control, enables group interrupt output, and for each pin generates a rising edge while verifying group status set/clear and system-level status clear without timeouts.", "Speed": "NA", "Mode": "Interrupt", "Memory Start Offset": "0xA0243ffc", "Memory End Offset": "0xA0243ffc", "Remarks": "Waiter flag is armed before producing the rising edge to avoid races. Timeout of 2000 iterations with a 10-unit wait per iteration bounds the wait. Group interrupt is masked during ISR service and re-enabled afterward.", "Test Steps / Procedure": "Entry: test_case\n1. Enable the platform interrupt source for the selected GPIO instance at the system register level and enable the appropriate CPU interrupt line (87 or 88).\n2. Enable positive-edge detection for pins 8 through 39 by writing to each per-pin control register (GP0_GPIO_8..GP0_GPIO_39).\n3. After a 10-unit wait, configure pins 8..39 for input mode using the group IO control registers (GPIO_IO_CTRL_GROUP1..GPIO_IO_CTRL_GROUP4), then wait another 10 time units.\n4. Enable all bits in the group enable register GP0_INTR1_INTR_EN1.\n5. For each pin index 0..31:\n a. Drive the pad driver low at 0xA0243ffc and wait 10 units.\n b. Arm the waiter flag and drive the pad driver high at 0xA0243ffc to create a single rising edge.\n c. Poll for the interrupt with a timeout of 2000 iterations, waiting 10 units per iteration; on timeout, record an error and break from the loop.\n d. Optionally drive low again and wait 10 units to prepare for the next iteration.\n6. On interrupt, the handler runs:\n a. Read the group status register (GP0_INTR1_INTR_STS1) and mask the group by writing 0 to the group enable register.\n b. If any bit is set in the group status, treat as success for occurrence; otherwise record an error.\n c. Clear per-pin raw status by writing the clear bit for each per-pin control (GP0_GPIO_8..GP0_GPIO_39), wait 2 units, and verify the group status is zero.\n d. Clear the system raw status in RAW_STCR1 for the selected GPIO instance, then read back to confirm the bit is cleared; on failure, record an error.\n e. Re-enable the group output by writing all ones to GP0_INTR1_INTR_EN1, and clear the CPU interrupt (87 or 88).\n7. Completion: Report the accumulated error count as the result.", "Impacted Registers": [ "INTR_EN1", "GP0_GPIO_8", "GP0_GPIO_9", "GP0_GPIO_10", "GP0_GPIO_11", "GP0_GPIO_12", "GP0_GPIO_13", "GP0_GPIO_14", "GP0_GPIO_15", "GP0_GPIO_16", "GP0_GPIO_17", "GP0_GPIO_18", "GP0_GPIO_19", "GP0_GPIO_20", "GP0_GPIO_21", "GP0_GPIO_22", "GP0_GPIO_23", "GP0_GPIO_24", "GP0_GPIO_25", "GP0_GPIO_26", "GP0_GPIO_27", "GP0_GPIO_28", "GP0_GPIO_29", "GP0_GPIO_30", "GP0_GPIO_31", "GP0_GPIO_32", "GP0_GPIO_33", "GP0_GPIO_34", "GP0_GPIO_35", "GP0_GPIO_36", "GP0_GPIO_37", "GP0_GPIO_38", "GP0_GPIO_39", "GPIO_IO_CTRL_GROUP1", "GPIO_IO_CTRL_GROUP2", "GPIO_IO_CTRL_GROUP3", "GPIO_IO_CTRL_GROUP4", "GP0_INTR1_INTR_EN1", "GP0_INTR1_INTR_STS1", "RAW_STCR1" ], "Validation / Acceptance Criteria": "For each pin tested: no timeout occurs while waiting for the interrupt; group interrupt status indicates occurrence; after per-pin clears the group status reads zero; after clearing the system raw status, a readback shows the status cleared; after handler completion, group output is re-enabled for the next iteration. The test passes if the accumulated error count is zero.", "Code Generation (Required / Not)": "", "Hidden_Test_Case_Name": "test_gpio_pedge_all_pads_en", "Hidden_Test_Description": "Positive-edge interrupt enable for all pads with group IO configuration, per-pin raw clear, group status verification, and system-level raw clear checks.", "Hidden_Remarks": "int_pend is set before generating the rising edge. Timeout loop uses 2000 iterations with wait_on(10) to bound waiting. Group interrupt is masked during handler and re-enabled before exit.", "Hidden_Test_Steps_Procedure": "Entry point: test_case()\n1) Setup:\n - Conditionally enable GIC IRQ (87 or 88).\n - WRITE: MIZAR_LSS_SYSREG_INTR_EN1 = LSS_SYSREG_INTR_EN1_GPIO0_INTR or LSS_SYSREG_INTR_EN1_GPIO1_INTR (enable sysreg interrupt output).\n2) Configure posedge detection per pin:\n - for (i = 0; i < 32; i++): WRITE: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i4), 0x00020000); // peie=1\n - wait_on(10).\n3) Configure input mode via group IO control:\n - WRITE: MIZAR_GPIO_GPIO_IO_CTRL_GROUP1 = 0x000000FF;\n - WRITE: MIZAR_GPIO_GPIO_IO_CTRL_GROUP2 = 0x000000FF;\n - WRITE: MIZAR_GPIO_GPIO_IO_CTRL_GROUP3 = 0x000000FF;\n - WRITE: MIZAR_GPIO_GPIO_IO_CTRL_GROUP4 = 0x000000FF;\n - wait_on(10).\n4) Enable group interrupt output:\n - WRITE: MIZAR_GPIO_GP0_INTR1_INTR_EN1 = 0xFFFFFFFF.\n5) For each pin i in 0..31:\n - WRITE: 0xA0243ffc = 0x00000000; wait_on(10);\n - int_pend = 1; WRITE: 0xA0243ffc = 0xFFFFFFFF (posedge).\n - timeout = 2000; while (int_pend == 1 && --timeout > 0) wait_on(10);\n - If (timeout == 0) { print timeout error; test_err++; break; }\n - WRITE: 0xA0243ffc = 0x00000000; wait_on(10).\n6) ISR (Default_IRQHandler):\n - wr_val = 1 << i; int_pend = 0.\n - READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n - WRITE: MIZAR_GPIO_GP0_INTR1_INTR_EN1 = 0x00000000; // mask during service\n - If ((rdata_grp & 0xFFFFFFFF) != 0) success else { print error; test_err++; }\n - for (j = 0; j < 32; j++): WRITE: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (j*4), 0x00010000); // iclr=1\n - wait_on(2).\n - READ: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); If (rdata_grp != 0) { print error; test_err++; }\n#ifdef GPIO0\n - WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO0_INTR; READ back MIZAR_LSS_SYSREG_RAW_STCR1 and ensure bit cleared; else test_err++.\n#endif\n#ifdef GPIO1\n - WRITE: MIZAR_LSS_SYSREG_RAW_STCR1 = LSS_SYSREG_RAW_STCR1_GPIO1_INTR; READ back MIZAR_LSS_SYSREG_RAW_STCR1 and ensure bit cleared; else test_err++.\n#endif\n - WRITE: MIZAR_GPIO_GP0_INTR1_INTR_EN1 = 0xFFFFFFFF; GIC_ClearIRQ(87/88 as applicable).\n7) finish(test_err).\nTiming: wait_on(10) after configurations and around edge generation; timeout loop uses 2000 iterations with wait_on(10); ISR uses wait_on(2) after per-pin clears.", "Hidden_Impacted_Registers": [ "MIZAR_LSS_SYSREG_INTR_EN1", "MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_GPIO_9", "MIZAR_GPIO_GP0_GPIO_10", "MIZAR_GPIO_GP0_GPIO_11", "MIZAR_GPIO_GP0_GPIO_12", "MIZAR_GPIO_GP0_GPIO_13", "MIZAR_GPIO_GP0_GPIO_14", "MIZAR_GPIO_GP0_GPIO_15", "MIZAR_GPIO_GP0_GPIO_16", "MIZAR_GPIO_GP0_GPIO_17", "MIZAR_GPIO_GP0_GPIO_18", "MIZAR_GPIO_GP0_GPIO_19", "MIZAR_GPIO_GP0_GPIO_20", "MIZAR_GPIO_GP0_GPIO_21", "MIZAR_GPIO_GP0_GPIO_22", "MIZAR_GPIO_GP0_GPIO_23", "MIZAR_GPIO_GP0_GPIO_24", "MIZAR_GPIO_GP0_GPIO_25", "MIZAR_GPIO_GP0_GPIO_26", "MIZAR_GPIO_GP0_GPIO_27", "MIZAR_GPIO_GP0_GPIO_28", "MIZAR_GPIO_GP0_GPIO_29", "MIZAR_GPIO_GP0_GPIO_30", "MIZAR_GPIO_GP0_GPIO_31", "MIZAR_GPIO_GP0_GPIO_32", "MIZAR_GPIO_GP0_GPIO_33", "MIZAR_GPIO_GP0_GPIO_34", "MIZAR_GPIO_GP0_GPIO_35", "MIZAR_GPIO_GP0_GPIO_36", "MIZAR_GPIO_GP0_GPIO_37", "MIZAR_GPIO_GP0_GPIO_38", "MIZAR_GPIO_GP0_GPIO_39", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP1", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP2", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP3", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP4", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1" ], "Hidden_Validation_Acceptance_Criteria": "For each tested pin: no timeout in the polling loop; group status (GP0_INTR1_INTR_STS1) indicates interrupt occurrence; after per-pin clears, group status reads 0; after writing RAW_STCR1 for the selected instance, readback indicates the bit is cleared. Test passes if test_err == 0." } }'''
+# -----------------------------
+# Input data (normalized array)
+# -----------------------------
+records = [
+    {
+        "Index": "1",
+        "SS / Module": "gpio",
+        "Feature": "GPIO negative-edge interrupt enable and servicing",
+        "Test Case Name": "test_gpio_negedge_intr_en",
+        "Test Description": "Verifies that negative-edge interrupts on GPIO pins 8–39 can be enabled, triggered, and correctly handled.",
+        "Speed": "NA",
+        "Mode": "Interrupt",
+        "Memory Start Offset": "0xA0243ffc",
+        "Memory End Offset": "0xA0243ffc",
+        "Remarks": "Timeout value is 5000 iterations and may need adjustment for the simulation time base. Assumes the raw interrupt clear register uses write‑1‑to‑clear behavior. All pads are driven high initially to establish a known state.",
+        "Test Steps / Procedure": "1) Enable the platform interrupt for the GPIO block in the interrupt controller and system controller. 2) Drive all GPIO outputs high to set a known baseline. 3) For pins 8–39, configure each pin as input, enable negative-edge detection, and clear any pending status. 4) For each pin, clear the corresponding group raw interrupt bit. 5) Enable the interrupt mask only for the current pin. 6) Arm the wait flag, generate a falling edge on the current pin, and wait for the interrupt with a timeout. 7) In the interrupt handler, restore the pad state to high, read the pin status, and verify the input reads low. 8) Read the group status and verify the bit for the current pin is set. 9) Clear the per-pin raw status and the group raw status, then read back to confirm the group status is cleared. 10) Clear the system-level raw status and the interrupt in the interrupt controller.",
+        "Imparted Registers": "",
+        "Impacted Registers": "",
+        "Validation / Acceptance Criteria": "- A falling edge on each tested pin causes an interrupt before the timeout; PASS if no timeout occurs for any pin.\n- The input value for the serviced pin is low when read in the handler; PASS if the read value is 0.\n- The group status bit for the serviced pin is set on entry to the handler; PASS if the bit is 1 prior to clears.\n- After clearing the per-pin and group raw status, the group status reads 0; PASS if the readback is 0 for the group.",
+        "Code Generation (Required / Not)": "",
+        "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en",
+        "Hidden_Test_Description": "Test negative-edge GPIO interrupts for pins 8..39. Sequence: enable platform IRQ (GIC) and system interrupt for GPIO, set pads high, configure pins 8..39 as input with negedge and clear per-pin raw, then for each bit enable only that interrupt, generate a falling edge via 0xA0243ffc (drive all high then drive the specific bit low), wait for ISR with timeout, and in ISR verify DIN=0, per-pin raw (bit1) set, group status bit set, perform clears per-pin and group, verify group cleared, clear system RAW and GIC pending. Finish with test_err as pass/fail aggregator.",
+        "Hidden_Remarks": "1) The bounded wait uses timeout = 5000 and wait_on(10) per poll; comment notes it may need adjustment for simulation time base. 2) Assumes RAW_STCLR1 is write-1-to-clear. 3) All pads are driven high initially using address 0xA0243ffc. 4) The handler computes the current bit mask from the global loop index i.",
+        "Hidden_Test_Steps_Procedure": '''Entry Points:\nA) test_case()\nB) Default_IRQHandler() [invoked by hardware on GPIO interrupt]\n\nRuntime Trace (in order):\n1. test_case(): Initialize test_err = 0.\n2. Conditional enable of GIC interrupt:\n - If GPIO0 is defined: call GIC_EnableIRQ(87).\n - If GPIO1 is defined: call GIC_EnableIRQ(88).\n3. Conditional enable of system-level interrupt for GPIO:\n - If GPIO0 is defined: WRITE MIZAR_LSS_SYSREG_INTR_EN1 <- LSS_SYSREG_INTR_EN1_GPIO0_INTR.\n - If GPIO1 is defined: WRITE MIZAR_LSS_SYSREG_INTR_EN1 <- LSS_SYSREG_INTR_EN1_GPIO1_INTR.\n4. Set pad driver to a known state: WRITE 0xA0243ffc <- 0xffffffff (all high).\n\nPhase 1: Configure pins 8..39 for input + negedge, clear pending raw\n5. Loop entry: for (i = 0; i < 32; i++):\n 5.1 Loop body (per iteration i):\n - Compute addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n - WRITE addr1 <- ((1 << 20) | (1 << 18) | (1 << 16)) // doe=1 (input), neie=1, iclr=1.\n - Call wait_on(10).\n 5.2 Exit condition: i reaches 32.\n\nPhase 2: Per-pin enable, edge generation, and wait with timeout\n6. Loop entry: for (i = 0; i < 32; i++):\n 6.1 Set wr_val = (1u << i).\n 6.2 Pre-clear group raw status for this bit: WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 <- wr_val.\n 6.3 Enable only this pin's interrupt: WRITE MIZAR_GPIO_GP0_INTR1_INTR_EN1 <- wr_val.\n 6.4 Call wait_on(10).\n 6.5 Prepare to wait for interrupt: int_pend = 1.\n 6.6 Generate a falling edge on bit i:\n - WRITE 0xA0243ffc <- 0xffffffff (ensure all high).\n - Call wait_on(30).\n - WRITE 0xA0243ffc <- bitwise_not(wr_val) (drive current bit low; others high).\n 6.7 Bounded wait for ISR to clear int_pend:\n - Initialize unsigned int timeout = 5000.\n - While (int_pend && timeout--): call wait_on(10) each iteration.\n - On exit: if (timeout == 0):\n - printf("ERROR: Timeout waiting for GPIO%u negedge interrupt", i + 8).\n - test_err++.\n 6.8 Continue loop to next i.\n 6.9 Exit condition: i reaches 32.\n7. Call finish(test_err).\n\nInterrupt Handler (invoked during step 6.7 for each pin that interrupts):\n8. Default_IRQHandler():\n 8.1 Local variables: rdata_grp, raddr, raddr2; compute local_wr = (1u << i).\n 8.2 Signal main loop to proceed: int_pend = 0.\n 8.3 Restore pad driver to known state: WRITE 0xA0243ffc <- 0xffffffff.\n 8.4 Compute raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n 8.5 READ rdata <- read_reg(raddr).\n 8.6 Check DIN value for falling edge: if ((rdata & 0x1) != 0) then test_err++.\n 8.7 Check per-pin raw interrupt bit (bit1 expected set):\n - If ((rdata & 0x2) != 0x0) then:\n a) READ rdata_grp <- read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1).\n b) If ((rdata_grp & local_wr) == 0) then test_err++.\n c) Compute raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4).\n d) Clear per-pin raw while keeping direction: WRITE raddr2 <- ((1 << 20) | (1 << 16)).\n e) Clear group raw bit: WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 <- local_wr.\n f) Verify group clear: READ rdata_grp <- read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp != 0x0) then test_err++.\n g) Clear system raw and GIC pending:\n - If GPIO0 is defined: WRITE MIZAR_LSS_SYSREG_RAW_STCR1 <- LSS_SYSREG_RAW_STCR1_GPIO0_INTR; call GIC_ClearIRQ(87).\n - If GPIO1 is defined: WRITE MIZAR_LSS_SYSREG_RAW_STCR1 <- LSS_SYSREG_RAW_STCR1_GPIO1_INTR; call GIC_ClearIRQ(88).\n - Else (raw bit not set): test_err++.\n\nTiming Details:\n- wait_on(10) used after configuration and per iteration for bounded waits.\n- wait_on(30) used between setting all high and driving specific pin low to create a detectable falling edge.\n- Timeout counter initialized to 5000 for ISR wait loop; loop decrements once per wait_on(10) iteration.\n\nRegister Access Summary within execution:\n- WRITE MIZAR_LSS_SYSREG_INTR_EN1 (enable system-level GPIO interrupt).\n- WRITE 0xA0243ffc (pad drive control) multiple times to set/restore pin states.\n- WRITE MIZAR_GPIO_GP0_GPIO_8 + (i * 4) to configure per-pin doe/neie/iclr and to clear per-pin raw.\n- WRITE MIZAR_GPIO_GPIO_INTR_RAW_STCLR1 to clear group raw bit for selected pin.\n- WRITE MIZAR_GPIO_GP0_INTR1_INTR_EN1 to enable interrupt mask for selected pin.\n- READ MIZAR_GPIO_GP0_GPIO_8 + (i * 4) to sample DIN and raw bit.\n- READ/WRITE MIZAR_GPIO_GP0_INTR1_INTR_STS1 to verify/clear group status.\n- WRITE MIZAR_LSS_SYSREG_RAW_STCR1 to clear system-level raw status.\n- GIC enable/clear APIs used to manage platform interrupts.''',
+        "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1",
+        "Hidden_Validation_Acceptance_Criteria": '''1) No timeout during bounded wait for any i in 0..31. If timeout==0 for any pin, test_err++.\n2) In ISR, DIN bit (bit0) of per-pin register reads 0 after the falling edge; else test_err++.\n3) In ISR, per-pin raw bit (bit1) is set; else test_err++.\n4) Group interrupt status register has the bit for the current pin set; else test_err++.\n5) After clearing per-pin raw and group raw, the group status register reads 0; else test_err++.\n6) Final finish(test_err) reflects aggregated result: PASS if test_err==0; FAIL otherwise.'''
+    }
+]
+
+if not isinstance(records, list) or len(records) == 0:
+    raise SystemExit("Invalid or empty JSON input; expected non-empty list of records.")
+
+# Column definitions
+META_COLUMNS = [
+    "Hidden_Test_Case_Name",
+    "Hidden_Test_Description",
+    "Hidden_Remarks",
+    "Hidden_Test_Steps_Procedure",
+    "Hidden_Impacted_Registers",
+    "Hidden_Validation_Acceptance_Criteria",
+]
 
 MAIN_COLUMNS = [
-    'Index','SS / Module','Feature','Test Case Name','Test Description','Speed','Mode',
-    'Memory Start Offset','Memory End Offset','Remarks','Test Steps / Procedure',
-    'Impacted Registers','Validation / Acceptance Criteria','Code Generation (Required / Not)'
+    "Index",
+    "SS / Module",
+    "Feature",
+    "Test Case Name",
+    "Test Description",
+    "Speed",
+    "Mode",
+    "Memory Start Offset",
+    "Memory End Offset",
+    "Remarks",
+    "Test Steps / Procedure",
+    "Impacted Registers",
+    "Validation / Acceptance Criteria",
+    "Code Generation (Required / Not)",
 ]
-META_COLUMNS = [
-    'Hidden_Test_Case_Name','Hidden_Test_Description','Hidden_Remarks',
-    'Hidden_Test_Steps_Procedure','Hidden_Impacted_Registers','Hidden_Validation_Acceptance_Criteria'
-]
-WRAP_COLUMNS = ['Test Description','Remarks','Test Steps / Procedure','Validation / Acceptance Criteria']
 
+WRAP_COLUMNS = {
+    "Test Description",
+    "Remarks",
+    "Test Steps / Procedure",
+    "Validation / Acceptance Criteria",
+}
 
-def parse_json_to_array(raw: str) -> List[Dict[str, Any]]:
-    try:
-        parsed = json.loads(raw)
-    except Exception as e:
-        print(json.dumps({'status':'FAILURE','error':f'Invalid JSON: {e}'}))
-        sys.exit(1)
-    if isinstance(parsed, dict):
-        data = [parsed[k] for k in parsed.keys()]
-    elif isinstance(parsed, list):
-        data = parsed
-    else:
-        print(json.dumps({'status':'FAILURE','error':'JSON must be array or object of records'}))
-        sys.exit(1)
-    if not data:
-        print(json.dumps({'status':'FAILURE','error':'Empty JSON input'}))
-        sys.exit(1)
-    return data
+# Build union of all keys in first-seen order
+all_keys = []
+for rec in records:
+    for k in rec.keys():
+        if k not in all_keys:
+            all_keys.append(k)
 
+# -----------------------------
+# Helper functions
+# -----------------------------
 
-def ordered_union_keys(rows: List[Dict[str,Any]]) -> List[str]:
-    seen = set()
-    cols = []
-    for rec in rows:
-        for k in rec.keys():
-            if k not in seen:
-                seen.add(k)
-                cols.append(k)
-    return cols
-
-
-def normalize_cell_value(v: Any):
-    if v is None:
-        return ""
-    if isinstance(v, (list, dict)):
-        return json.dumps(v, ensure_ascii=False, separators=(',',':'))
-    return v
-
-
-def renumber_multiline(text: str) -> str:
-    if not isinstance(text, str) or not text.strip():
-        return text or ''
-    lines = [ln.rstrip() for ln in text.split('\n')]
-    cleaned = []
-    for ln in lines:
-        s = ln.strip()
-        if not s:
-            continue
-        s = re.sub(r'^(?:\d+\.|[\-•\*\u2022]+)\s*', '', s)
-        cleaned.append(s)
-    out_lines = []
-    for i, s in enumerate(cleaned, start=1):
-        out_lines.append(f"{i}. {s}")
-    return "\n".join(out_lines)
-
-
-def autofit_columns(ws):
-    max_col = ws.max_column
-    max_row = ws.max_row
-    col_widths = {}
-    for col in range(1, max_col+1):
-        col_letter = get_column_letter(col)
-        max_len = 0
-        for row in range(1, max_row+1):
-            v = ws.cell(row=row, column=col).value
-            s = str(v) if v is not None else ''
-            for part in s.split('\n'):
-                max_len = max(max_len, len(part))
-        col_widths[col_letter] = min(80, max(10, max_len + 2))
-    for col_letter, width in col_widths.items():
-        ws.column_dimensions[col_letter].width = width
-
-
-def apply_borders(ws):
-    thin = Side(style='thin', color='000000')
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for r in range(1, ws.max_row+1):
-        for c in range(1, ws.max_column+1):
-            ws.cell(row=r, column=c).border = border
-
-
-def build_workbook(out_path: Path) -> Dict[str, Any]:
-    rows = parse_json_to_array(RAW_JSON)
-    all_cols = ordered_union_keys(rows)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'Data'
-
-    # headers in first-seen order
-    for ci, key in enumerate(all_cols, start=1):
-        ws.cell(row=1, column=ci, value=key)
-    # data rows
-    for ri, rec in enumerate(rows, start=2):
-        for ci, key in enumerate(all_cols, start=1):
-            ws.cell(row=ri, column=ci, value=normalize_cell_value(rec.get(key, "")))
-
-    # base formatting per spec (header bold + freeze top row + basic autofit)
-    header_font = Font(bold=True)
-    for c in range(1, ws.max_column+1):
-        cell = ws.cell(row=1, column=c)
-        cell.font = header_font
-    ws.freeze_panes = 'A2'
-
-    # Meta sheet
-    meta_ws = wb.create_sheet('Meta_data_sheet')
-    for ci, key in enumerate(META_COLUMNS, start=1):
-        meta_ws.cell(row=1, column=ci, value=key)
-    for ri, rec in enumerate(rows, start=2):
-        for ci, key in enumerate(META_COLUMNS, start=1):
-            meta_ws.cell(row=ri, column=ci, value=normalize_cell_value(rec.get(key, "")))
-    meta_ws.sheet_state = 'veryHidden'
-
-    # Operate on same main sheet; rename Data -> TestPlan and reorder
-    ws.title = 'TestPlan'
-
-    main_matrix = []
-    for rec in rows:
-        row_vals = []
-        for key in MAIN_COLUMNS:
-            v = rec.get(key, "")
-            if key in ('Test Steps / Procedure','Validation / Acceptance Criteria'):
-                v = renumber_multiline(v)
-            row_vals.append(normalize_cell_value(v))
-        main_matrix.append(row_vals)
-
-    # clear and rewrite same sheet
-    ws.delete_rows(1, ws.max_row)
-    for ci, key in enumerate(MAIN_COLUMNS, start=1):
-        ws.cell(row=1, column=ci, value=key)
-    for ri, row_vals in enumerate(main_matrix, start=2):
-        for ci, v in enumerate(row_vals, start=1):
-            ws.cell(row=ri, column=ci, value=v)
-
-    # Strict formatting for main sheet
-    blue_fill = PatternFill(fill_type='solid', start_color='0070C0', end_color='0070C0')
-    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    data_left = Alignment(horizontal='left', vertical='top', wrap_text=True)
-    data_center = Alignment(horizontal='center', vertical='top', wrap_text=True)
-
-    for c in range(1, ws.max_column+1):
-        cell = ws.cell(row=1, column=c)
-        cell.font = Font(bold=True)
-        cell.alignment = header_align
-        cell.fill = blue_fill
-
-    # freeze top row again post rewrite
-    ws.freeze_panes = 'A2'
-
-    # wrap text for specified columns
-    wrap_cols_idx = {MAIN_COLUMNS.index(k)+1 for k in WRAP_COLUMNS if k in MAIN_COLUMNS}
-    for r in range(2, ws.max_row+1):
-        for c in range(1, ws.max_column+1):
-            cell = ws.cell(row=r, column=c)
-            if c in wrap_cols_idx:
-                cell.alignment = data_left
+def set_col_widths(ws):
+    # Approximate auto-fit for TestPlan sheet
+    max_len = {}
+    for row in ws.iter_rows(values_only=True):
+        for idx, val in enumerate(row, start=1):
+            if val is None:
+                l = 0
             else:
-                if ws.cell(row=1, column=c).value == 'Index':
-                    cell.alignment = data_center
-                else:
-                    cell.alignment = data_left
-
-    # borders for all populated cells
-    apply_borders(ws)
-
-    # auto-fit columns and approximate row heights based on wrapped content
-    autofit_columns(ws)
-    base_height = 15
-    wrap_names = set(WRAP_COLUMNS)
-    wrap_idx = [MAIN_COLUMNS.index(k)+1 for k in MAIN_COLUMNS if k in wrap_names]
-    for r in range(2, ws.max_row+1):
-        max_lines = 1
-        for c in wrap_idx:
-            v = ws.cell(row=r, column=c).value
-            s = str(v) if v is not None else ''
-            max_lines = max(max_lines, s.count('\n') + 1)
-        ws.row_dimensions[r].height = base_height * max_lines
-
-    # Data validation for Code Generation (Required / Not) only, data rows only
-    if 'Code Generation (Required / Not)' in MAIN_COLUMNS:
-        col_idx = MAIN_COLUMNS.index('Code Generation (Required / Not)') + 1
-        last_row = ws.max_row
-        rng = f"{get_column_letter(col_idx)}2:{get_column_letter(col_idx)}{last_row}"
-        dv = DataValidation(type='list', formula1='"Required,Blank,Not Required"', allow_blank=True, showDropDown=True)
-        dv.error = 'Select one of: Required, Blank, Not Required'
-        dv.prompt = 'Allowed: Required, Blank, Not Required'
-        ws.add_data_validation(dv)
-        dv.add(rng)
-
-    # Safety check: ensure only TestPlan (visible) and Meta_data_sheet (Very Hidden)
-    if 'Data' in wb.sheetnames:
-        del wb['Data']
-    for sh in wb.worksheets:
-        if sh.title == 'TestPlan':
-            sh.sheet_state = 'visible'
-        elif sh.title == 'Meta_data_sheet':
-            sh.sheet_state = 'veryHidden'
-
-    # Save workbook
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(str(out_path))
-
-    # Validate as true XLSX OOXML
-    ok = True
-    try:
-        if not zipfile.is_zipfile(str(out_path)):
-            ok = False
-        else:
-            with zipfile.ZipFile(str(out_path), 'r') as zf:
-                required = {'[Content_Types].xml','_rels/.rels','xl/workbook.xml'}
-                names = set(zf.namelist())
-                ok = required.issubset(names)
-        _ = load_workbook(str(out_path))
-        names = [sh.title for sh in load_workbook(str(out_path)).worksheets]
-        if 'Data' in names or 'TestPlan' not in names or 'Meta_data_sheet' not in names:
-            ok = False
-    except Exception:
-        ok = False
-
-    num_rows = ws.max_row - 1
-    num_cols = ws.max_column
-
-    return {
-        'xlsx_ok': ok,
-        'num_rows': num_rows,
-        'num_cols': num_cols,
-        'out_path': str(out_path)
-    }
+                s = str(val)
+                l = max(len(part) for part in s.split("\n"))
+            max_len[idx] = max(max_len.get(idx, 0), l)
+    for idx, l in max_len.items():
+        width = min(max(10, l + 2), 80)  # cap width
+        ws.column_dimensions[chr(64 + idx) if idx <= 26 else _col_letter(idx)].width = width
 
 
-def main():
-    ist = timezone(timedelta(hours=5, minutes=30))
-    now = datetime.now(ist)
-    out_filename = f"{IP_NAME}_TestPlan_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
-    out_path = OUTPUT_DIR / out_filename
-
-    result = build_workbook(out_path)
-
-    # write helper for workflow to locate artifact without committing helper file
-    Path('tools').mkdir(parents=True, exist_ok=True)
-    with open('tools/last_output_path.txt', 'w', encoding='utf-8') as f:
-        f.write(result['out_path'])
-
-    print(json.dumps(result))
+def _col_letter(n):
+    string = ""
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        string = chr(65 + remainder) + string
+    return string
 
 
-if __name__ == '__main__':
-    main()
+def apply_borders(ws, max_row, max_col):
+    thin = Side(border_style="thin", color="000000")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for r in range(1, max_row + 1):
+        for c in range(1, max_col + 1):
+            cell = ws.cell(row=r, column=c)
+            cell.border = border
+
+
+def to_numbered_list(text):
+    if text is None:
+        return ""
+    t = str(text).strip()
+    if not t:
+        return ""
+    parts = []
+    if "\n" in t:
+        for line in t.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            line = re.sub(r'^\s*(?:-|\d+[.)])\s*', '', line)
+            parts.append(line)
+    else:
+        parts = [p.strip() for p in re.split(r'\s*(?:\d+[.)]|-)\s+', t) if p.strip()]
+    return "\n".join(f"{i+1}. {p}" for i, p in enumerate(parts))
+
+
+def estimate_row_height_for_row(ws, row_idx, wrap_cols_idx):
+    # Estimate based on newline counts across wrapped columns
+    max_lines = 1
+    for c in wrap_cols_idx:
+        val = ws.cell(row=row_idx, column=c).value
+        if val is None:
+            continue
+        s = str(val)
+        lines = s.count('\n') + 1
+        if lines > max_lines:
+            max_lines = lines
+    # 15 points per line as a heuristic
+    ws.row_dimensions[row_idx].height = max_lines * 15
+
+
+# -----------------------------
+# Workbook creation
+# -----------------------------
+wb = Workbook()
+ws_data = wb.active
+ws_data.title = "Data"
+
+# Write Data sheet with all keys in header
+header_font = Font(bold=True)
+ws_data.append(all_keys)
+for cell in ws_data[1]:
+    cell.font = header_font
+ws_data.freeze_panes = "A2"
+
+for rec in records:
+    ws_data.append([rec.get(k, "") for k in all_keys])
+
+# Create META sheet and copy META columns as-is
+ws_meta = wb.create_sheet("Meta_data_sheet")
+ws_meta.append(META_COLUMNS)
+for rec in records:
+    ws_meta.append([rec.get(k, "") for k in META_COLUMNS])
+# Very hidden meta sheet
+ws_meta.sheet_state = 'veryHidden'
+
+# Rename Data -> TestPlan (do not create new main data sheet)
+ws_main = ws_data
+ws_main.title = "TestPlan"
+
+# Rebuild TestPlan columns: remove META and non-main columns, enforce order
+# Clear existing content and rewrite with MAIN schema
+for row in ws_main[ws_main.dimensions]:
+    for cell in row:
+        cell.value = None
+
+ws_main.delete_cols(1, ws_main.max_column)
+
+ws_main.append(MAIN_COLUMNS)
+
+# Prepare styles
+header_fill = PatternFill("solid", fgColor="4472C4")
+center_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+for cell in ws_main[1]:
+    cell.font = Font(bold=True)
+    cell.alignment = center_center
+    cell.fill = header_fill
+
+# Map column names to indices
+col_idx = {name: idx + 1 for idx, name in enumerate(MAIN_COLUMNS)}
+
+# Write data rows with numbering for specified columns
+for rec in records:
+    row_vals = []
+    for name in MAIN_COLUMNS:
+        val = rec.get(name, "")
+        if name == "Test Steps / Procedure":
+            val = to_numbered_list(val)
+        elif name == "Validation / Acceptance Criteria":
+            val = to_numbered_list(val)
+        row_vals.append(val)
+    ws_main.append(row_vals)
+
+# Apply alignment and wrapping
+for r in range(2, ws_main.max_row + 1):
+    for c in range(1, ws_main.max_column + 1):
+        col_name = MAIN_COLUMNS[c - 1]
+        val_align = Alignment(
+            horizontal=('center' if col_name == 'Index' else 'left'),
+            vertical='top',
+            wrap_text=(col_name in WRAP_COLUMNS)
+        )
+        ws_main.cell(row=r, column=c).alignment = val_align
+
+# Freeze top row
+ws_main.freeze_panes = "A2"
+
+# Auto-fit columns (approximate) and row heights after wrapping
+set_col_widths(ws_main)
+wrap_cols_idx = [MAIN_COLUMNS.index(n) + 1 for n in MAIN_COLUMNS if n in WRAP_COLUMNS]
+for r in range(2, ws_main.max_row + 1):
+    estimate_row_height_for_row(ws_main, r, wrap_cols_idx)
+
+# Borders for all populated cells
+apply_borders(ws_main, ws_main.max_row, ws_main.max_column)
+
+# Data validation ONLY for "Code Generation (Required / Not)" on data rows
+code_col = col_idx["Code Generation (Required / Not)"]
+dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True, showErrorMessage=True)
+ws_main.add_data_validation(dv)
+if ws_main.max_row >= 2:
+    dv.add(f"{_col_letter(code_col)}2:{_col_letter(code_col)}{ws_main.max_row}")
+
+# Final visibility enforcement: ensure only TestPlan and Meta_data_sheet exist; no 'Data' sheet remains
+for name in list(wb.sheetnames):
+    if name not in ("TestPlan", "Meta_data_sheet"):
+        ws_other = wb[name]
+        if name != "TestPlan" and name != "Meta_data_sheet":
+            wb.remove(ws_other)
+
+if "Data" in wb.sheetnames:
+    # Safety: delete if somehow present
+    wb.remove(wb["Data"])
+
+# Output path and file name with IST timestamp
+ip_name = "GPIO"
+ist = timezone(timedelta(hours=5, minutes=30))
+now_ist = datetime.now(tz=ist)
+stamp_date = now_ist.strftime("%Y%m%d")
+stamp_time = now_ist.strftime("%H%M%S")
+file_name = f"{ip_name}_TestPlan_{stamp_date}_{stamp_time}.xlsx"
+output_dir = os.path.join("Test_Output", "GPIO", "TestPlan")
+os.makedirs(output_dir, exist_ok=True)
+file_path = os.path.join(output_dir, file_name)
+
+# Save workbook
+wb.save(file_path)
+
+# Validate that it's a true XLSX (ZIP with key parts)
+with zipfile.ZipFile(file_path, 'r') as zf:
+    namelist = set(zf.namelist())
+    required = {"[Content_Types].xml", "xl/workbook.xml"}
+    if not required.issubset(namelist):
+        raise SystemExit("XLSX validation failed: core parts missing")
+
+# Emit path for GitHub Action step
+os.makedirs('tools', exist_ok=True)
+with open('tools/generated_path.txt', 'w', encoding='utf-8') as f:
+    f.write(file_path)
+print(file_path)

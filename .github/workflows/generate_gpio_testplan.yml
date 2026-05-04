@@ -1,49 +1,28 @@
-name: Generate GPIO TestPlan Excel (Stage1)
-
+name: Generate GPIO TestPlan Excel
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'tools/generate_testplan_excel.py'
-      - 'tools/input/GPIO_TestPlan.json'
-      - '.github/workflows/generate_gpio_testplan.yml'
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          persist-credentials: true
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
+          python-version: '3.x'
+      - run: pip install openpyxl
       - name: Generate Excel
         run: |
-          python tools/generate_testplan_excel.py \
-            --input tools/input/GPIO_TestPlan.json \
-            --output-dir Test_Output/GPIO/TestPlan \
-            --ip-name GPIO
-      - name: Commit Excel
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          python tools/generate_testplan.py
+      - name: Capture generated path
+        id: path
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/*.xlsx
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Final formatted Excel generated from JSON input"
-            git push
-          fi
+          echo "file_path=$(cat tools/generated_path.txt)" >> $GITHUB_OUTPUT
+      - name: Commit Excel
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: ${{ steps.path.outputs.file_path }}
+          message: Final formatted Excel generated from JSON input
+          default_author: github_actions
+          push: true
