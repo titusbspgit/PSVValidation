@@ -2,6 +2,10 @@ name: Generate GPIO TestPlan (Stage1)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tools/trigger_gpio_testplan.txt'
 
 permissions:
   contents: write
