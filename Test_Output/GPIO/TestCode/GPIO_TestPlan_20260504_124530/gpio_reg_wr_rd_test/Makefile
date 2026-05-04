@@ -2,7 +2,7 @@
 #.SILENT:
 VERIF = $(WORKINGDIR)/verif
 
-SRC := program.c 
+SRC := src/program.c 
 
 # Enable optional debug flags as needed
 DEFINEFLAGS += DEBUG_RW_MSG 

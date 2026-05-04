@@ -2,7 +2,7 @@
 #.SILENT:
 VERIF = $(WORKINGDIR)/verif
 
-SRC := program.c 
+SRC := src/program.c 
 
 # Ensure local include path for test_define.c
 CFLAGS += -Iinclude
