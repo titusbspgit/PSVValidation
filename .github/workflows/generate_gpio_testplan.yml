@@ -2,6 +2,11 @@ name: Generate GPIO Test Plan Excel
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/generate_gpio_testplan_xlsx.py'
+      - '.github/workflows/generate_gpio_testplan.yml'
 
 jobs:
   build:
