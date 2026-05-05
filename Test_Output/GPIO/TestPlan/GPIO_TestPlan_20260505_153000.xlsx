@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Ag-Emb-Mpsoc-Repo-Structure Agent</Author>
+  <LastAuthor>Ag-Emb-Mpsoc-Repo-Structure Agent</LastAuthor>
+  <Created>2026-05-05T15:30:00</Created>
+  <LastSaved>2026-05-05T15:30:00</LastSaved>
+  <Company>Auto-generated</Company>
+  <Version>16.00</Version>
+ </DocumentProperties>
+ <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+  <WindowHeight>8130</WindowHeight>
+  <WindowWidth>15135</WindowWidth>
+  <WindowTopX>0</WindowTopX>
+  <WindowTopY>0</WindowTopY>
+  <ProtectStructure>False</ProtectStructure>
+  <ProtectWindows>False</ProtectWindows>
+ </ExcelWorkbook>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1"/>
+   <Interior ss:Color="#D9E1F2" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Bottom"/>
+   <Borders/>
+   <Font/>
+   <Interior/>
+   <NumberFormat/>
+   <Protection/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="TestPlan">
+  <Table ss:ExpandedColumnCount="11" ss:ExpandedRowCount="20" x:FullColumns="1" x:FullRows="1">
+   <Row>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Metadata</Data></Cell>
+    <Cell><Data ss:Type="String">IP_NAME: GPIO</Data></Cell>
+    <Cell><Data ss:Type="String">Repo: titusbspgit/PSVValidation</Data></Cell>
+    <Cell><Data ss:Type="String">Branch: main</Data></Cell>
+    <Cell><Data ss:Type="String">Generated (IST): 2026-05-05 15:30:00</Data></Cell>
+   </Row>
+   <Row/>
+   <Row>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">test_case_id</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">test_name</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">objective</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">file_path</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">permalink</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">category</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">dependencies</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">how_to_run</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">stimuli_steps</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">expected_result</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">registers_referenced</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">GPIO_TC_001</Data></Cell>
+    <Cell><Data ss:Type="String">gpio_reg_wr_rd_test</Data></Cell>
+    <Cell><Data ss:Type="String">Verify write/read functionality of key GPIO registers.</Data></Cell>
+    <Cell><Data ss:Type="String">TestRepo/gpio/gpio_reg_wr_rd_test</Data></Cell>
+    <Cell><Data ss:Type="String">https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/gpio_reg_wr_rd_test</Data></Cell>
+    <Cell><Data ss:Type="String">smoke, unit</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO driver/HAL, board init scripts</Data></Cell>
+    <Cell><Data ss:Type="String">make run TEST=gpio_reg_wr_rd_test</Data></Cell>
+    <Cell><Data ss:Type="String">Program and read back registers; compare to expected masks/reset values.</Data></Cell>
+    <Cell><Data ss:Type="String">All register writes are readable and hold expected values post write.</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO_DATA, GPIO_DIR, GPIO_OUT_EN, GPIO_DEBOUNCE, GPIO_INTR_EN, GPIO_INTR_TYPE, GPIO_INTR_POL</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">GPIO_TC_002</Data></Cell>
+    <Cell><Data ss:Type="String">test_gpio_negedge_intr_en</Data></Cell>
+    <Cell><Data ss:Type="String">Validate negative-edge interrupt enable on selected pad(s).</Data></Cell>
+    <Cell><Data ss:Type="String">TestRepo/gpio/test_gpio_negedge_intr_en</Data></Cell>
+    <Cell><Data ss:Type="String">https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en</Data></Cell>
+    <Cell><Data ss:Type="String">integration, regression</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO ISR, interrupt controller config, HAL</Data></Cell>
+    <Cell><Data ss:Type="String">make run TEST=test_gpio_negedge_intr_en</Data></Cell>
+    <Cell><Data ss:Type="String">Configure pin as input; enable interrupt; drive high-to-low edge; service ISR.</Data></Cell>
+    <Cell><Data ss:Type="String">Interrupt triggers exactly once per falling edge; status/clear sequence works.</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO_INTR_EN, GPIO_INTR_TYPE, GPIO_INTR_POL, GPIO_INTR_STATUS</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">GPIO_TC_003</Data></Cell>
+    <Cell><Data ss:Type="String">test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell><Data ss:Type="String">Validate positive-edge interrupt enable for all GPIO pads.</Data></Cell>
+    <Cell><Data ss:Type="String">TestRepo/gpio/test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell><Data ss:Type="String">https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell><Data ss:Type="String">integration, regression</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO ISR, HAL, board pattern generator</Data></Cell>
+    <Cell><Data ss:Type="String">make run TEST=test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell><Data ss:Type="String">Iterate through all pads; drive low-to-high edges; verify ISR service and masking.</Data></Cell>
+    <Cell><Data ss:Type="String">All pads generate interrupts on rising edge; counters and status reflect events, cleared correctly.</Data></Cell>
+    <Cell><Data ss:Type="String">GPIO_INTR_EN, GPIO_INTR_TYPE, GPIO_INTR_POL, GPIO_INTR_STATUS</Data></Cell>
+   </Row>
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <Selected/>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>
