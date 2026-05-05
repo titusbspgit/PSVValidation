@@ -5,6 +5,7 @@ on:
     paths:
       - tools/gpio_testplan_input.json
       - tools/generate_testplan_gpio.py
+      - tools/validate_xlsx_gpio.py
       - .github/workflows/generate_gpio_testplan.yml
 
 permissions:
@@ -22,6 +23,8 @@ jobs:
         run: pip install openpyxl
       - name: Generate Excel
         run: python tools/generate_testplan_gpio.py
+      - name: Validate Excel (Stage1 rules)
+        run: python tools/validate_xlsx_gpio.py
       - name: Commit Excel
         run: |
           git config user.name "github-actions[bot]"
