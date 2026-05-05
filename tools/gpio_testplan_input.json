@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "ip_name": "GPIO",
+    "source_repo": "https://github.com/titusbspgit/PSVValidation",
+    "subdirectory": "TestRepo/gpio",
+    "generation_timestamp_ist": ""
+  },
+  "test_cases": [
+    {
+      "Index": 1,
+      "SS / Module": "GPIO",
+      "Feature": "AHB 32-bit register interface.",
+      "Test Case Name": "gpio_reg_wr_rd_test",
+      "Test Description": "Checks default values and masked write/read behavior of multiple GPIO-related registers, comparing against expected defaults and computed expected values.",
+      "Speed": "NA",
+      "Mode": "NA",
+      "Memory Start Offset": "NA",
+      "Memory End Offset": "NA",
+      "Remarks": "Default value comparison ignores bit 0. Some registers are intentionally skipped in write/read and reset checks as noted in the source comments.",
+      "Test Steps / Procedure": "1) Iterate the listed GPIO registers and skip any that are marked to be ignored for reset checks.\n2) For readable registers, read the value and compare against the documented default while ignoring bit 0.\n3) For each of the six data patterns, write only the writable bits to each non-skipped register.\n4) For each register, read back only the readable bits and compute the expected value using the write and read masks with the documented default.\n5) Compare the read value against the expected value for each pattern and track mismatches.\n6) Report failure if any default-value or write/read comparisons fail; otherwise report pass.",
+      "Impacted Registers": [
+        "GPIO_8","GPIO_9","GPIO_10","GPIO_11","GPIO_12","GPIO_13","GPIO_14","GPIO_15","GPIO_16","GPIO_17","GPIO_18","GPIO_19","GPIO_20","GPIO_21","GPIO_22","GPIO_23","GPIO_24","GPIO_25","GPIO_26","GPIO_27","GPIO_28","GPIO_29","GPIO_30","GPIO_31","GPIO_32","GPIO_33","GPIO_34","GPIO_35","GPIO_36","GPIO_37","GPIO_38","GPIO_39","GPIO_INTR_RAW_STCLR1","INTR1_INTR_EN1","INTR1_INTR_STS1","INTR2_INTR_EN1","INTR2_INTR_STS1","GPIO_IO_CTRL_GROUP1","GPIO_IO_CTRL_GROUP2","GPIO_IO_CTRL_GROUP3","GPIO_IO_CTRL_GROUP4","GPIO_DOUT_GROUP1","GPIO_DOUT_GROUP2","GPIO_DOUT_GROUP3","GPIO_DOUT_GROUP4","GPIO_DIN_GROUP1","GPIO_DIN_GROUP2","GPIO_DIN_GROUP3","GPIO_DIN_GROUP4"
+      ],
+      "Validation / Acceptance Criteria": "1) Each readable register’s value matches its documented default when bit 0 is ignored.\n2) For each data pattern, every non-skipped register’s read value equals the expected value derived from the write mask, read mask, and default.\n3) The test passes if there are zero default mismatches and zero write/read mismatches; otherwise it fails.",
+      "Hidden_Test_Case_Name": "gpio_reg_wr_rd_test",
+      "Hidden_Test_Description": "Verifies default values and masked R/W functionality for a set of GPIO IP registers using arrays of addresses, default values, read/write masks, and skip controls.",
+      "Hidden_Remarks": "SKIPPING certain VRRW or special-behavior registers per skip arrays in source.",
+      "Hidden_Impacted_Registers": [
+        "MIZAR_GPIO_GP0_GPIO_8","MIZAR_GPIO_GP0_GPIO_9","MIZAR_GPIO_GP0_GPIO_10","MIZAR_GPIO_GP0_GPIO_11","MIZAR_GPIO_GP0_GPIO_12","MIZAR_GPIO_GP0_GPIO_13","MIZAR_GPIO_GP0_GPIO_14","MIZAR_GPIO_GP0_GPIO_15","MIZAR_GPIO_GP0_GPIO_16","MIZAR_GPIO_GP0_GPIO_17","MIZAR_GPIO_GP0_GPIO_18","MIZAR_GPIO_GP0_GPIO_19","MIZAR_GPIO_GP0_GPIO_20","MIZAR_GPIO_GP0_GPIO_21","MIZAR_GPIO_GP0_GPIO_22","MIZAR_GPIO_GP0_GPIO_23","MIZAR_GPIO_GP0_GPIO_24","MIZAR_GPIO_GP0_GPIO_25","MIZAR_GPIO_GP0_GPIO_26","MIZAR_GPIO_GP0_GPIO_27","MIZAR_GPIO_GP0_GPIO_28","MIZAR_GPIO_GP0_GPIO_29","MIZAR_GPIO_GP0_GPIO_30","MIZAR_GPIO_GP0_GPIO_31","MIZAR_GPIO_GP0_GPIO_32","MIZAR_GPIO_GP0_GPIO_33","MIZAR_GPIO_GP0_GPIO_34","MIZAR_GPIO_GP0_GPIO_35","MIZAR_GPIO_GP0_GPIO_36","MIZAR_GPIO_GP0_GPIO_37","MIZAR_GPIO_GP0_GPIO_38","MIZAR_GPIO_GP0_GPIO_39","MIZAR_GPIO_GPIO_INTR_RAW_STCLR1","MIZAR_GPIO_GP0_INTR1_INTR_EN1","MIZAR_GPIO_GP0_INTR1_INTR_STS1","MIZAR_GPIO_GP0_INTR2_INTR_EN1","MIZAR_GPIO_GP0_INTR2_INTR_STS1","MIZAR_GPIO_GPIO_IO_CTRL_GROUP1","MIZAR_GPIO_GPIO_IO_CTRL_GROUP2","MIZAR_GPIO_GPIO_IO_CTRL_GROUP3","MIZAR_GPIO_GPIO_IO_CTRL_GROUP4","MIZAR_GPIO_GPIO_DOUT_GROUP1","MIZAR_GPIO_GPIO_DOUT_GROUP2","MIZAR_GPIO_GPIO_DOUT_GROUP3","MIZAR_GPIO_GPIO_DOUT_GROUP4","MIZAR_GPIO_GPIO_DIN_GROUP1","MIZAR_GPIO_GPIO_DIN_GROUP2","MIZAR_GPIO_GPIO_DIN_GROUP3","MIZAR_GPIO_GPIO_DIN_GROUP4"
+      ]
+    },
+    {
+      "Index": 2,
+      "SS / Module": "GPIO",
+      "Feature": "interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input.",
+      "Test Case Name": "test_gpio_negedge_intr_en",
+      "Test Description": "Configures GPIOs for negative-edge interrupts, generates falling edges per pin, and validates per-pin and group interrupt status and clearing.",
+      "Speed": "NA",
+      "Mode": "Interrupt",
+      "Memory Start Offset": "0xA0243ffc",
+      "Memory End Offset": "0xA0243ffc",
+      "Remarks": "Execution depends on GPIO0 or GPIO1 being defined to select the interrupt line. Uses GIC IRQ 87/88 and a pad driver register at 0xA0243ffc to generate edges. Bounded timeouts avoid infinite waits.",
+      "Test Steps / Procedure": "1) Enable the appropriate system interrupt output for the selected GPIO instance via INTR_EN1.\n2) Drive all pads high using the external pad driver register to establish a known state.\n3) For each of GPIO_8 through GPIO_39, program the per-pin control to enable input, enable negative-edge detection, and clear any pending raw status.\n4) For each bit position, clear the group raw status, enable that bit in INTR1_INTR_EN1, arm the wait, and generate a single falling edge using the pad driver.\n5) Wait with a timeout for the interrupt to be handled; on timeout, record an error and proceed.\n6) In the interrupt handler, verify the per-pin DIN is low, confirm the group status bit is set in INTR1_INTR_STS1, clear the per-pin raw and the group raw status, and confirm the group status becomes zero.\n7) Clear the system raw status via RAW_STCR1 and clear the GIC pending interrupt.\n8) Report pass if no errors were recorded, otherwise report fail.",
+      "Impacted Registers": [
+        "INTR_EN1","GPIO_8","GPIO_9","GPIO_10","GPIO_11","GPIO_12","GPIO_13","GPIO_14","GPIO_15","GPIO_16","GPIO_17","GPIO_18","GPIO_19","GPIO_20","GPIO_21","GPIO_22","GPIO_23","GPIO_24","GPIO_25","GPIO_26","GPIO_27","GPIO_28","GPIO_29","GPIO_30","GPIO_31","GPIO_32","GPIO_33","GPIO_34","GPIO_35","GPIO_36","GPIO_37","GPIO_38","GPIO_39","GPIO_INTR_RAW_STCLR1","INTR1_INTR_EN1","INTR1_INTR_STS1","RAW_STCR1"
+      ],
+      "Validation / Acceptance Criteria": "1) For each pin, the interrupt is observed before the timeout expires.\n2) In the handler, the per-pin input is low after the falling edge; the group status includes the pin’s bit; both the per-pin raw and group raw status clear successfully.\n3) The system raw interrupt status clears; the test passes only if no errors are recorded.",
+      "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en",
+      "Hidden_Test_Description": "Negative-edge interrupt enable test per pin: configure GPIOs as inputs with negedge detection, generate falling edges via external pad driver, and validate status/clear and system routing.",
+      "Hidden_Remarks": "Conditional selection of GPIO0 or GPIO1 and use of GIC IRQ 87/88.",
+      "Hidden_Impacted_Registers": [
+        "MIZAR_LSS_SYSREG_INTR_EN1","MIZAR_GPIO_GP0_GPIO_8","MIZAR_GPIO_GP0_GPIO_9","MIZAR_GPIO_GP0_GPIO_10","MIZAR_GPIO_GP0_GPIO_11","MIZAR_GPIO_GP0_GPIO_12","MIZAR_GPIO_GP0_GPIO_13","MIZAR_GPIO_GP0_GPIO_14","MIZAR_GPIO_GP0_GPIO_15","MIZAR_GPIO_GP0_GPIO_16","MIZAR_GPIO_GP0_GPIO_17","MIZAR_GPIO_GP0_GPIO_18","MIZAR_GPIO_GP0_GPIO_19","MIZAR_GPIO_GP0_GPIO_20","MIZAR_GPIO_GP0_GPIO_21","MIZAR_GPIO_GP0_GPIO_22","MIZAR_GPIO_GP0_GPIO_23","MIZAR_GPIO_GP0_GPIO_24","MIZAR_GPIO_GP0_GPIO_25","MIZAR_GPIO_GP0_GPIO_26","MIZAR_GPIO_GP0_GPIO_27","MIZAR_GPIO_GP0_GPIO_28","MIZAR_GPIO_GP0_GPIO_29","MIZAR_GPIO_GP0_GPIO_30","MIZAR_GPIO_GP0_GPIO_31","MIZAR_GPIO_GP0_GPIO_32","MIZAR_GPIO_GP0_GPIO_33","MIZAR_GPIO_GP0_GPIO_34","MIZAR_GPIO_GP0_GPIO_35","MIZAR_GPIO_GP0_GPIO_36","MIZAR_GPIO_GP0_GPIO_37","MIZAR_GPIO_GP0_GPIO_38","MIZAR_GPIO_GP0_GPIO_39","MIZAR_GPIO_GPIO_INTR_RAW_STCLR1","MIZAR_GPIO_GP0_INTR1_INTR_EN1","MIZAR_GPIO_GP0_INTR1_INTR_STS1","MIZAR_LSS_SYSREG_RAW_STCR1"
+      ]
+    },
+    {
+      "Index": 3,
+      "SS / Module": "GPIO",
+      "Feature": "interrupts can be generated based on positive edge or negative edge or level high or level low detection at GPIO input.",
+      "Test Case Name": "test_gpio_pedge_all_pads_en",
+      "Test Description": "Enables positive-edge interrupts for all GPIOs 8–39, drives rising edges, and validates group interrupt status, clear, and system raw status handling.",
+      "Speed": "NA",
+      "Mode": "Interrupt",
+      "Memory Start Offset": "0xA0243ffc",
+      "Memory End Offset": "0xA0243ffc",
+      "Remarks": "Requires GPIO0 or GPIO1 selection for routing. Uses GIC IRQ 87/88. Uses group IO control to set inputs and a pad driver at 0xA0243ffc to create rising edges. Timeouts prevent infinite waits.",
+      "Test Steps / Procedure": "1) Enable the system interrupt output for the selected GPIO instance using INTR_EN1.\n2) Enable positive-edge detection in each of GPIO_8 through GPIO_39.\n3) Set input mode for groups 1 through 4 using GPIO_IO_CTRL_GROUP1..4.\n4) Enable all bits in INTR1_INTR_EN1.\n5) For each pin, drive low, arm the wait, then drive high to create a single rising edge and wait (with timeout) for the interrupt.\n6) In the interrupt handler, verify group interrupt status is set in INTR1_INTR_STS1, mask group enable, clear per-pin raw for all pins, and confirm group status clears to zero.\n7) Clear the system raw status via RAW_STCR1 and re-enable group interrupt for the next iteration.",
+      "Impacted Registers": [
+        "INTR_EN1","GPIO_8","GPIO_9","GPIO_10","GPIO_11","GPIO_12","GPIO_13","GPIO_14","GPIO_15","GPIO_16","GPIO_17","GPIO_18","GPIO_19","GPIO_20","GPIO_21","GPIO_22","GPIO_23","GPIO_24","GPIO_25","GPIO_26","GPIO_27","GPIO_28","GPIO_29","GPIO_30","GPIO_31","GPIO_32","GPIO_33","GPIO_34","GPIO_35","GPIO_36","GPIO_37","GPIO_38","GPIO_39","GPIO_IO_CTRL_GROUP1","GPIO_IO_CTRL_GROUP2","GPIO_IO_CTRL_GROUP3","GPIO_IO_CTRL_GROUP4","INTR1_INTR_EN1","INTR1_INTR_STS1","RAW_STCR1"
+      ],
+      "Validation / Acceptance Criteria": "1) Each rising edge is detected before the timeout expires.\n2) The group interrupt status is asserted and then clears to zero after per-pin raw clear operations.\n3) The system raw interrupt status is cleared successfully; the test passes only if no errors are recorded.",
+      "Hidden_Test_Case_Name": "test_gpio_pedge_all_pads_en",
+      "Hidden_Test_Description": "Positive-edge interrupt enable for all GPIOs [8..39]; configures per-pin posedge, sets group IO control to input, enables all group bits, generates rising edges via external driver, validates group status and clears system raw.",
+      "Hidden_Remarks": "Conditional routing via GPIO0 or GPIO1 and use of GIC IRQ 87/88.",
+      "Hidden_Impacted_Registers": [
+        "MIZAR_LSS_SYSREG_INTR_EN1","MIZAR_GPIO_GP0_GPIO_8","MIZAR_GPIO_GP0_GPIO_9","MIZAR_GPIO_GP0_GPIO_10","MIZAR_GPIO_GP0_GPIO_11","MIZAR_GPIO_GP0_GPIO_12","MIZAR_GPIO_GP0_GPIO_13","MIZAR_GPIO_GP0_GPIO_14","MIZAR_GPIO_GP0_GPIO_15","MIZAR_GPIO_GP0_GPIO_16","MIZAR_GPIO_GP0_GPIO_17","MIZAR_GPIO_GP0_GPIO_18","MIZAR_GPIO_GP0_GPIO_19","MIZAR_GPIO_GP0_GPIO_20","MIZAR_GPIO_GP0_GPIO_21","MIZAR_GPIO_GP0_GPIO_22","MIZAR_GPIO_GP0_GPIO_23","MIZAR_GPIO_GP0_GPIO_24","MIZAR_GPIO_GP0_GPIO_25","MIZAR_GPIO_GP0_GPIO_26","MIZAR_GPIO_GP0_GPIO_27","MIZAR_GPIO_GP0_GPIO_28","MIZAR_GPIO_GP0_GPIO_29","MIZAR_GPIO_GP0_GPIO_30","MIZAR_GPIO_GP0_GPIO_31","MIZAR_GPIO_GP0_GPIO_32","MIZAR_GPIO_GP0_GPIO_33","MIZAR_GPIO_GP0_GPIO_34","MIZAR_GPIO_GP0_GPIO_35","MIZAR_GPIO_GP0_GPIO_36","MIZAR_GPIO_GP0_GPIO_37","MIZAR_GPIO_GP0_GPIO_38","MIZAR_GPIO_GP0_GPIO_39","MIZAR_GPIO_GPIO_IO_CTRL_GROUP1","MIZAR_GPIO_GPIO_IO_CTRL_GROUP2","MIZAR_GPIO_GPIO_IO_CTRL_GROUP3","MIZAR_GPIO_GPIO_IO_CTRL_GROUP4","MIZAR_GPIO_GP0_INTR1_INTR_EN1","MIZAR_GPIO_GP0_INTR1_INTR_STS1","MIZAR_LSS_SYSREG_RAW_STCR1"
+      ]
+    }
+  ]
+}
