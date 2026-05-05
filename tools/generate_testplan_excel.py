@@ -1,332 +1,290 @@
-#!/usr/bin/env python3
-import json
-import sys
-import re
-import os
-from datetime import datetime, timezone, timedelta
-from zipfile import ZipFile
-from io import BytesIO
-from typing import List
-
-from openpyxl import Workbook, load_workbook
+import json, os, sys, re, math, zipfile, io, datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
+# Configuration from environment
+INPUT_JSON_PATH = os.getenv('INPUT_JSON_PATH', 'Test_Input/PCIE/pcie_testplan_input.json')
+OUTPUT_DIR = os.getenv('OUTPUT_DIR', 'Test_Output/PCIE/TestPlan')
+IP_NAME = os.getenv('IP_NAME', 'PCIE')
+
+# Column definitions
 META_COLS = [
-    "Hidden_Test_Case_Name",
-    "Hidden_Test_Description",
-    "Hidden_Remarks",
-    "Hidden_Test_Steps_Procedure",
-    "Hidden_Impacted_Registers",
-    "Hidden_Validation_Acceptance_Criteria",
+    'Hidden_Test_Case_Name',
+    'Hidden_Test_Description',
+    'Hidden_Remarks',
+    'Hidden_Test_Steps_Procedure',
+    'Hidden_Impacted_Registers',
+    'Hidden_Validation_Acceptance_Criteria'
 ]
-
 MAIN_ORDER = [
-    "Index",
-    "SS / Module",
-    "Feature",
-    "Test Case Name",
-    "Test Description",
-    "Speed",
-    "Mode",
-    "Memory Start Offset",
-    "Memory End Offset",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Impacted Registers",
-    "Validation / Acceptance Criteria",
-    "Code Generation (Required / Not)",
+    'Index',
+    'SS / Module',
+    'Feature',
+    'Test Case Name',
+    'Test Description',
+    'Speed',
+    'Mode',
+    'Memory Start Offset',
+    'Memory End Offset',
+    'Remarks',
+    'Test Steps / Procedure',
+    'Impacted Registers',
+    'Validation / Acceptance Criteria',
+    'Code Generation (Required / Not)'
 ]
+WRAP_COLS = set([
+    'Test Description',
+    'Remarks',
+    'Test Steps / Procedure',
+    'Validation / Acceptance Criteria'
+])
 
-WRAP_COLS = {
-    "Test Description",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Validation / Acceptance Criteria",
-}
+ALLOWED_CODE_GEN = ['Required', 'Blank', 'Not Required']
 
-def ist_now():
-    return datetime.now(timezone(timedelta(hours=5, minutes=30)))
 
-def normalize_json(data):
+def fail(msg: str):
+    print(f"ERROR: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def load_json_records(path: str):
+    if not os.path.exists(path):
+        fail(f"JSON input not found at {path}")
+    with open(path, 'r', encoding='utf-8') as f:
+        raw = f.read().strip()
+        if not raw:
+            fail('JSON input is empty')
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            fail(f'Invalid JSON: {e}')
+    # Normalize: top-level is array; if dict like {TC1:{...}, TC2:{...}}, convert to list of inner objects preserving order
     if isinstance(data, dict):
-        # Preserve insertion order
-        rows = list(data.values())
+        records = list(data.values())
     elif isinstance(data, list):
-        rows = data
+        records = data
     else:
-        raise ValueError("json_data must be an object or array")
-    if not rows:
-        raise ValueError("json_data is empty")
-    # Build header preserving first-seen order
-    header = []
-    seen = set()
-    for row in rows:
-        if not isinstance(row, dict):
-            raise ValueError("Each JSON record must be an object")
-        for k in row.keys():
-            if k not in seen:
-                seen.add(k)
-                header.append(k)
-    return header, rows
+        fail('Top-level JSON must be an object or array')
+    if not records:
+        fail('No records found after normalization')
+    # Ensure each record is dict
+    for i, r in enumerate(records):
+        if not isinstance(r, dict):
+            fail(f'Record {i} is not an object')
+    return records
 
 
-def _len(value):
-    if value is None:
-        return 0
-    s = str(value)
-    return len(s)
+def union_keys_in_order(records):
+    seen = []
+    seen_set = set()
+    for r in records:
+        for k in r.keys():
+            if k not in seen_set:
+                seen.append(k)
+                seen_set.add(k)
+    return seen
 
 
-def autofit(ws):
-    # Approximate autofit by max string length per column
-    for col in ws.columns:
-        maxlen = 0
-        col_letter = col[0].column_letter
+def approximate_autofit(ws):
+    # Compute max string length per column and set width
+    for col_idx, col in enumerate(ws.iter_cols(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column), start=1):
+        max_len = 0
         for cell in col:
-            v = "" if cell.value is None else str(cell.value)
-            for line in v.splitlines():
-                maxlen = max(maxlen, len(line))
-        width = min(max(10, maxlen + 2), 80)  # bound width
-        ws.column_dimensions[col_letter].width = width
+            v = '' if cell.value is None else str(cell.value)
+            if len(v) > max_len:
+                max_len = len(v)
+        # Approx: each char ~ 1 unit; add padding
+        width = min(max(10, max_len + 2), 120)
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
 
-def thin_border():
-    side = Side(style="thin", color="000000")
-    return Border(left=side, right=side, top=side, bottom=side)
-
-
-def style_header(ws):
-    blue = PatternFill("solid", fgColor="4472C4")
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.fill = blue
-
-
-def style_data(ws, header_map):
-    for row in ws.iter_rows(min_row=2):
+def apply_borders(ws):
+    thin = Side(style='thin', color='000000')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
         for cell in row:
-            cell.border = thin_border()
-            # Alignments
-            key = header_map.get(cell.column)
-            if key in WRAP_COLS:
-                cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
-            elif key == "Index":
-                cell.alignment = Alignment(vertical="top", horizontal="center")
-            else:
-                cell.alignment = Alignment(vertical="top", horizontal="left")
+            cell.border = border
 
 
-def ensure_wrapped_and_renumbered(text: str) -> str:
+def compute_row_height_for_text(text: str):
     if text is None:
-        return ""
-    # Split by lines; ignore empties at ends
-    parts = [p for p in re.split(r"\r?\n", str(text))]
-    # If only one line, still normalize markers like "1)" to "1."
-    lines: List[str] = []
-    for i, raw in enumerate(parts, start=1):
-        s = raw.strip()
-        if not s:
-            continue
-        # Remove existing numeric/bullet markers at start
-        s = re.sub(r"^([0-9]+)\)\s*", "", s)
-        s = re.sub(r"^[\-•\*]\s*", "", s)
-        # Prefix with strict numbering
-        lines.append(f"{len(lines)+1}. {s}")
-    return "\n".join(lines) if lines else ""
+        return None
+    s = str(text)
+    # Estimate lines by newlines and width ~ 35 chars per line
+    explicit_lines = s.count('\n') + 1
+    est_lines = max(explicit_lines, math.ceil(len(s) / 35) if s else 1)
+    # Base height ~ 15 points per line
+    return 15 * est_lines
 
 
-def transform_macros(s: str) -> str:
-    if not s:
-        return s
-    tokens = re.split(r"[,\s]+", s)
-    out = []
-    for t in tokens:
-        if not t:
-            continue
-        if re.match(r"^0x[0-9A-Fa-f]+$", t):
-            out.append(t)
-        else:
-            t2 = t
-            if t2.startswith("MIZAR_"):
-                t2 = t2[len("MIZAR_"):]
-            t2 = t2.replace("_", " ")
-            out.append(t2)
-    # Collapse multiples and join
-    res = ", ".join(out)
-    # Append known bitfield notes if relevant
-    notes = " (iclr bit16; peie bit17; neie bit18; doe bit20)"
-    if notes.strip() not in res:
-        res = res + notes
-    return res
+def normalize_numbering(raw: str) -> str:
+    if raw is None:
+        return ''
+    # Split into logical items by newline
+    parts = [p for p in str(raw).split('\n') if p.strip()]
+    normalized = []
+    for idx, p in enumerate(parts, start=1):
+        # Remove any leading bullets or numbering (e.g., 1), 1., -, •)
+        m = re.match(r"^\s*(?:\d+[\).\-\s]*|[-*•]\s*)?(.*\S)\s*$", p)
+        core = m.group(1) if m else p.strip()
+        normalized.append(f"{idx}. {core}")
+    return '\n'.join(normalized)
+
+
+def validate_xlsx(path: str) -> bool:
+    try:
+        with zipfile.ZipFile(path, 'r') as z:
+            names = set(z.namelist())
+            required = {'[Content_Types].xml', 'xl/workbook.xml'}
+            return required.issubset(names)
+    except Exception:
+        return False
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: generate_testplan_excel.py <json_path>", file=sys.stderr)
-        sys.exit(2)
+    records = load_json_records(INPUT_JSON_PATH)
 
-    json_path = sys.argv[1]
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Build union of keys preserving first-seen order
+    all_keys = union_keys_in_order(records)
 
-    header, rows = normalize_json(data)
-
-    # Create workbook with single Data sheet
+    # Create workbook and the single authoritative staging sheet named Data
     wb = Workbook()
     ws = wb.active
-    ws.title = "Data"
-
-    # Ensure all keys present in each row
-    for key in header:
-        pass
+    ws.title = 'Data'
 
     # Write header
-    for col, key in enumerate(header, start=1):
-        ws.cell(row=1, column=col, value=key)
+    for c_idx, key in enumerate(all_keys, start=1):
+        ws.cell(row=1, column=c_idx, value=key)
 
-    # Write rows
-    for r_idx, row in enumerate(rows, start=2):
-        for c_idx, key in enumerate(header, start=1):
-            val = row.get(key, "")
+    # Write rows exactly
+    for r_idx, rec in enumerate(records, start=2):
+        for c_idx, key in enumerate(all_keys, start=1):
+            val = rec.get(key, '')
             ws.cell(row=r_idx, column=c_idx, value=val)
 
-    # Base formatting
-    style_header(ws)
-    ws.freeze_panes = "A2"
-    autofit(ws)
+    # Base formatting: Bold header, freeze top row, approximate auto-fit
+    header_font = Font(bold=True)
+    for cell in ws[1]:
+        cell.font = header_font
+    ws.freeze_panes = 'A2'
+    approximate_autofit(ws)
 
-    # Create META sheet and copy meta cols
-    meta = wb.create_sheet("Meta_data_sheet")
-    # Copy headers
+    # Create META sheet and copy META columns AS-IS, preserve order
+    ws_meta = wb.create_sheet('Meta_data_sheet')
     for c_idx, key in enumerate(META_COLS, start=1):
-        meta.cell(row=1, column=c_idx, value=key)
-    # Build a map from key to column index on Data
-    key_to_col = {ws.cell(row=1, column=i).value: i for i in range(1, ws.max_column+1)}
-    for r in range(2, ws.max_row+1):
+        ws_meta.cell(row=1, column=c_idx, value=key)
+    for r_idx in range(2, ws.max_row + 1):
         for c_idx, key in enumerate(META_COLS, start=1):
-            src_col = key_to_col.get(key)
-            meta.cell(row=r, column=c_idx, value=ws.cell(row=r, column=src_col).value if src_col else "")
-    # Very hidden
-    meta.sheet_state = 'veryHidden'
+            # Find column index in Data if present
+            try:
+                src_col = all_keys.index(key) + 1
+                val = ws.cell(row=r_idx, column=src_col).value
+            except ValueError:
+                val = ''
+            ws_meta.cell(row=r_idx, column=c_idx, value=val)
+    ws_meta.sheet_state = 'veryHidden'
 
-    # Transform main sheet in place: rename and drop meta columns, reorder
-    ws.title = "TestPlan"
+    # Now normalize Data sheet to MAIN columns and order, and remove META columns
+    # Rebuild header to MAIN_ORDER
+    ws.delete_rows(1, ws.max_row)  # clear sheet content (keeping same sheet)
+    for c_idx, key in enumerate(MAIN_ORDER, start=1):
+        ws.cell(row=1, column=c_idx, value=key)
+    # Map records into MAIN_ORDER values
+    for r_idx, rec in enumerate(records, start=2):
+        row_vals = []
+        for key in MAIN_ORDER:
+            row_vals.append(rec.get(key, ''))
+        for c_idx, v in enumerate(row_vals, start=1):
+            ws.cell(row=r_idx, column=c_idx, value=v)
 
-    # Remove meta columns from TestPlan sheet
-    # Gather columns to delete by index (from right to left)
-    delete_cols = sorted([key_to_col[k] for k in META_COLS if k in key_to_col], reverse=True)
-    for dc in delete_cols:
-        ws.delete_cols(dc, 1)
-    
-    # Rebuild header index after deletions
-    header_after = [ws.cell(row=1, column=i).value for i in range(1, ws.max_column+1)]
-    col_index = {name: idx for idx, name in enumerate(header_after)}
+    # Rename Data -> TestPlan
+    ws.title = 'TestPlan'
 
-    # Ensure all MAIN_ORDER columns exist; if missing, append blank column with that header
-    for name in MAIN_ORDER:
-        if name not in col_index:
-            ws.cell(row=1, column=ws.max_column+1, value=name)
-            for r in range(2, ws.max_row+1):
-                ws.cell(row=r, column=ws.max_column, value="")
-            header_after.append(name)
-            col_index[name] = len(header_after)-1
+    # Strict formatting on TestPlan
+    # Header style
+    blue_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.fill = blue_fill
 
-    # Reorder columns to MAIN_ORDER
-    desired = MAIN_ORDER
-    # Create a new temporary data array
-    data_matrix = []
-    for r in range(2, ws.max_row+1):
-        row_vals = {}
-        for i, name in enumerate(header_after):
-            row_vals[name] = ws.cell(row=r, column=i+1).value
-        data_matrix.append(row_vals)
-    # Clear all columns
-    ws.delete_cols(1, ws.max_column)
-    # Write desired header
-    for c, name in enumerate(desired, start=1):
-        ws.cell(row=1, column=c, value=name)
-    # Write back rows
-    for r_idx, row in enumerate(data_matrix, start=2):
-        for c, name in enumerate(desired, start=1):
-            ws.cell(row=r_idx, column=c, value=row.get(name, ""))
+    # Data row alignments and text wrapping
+    # Determine column indices
+    header_idx = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column + 1)}
 
-    # Apply numbering and macro replacement ONLY on visible sheet
-    header_map = {c: ws.cell(row=1, column=c).value for c in range(1, ws.max_column+1)}
-    # Find indices
-    col_name_to_idx = {v: k for k, v in header_map.items()}
+    for r in range(2, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
+            header = ws.cell(row=1, column=c).value
+            val = ws.cell(row=r, column=c).value
+            if header in WRAP_COLS:
+                # Normalize numbering for specific columns
+                if header in ['Test Steps / Procedure', 'Validation / Acceptance Criteria']:
+                    ws.cell(row=r, column=c, value=normalize_numbering(val))
+                ws.cell(row=r, column=c).alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
+                # Approximate row height based on the longest wrapped column value in this row
+            else:
+                # Alignment: text left, numeric/index center/right
+                if header == 'Index':
+                    ws.cell(row=r, column=c).alignment = Alignment(vertical='top', horizontal='center')
+                else:
+                    ws.cell(row=r, column=c).alignment = Alignment(vertical='top', horizontal='left')
+        # After setting all cells for the row, compute row height
+        # Use max of wrapped columns heights
+        max_h = 15
+        for colname in WRAP_COLS:
+            if colname in header_idx:
+                v = ws.cell(row=r, column=header_idx[colname]).value
+                h = compute_row_height_for_text(v)
+                if h and h > max_h:
+                    max_h = h
+        ws.row_dimensions[r].height = max_h
 
-    steps_col = col_name_to_idx.get("Test Steps / Procedure")
-    val_col = col_name_to_idx.get("Validation / Acceptance Criteria")
-    impacted_col = col_name_to_idx.get("Impacted Registers")
+    # Autofit columns after wrapping
+    approximate_autofit(ws)
 
-    # Load meta impacted values from meta sheet
-    meta_impacted = {}
-    # Build meta header map
-    meta_hdr = {meta.cell(row=1, column=c).value: c for c in range(1, meta.max_column+1)}
-    mi_col = meta_hdr.get("Hidden_Impacted_Registers")
-    for r in range(2, meta.max_row+1):
-        meta_impacted[r] = meta.cell(row=r, column=mi_col).value if mi_col else ""
+    # Thin borders for all populated cells
+    apply_borders(ws)
 
-    for r in range(2, ws.max_row+1):
-        if steps_col:
-            ws.cell(row=r, column=steps_col, value=ensure_wrapped_and_renumbered(ws.cell(row=r, column=steps_col).value))
-        if val_col:
-            ws.cell(row=r, column=val_col, value=ensure_wrapped_and_renumbered(ws.cell(row=r, column=val_col).value))
-        if impacted_col:
-            cur = ws.cell(row=r, column=impacted_col).value
-            if not cur:
-                raw = meta_impacted.get(r, "")
-                ws.cell(row=r, column=impacted_col, value=transform_macros(raw))
-
-    # Formatting
-    style_header(ws)
-    style_data(ws, header_map)
-    autofit(ws)
-    # Approx row height by counting lines for wrapped cols
-    for r in range(2, ws.max_row+1):
-        max_lines = 1
-        for name in WRAP_COLS:
-            cidx = col_name_to_idx.get(name)
-            if cidx:
-                v = ws.cell(row=r, column=cidx).value
-                if v:
-                    max_lines = max(max_lines, str(v).count("\n") + 1)
-        ws.row_dimensions[r].height = min(15 * max_lines, 200)
-
-    # Data validation on Code Generation (Required / Not)
-    cg_col = col_name_to_idx.get("Code Generation (Required / Not)")
-    if cg_col:
-        dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True, showErrorMessage=True)
-        start = 2
-        end = ws.max_row
-        col_letter = ws.cell(row=1, column=cg_col).column_letter
-        dv.add(f"{col_letter}{start}:{col_letter}{end}")
+    # Data validation only for 'Code Generation (Required / Not)'
+    if 'Code Generation (Required / Not)' in header_idx:
+        col = header_idx['Code Generation (Required / Not)']
+        col_letter = get_column_letter(col)
+        dv = DataValidation(type='list', formula1='"' + ','.join(ALLOWED_CODE_GEN) + '"', allow_blank=True, showErrorMessage=True)
+        dv.error = 'Select a value from the list: ' + ', '.join(ALLOWED_CODE_GEN)
         ws.add_data_validation(dv)
+        # Apply only to data rows
+        if ws.max_row >= 2:
+            dv.add(f"{col_letter}2:{col_letter}{ws.max_row}")
 
-    # Safety check: only TestPlan and veryHidden Meta_data_sheet
-    for s in wb.worksheets:
-        if s.title == "Data":
-            # Should not exist
-            wb.remove(s)
-    # Validate XLSX structure after save
-    ist = ist_now()
-    out_dir = os.path.join("Test_Output", "GPIO", "TestPlan")
-    os.makedirs(out_dir, exist_ok=True)
-    fname = f"GPIO_TestPlan_{ist.strftime('%Y%m%d')}_{ist.strftime('%H%M%S')}\.xlsx"
-    # Remove backslash escape if any
-    fname = fname.replace('\\.', '.')
-    out_path = os.path.join(out_dir, fname)
-    wb.save(out_path)
+    # Safety check: ensure no sheet named 'Data'
+    if 'Data' in [s.title for s in wb.worksheets]:
+        # Attempt delete; if cannot, fail
+        try:
+            del wb['Data']
+        except Exception:
+            fail("Validation failed: Worksheet named 'Data' still exists and could not be deleted")
 
-    # Validate ZIP structure
-    with ZipFile(out_path, 'r') as zf:
-        if 'xl/workbook.xml' not in zf.namelist():
-            raise RuntimeError('Invalid XLSX: workbook.xml missing')
+    # Prepare output path and filename based on IST
+    ist = ZoneInfo('Asia/Kolkata')
+    now_ist = datetime.datetime.now(tz=ist)
+    ts = now_ist.strftime('%Y%m%d_%H%M%S')
+    out_dir = Path(OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{IP_NAME}_TestPlan_{ts}.xlsx"
 
-    # Print relative path for GitHub Action to consume
-    print(out_path)
+    # Save workbook
+    wb.save(out_path.as_posix())
 
-if __name__ == "__main__":
+    # Validate XLSX as OOXML zip
+    if not validate_xlsx(out_path.as_posix()):
+        fail('XLSX validation failed: not a valid OOXML ZIP')
+
+    print(f"OK: Generated {out_path}")
+
+
+if __name__ == '__main__':
     main()
