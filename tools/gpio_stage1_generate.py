@@ -122,46 +122,35 @@ def renumber_multiline(text):
     for i, ln in enumerate(lines, 1):
         # strip existing leading numbering/bullets
         s = ln.strip()
-        # remove leading patterns like '1)', '1.', '1 -', '- ', '* '
-        for sep in [")", ".", "-", ":"]:
-            if s[:2].isdigit() if False else False:
-                pass
-        # a generic trim of leading markers
+        # generic trim of leading markers (digits + ) . - : or bullet markers)
         while True:
-            if len(s) > 1 and (s[0].isdigit() and (s[1] in ") .-:")):
-                # drop leading digits + marker + any following space
+            if len(s) > 1 and s[0].isdigit():
                 j = 1
                 while j < len(s) and s[j].isdigit():
                     j += 1
                 if j < len(s) and s[j] in ") .-:":
                     j += 1
-                while j < len(s) and s[j] == ' ':
-                    j += 1
-                s = s[j:]
-                break
-            elif s.startswith(('- ', '* ')):
+                    while j < len(s) and s[j] == ' ':
+                        j += 1
+                    s = s[j:]
+                    break
+            if s.startswith(('- ', '* ')):
                 s = s[2:]
                 break
-            else:
-                break
+            break
         out.append(f"{i}. {s}")
     return "\n".join(out) if out else text
 
 
 def autofit_columns(ws):
-    # approximate width by max string length
     for col in ws.columns:
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
             try:
                 v = cell.value
-                if v is None:
-                    l = 0
-                else:
-                    l = len(str(v))
-                if l > max_len:
-                    max_len = l
+                l = len(str(v)) if v is not None else 0
+                max_len = max(max_len, l)
             except Exception:
                 pass
         width = min(max(10, int(max_len * 1.2) + 2), 60)
@@ -177,16 +166,13 @@ def apply_borders(ws):
 
 
 def set_row_heights(ws, wrap_cols_idx):
-    # Estimate height based on line breaks in wrapped columns
     default = 15
     for r in range(2, ws.max_row + 1):
         lines = 1
         for c in wrap_cols_idx:
             v = ws.cell(row=r, column=c).value
             if isinstance(v, str):
-                cnt = v.count("\n") + 1
-                if cnt > lines:
-                    lines = cnt
+                lines = max(lines, v.count("\n") + 1)
         ws.row_dimensions[r].height = min(300, default * lines)
 
 
@@ -231,8 +217,16 @@ def main():
     for ci, key in enumerate(meta_cols, 1):
         ws_meta.cell(row=1, column=ci, value=key)
     for ri, row in enumerate(tests, 2):
+        # Preserve hidden values exactly; also store Macro Aliases as Hidden_Impacted_Registers if explicit hidden value not provided
+        hidden_vals = {k: row.get(k, "") for k in meta_cols}
+        if not hidden_vals.get("Hidden_Impacted_Registers") and row.get("Macro Aliases"):
+            mac = row.get("Macro Aliases")
+            if isinstance(mac, list):
+                hidden_vals["Hidden_Impacted_Registers"] = ", ".join(str(x) for x in mac)
+            else:
+                hidden_vals["Hidden_Impacted_Registers"] = str(mac)
         for ci, key in enumerate(meta_cols, 1):
-            ws_meta.cell(row=ri, column=ci, value=row.get(key, ""))
+            ws_meta.cell(row=ri, column=ci, value=hidden_vals.get(key, ""))
     ws_meta.sheet_state = 'veryHidden'
 
     # Rename 'Data' -> 'TestPlan' and reorder/normalize columns on same sheet
@@ -270,11 +264,9 @@ def main():
     for ri, rec in enumerate(records, 2):
         for ci, key in enumerate(main_order, 1):
             v = rec.get(key, "")
-            # Transformations for wrapped/numeric lists columns
             if key in ("Test Steps / Procedure", "Validation / Acceptance Criteria"):
                 v = renumber_multiline(v)
             if key == "Impacted Registers":
-                # If JSON string array, pretty-join
                 try:
                     arr = json.loads(v) if isinstance(v, str) else v
                     if isinstance(arr, list):
@@ -291,7 +283,6 @@ def main():
         cell.alignment = center
         cell.fill = blue_fill
 
-    # Wrap text for specific columns
     wrap_cols = ["Test Description", "Remarks", "Test Steps / Procedure", "Validation / Acceptance Criteria"]
     wrap_cols_idx = []
     for ci, key in enumerate(main_order, 1):
@@ -327,7 +318,6 @@ def main():
 
     # Mandatory safety: ensure no sheet named 'Data'
     if any(sh.title == 'Data' for sh in wb.worksheets):
-        # delete lingering 'Data' sheets
         for sh in list(wb.worksheets):
             if sh.title == 'Data':
                 wb.remove(sh)
@@ -344,14 +334,12 @@ def main():
 
     wb.save(out_path)
 
-    # Validate as real XLSX (ZIP with core members)
     with zipfile.ZipFile(out_path, 'r') as zf:
         names = set(zf.namelist())
         required = {'[Content_Types].xml', 'xl/workbook.xml'}
         if not required.issubset(names):
             raise SystemExit("ERROR: XLSX validation failed — missing core members")
 
-    # Emit path for GitHub Actions
     with open('.stage1_generated_path.txt', 'w', encoding='utf-8') as f:
         f.write(out_path)
     print(f"Generated Excel at {out_path}")
