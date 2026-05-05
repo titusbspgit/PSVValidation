@@ -3,7 +3,7 @@
     "ip_name": "GPIO",
     "source_repo": "https://github.com/titusbspgit/PSVValidation",
     "subdirectory": "TestRepo/gpio",
-    "generation_timestamp_ist": ""
+    "generation_timestamp_ist": "trigger-run"
   },
   "test_cases": [
     {
