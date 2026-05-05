@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from io import BytesIO
 import zipfile
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 
@@ -163,6 +163,8 @@ WRAP_COLS = {
     "Validation / Acceptance Criteria",
 }
 
+MACRO_PREFIX = "mizar_PCIE0_"
+
 
 def create_meta_sheet(wb, source_ws, records):
     meta_ws = wb.create_sheet(title="Meta_data_sheet")
@@ -185,15 +187,18 @@ def rename_and_normalize_main_sheet(wb):
     ws = wb["Data"]
     ws.title = "TestPlan"
 
-    # Remove META columns from main (by header names)
+    # If visible sheet uses 'Imparted Registers', remap header to 'Impacted Registers' BEFORE dropping/reordering
     headers = [c.value for c in ws[1]]
-    # Build a mapping header -> column index (1-based)
+    if "Impacted Registers" not in headers and "Imparted Registers" in headers:
+        idx = headers.index("Imparted Registers") + 1
+        ws.cell(row=1, column=idx, value="Impacted Registers")
+        headers[idx-1] = "Impacted Registers"
+
+    # Remove META columns from main (by header names not in MAIN_ORDER)
     header_to_idx = {h: i+1 for i, h in enumerate(headers)}
 
-    # Determine columns to keep strictly according to MAIN_ORDER; insert missing as blanks
-    # First, drop any column not in MAIN_ORDER
+    # Determine columns to drop strictly according to MAIN_ORDER
     cols_to_drop = [header_to_idx[h] for h in headers if h not in MAIN_ORDER]
-    # When deleting columns, process in descending order to keep indices valid
     for col_idx in sorted(cols_to_drop, reverse=True):
         ws.delete_cols(col_idx, 1)
 
@@ -203,20 +208,16 @@ def rename_and_normalize_main_sheet(wb):
     # Insert any missing main columns at the correct positions
     for target_pos, h in enumerate(MAIN_ORDER, start=1):
         if h in headers:
-            # Move existing column to target_pos if necessary
             current_pos = headers.index(h) + 1
             if current_pos != target_pos:
                 ws.move_range(start_row=1, start_column=current_pos, end_row=ws.max_row, end_column=current_pos, rows=0, cols=target_pos-current_pos)
-                # After move, recompute headers
                 headers = [c.value for c in ws[1]]
         else:
-            # Insert a new blank column at target_pos with header h
             ws.insert_cols(target_pos, 1)
             ws.cell(row=1, column=target_pos, value=h)
             headers = [c.value for c in ws[1]]
 
-    # Ensure the final header order matches MAIN_ORDER exactly
-    # Rebuild styles for header row (bold, center, blue fill)
+    # Ensure the final header order matches MAIN_ORDER exactly and apply header styles
     header_font = Font(bold=True)
     header_align = Alignment(horizontal='center', vertical='center')
     header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
@@ -242,6 +243,9 @@ def rename_and_normalize_main_sheet(wb):
 
     # Borders on all populated cells
     apply_thin_borders(ws)
+
+    # Macro replacement in visible sheet (strip prefix from any tokens)
+    strip_macros_in_visible(ws)
 
     return ws
 
@@ -310,7 +314,6 @@ def enforce_visibility_rules(wb):
     allowed = {"TestPlan", "Meta_data_sheet"}
     for name in list(wb.sheetnames):
         if name not in allowed:
-            # If the name is 'Data' lingering or any other, delete it
             ws = wb[name]
             wb.remove(ws)
     # Safety: ensure the two sheets exist
@@ -343,17 +346,75 @@ def autofit_row_heights(ws):
                 max_lines = lines
         ws.row_dimensions[r].height = base_height * max_lines
 
+
+def strip_macros_in_visible(ws):
+    # Strip specific macro prefix from any visible string cells in TestPlan
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+        for cell in row:
+            v = cell.value
+            if isinstance(v, str) and MACRO_PREFIX in v:
+                cell.value = v.replace(MACRO_PREFIX, "")
+
 # PHASE 3 — SAVE, VALIDATE, COMMIT
 
 def validate_xlsx_binary(path: str) -> bool:
     try:
         with zipfile.ZipFile(path, 'r') as zf:
-            # Basic OOXML structure checks
             required = {'[Content_Types].xml', 'xl/workbook.xml'}
             names = set(zf.namelist())
             return required.issubset(names)
     except Exception:
         return False
+
+
+def verify_workbook_strict(path: str):
+    wb = load_workbook(path, data_only=False)
+    # Sheets check
+    assert set(wb.sheetnames) == {"TestPlan", "Meta_data_sheet"}, f"Unexpected sheets: {wb.sheetnames}"
+    meta_ws = wb["Meta_data_sheet"]
+    assert getattr(meta_ws, 'sheet_state', 'visible') == 'veryHidden', "Meta_data_sheet not Very Hidden"
+
+    ws = wb["TestPlan"]
+    headers = [c.value for c in ws[1]]
+    assert headers == MAIN_ORDER, f"Header order mismatch: {headers}"
+
+    # Header styling check (bold + blue fill)
+    for c in range(1, len(MAIN_ORDER)+1):
+        cell = ws.cell(row=1, column=c)
+        assert cell.font.bold, "Header not bold"
+        fill = (cell.fill.start_color.rgb or cell.fill.start_color.index) if cell.fill else None
+        assert fill is not None and str(fill).upper().endswith("4472C4"), "Header fill not blue"
+        assert cell.alignment.horizontal == 'center' and cell.alignment.vertical == 'center', "Header alignment incorrect"
+
+    # Data validation only on Code Generation column
+    dvs = getattr(ws.data_validations, 'dataValidation', []) or []
+    # It's acceptable to have 0 DV if no data rows, else ensure DV present only on the column
+    if ws.max_row >= 2:
+        assert len(dvs) >= 1, "Missing data validation on Code Generation column"
+        for dv in dvs:
+            assert dv.type == 'list', "Unexpected validation type"
+            assert 'Required,Blank,Not Required' in (dv.formula1 or ''), "Validation formula mismatch"
+            # All ranges in sqref should be within the Code Generation column
+            for ref in str(dv.sqref).split():
+                col_letters = re.match(r"([A-Z]+)", ref).group(1)
+                assert col_letters == _col_letter(headers.index("Code Generation (Required / Not)")+1), "Validation applied to wrong column"
+
+    # Numbering check for specific columns
+    for h in ["Test Steps / Procedure", "Validation / Acceptance Criteria"]:
+        col = headers.index(h) + 1
+        for r in range(2, ws.max_row + 1):
+            v = ws.cell(row=r, column=col).value
+            if v is None or str(v).strip() == "":
+                continue
+            first_line = str(v).splitlines()[0].strip()
+            assert re.match(r"^\d+\.\s", first_line), f"Numbering missing in {h} at row {r}"
+
+    # Borders on all populated cells
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+        for cell in row:
+            if cell.value is not None and str(cell.value) != "":
+                b = cell.border
+                assert b and all(getattr(getattr(b, side), 'style', None) == 'thin' for side in ('left','right','top','bottom')), "Thin border missing on populated cell"
 
 
 def git_commit_file(path: str, message: str):
@@ -362,8 +423,7 @@ def git_commit_file(path: str, message: str):
         subprocess.run(["git", "config", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
         subprocess.run(["git", "add", path], check=True)
-        # Only commit if there are staged changes
-        diff = subprocess.run(["git", "diff", "--cached", "--quiet"])  # returncode 0 means no diff
+        diff = subprocess.run(["git", "diff", "--cached", "--quiet"])  # 0 means no diff
         if diff.returncode != 0:
             subprocess.run(["git", "commit", "-m", message], check=True)
             subprocess.run(["git", "push"], check=True)
@@ -383,7 +443,7 @@ def main():
     # Create META sheet and set veryHidden
     create_meta_sheet(wb, wb["Data"], records)
 
-    # Normalize main sheet (rename Data->TestPlan, drop META & extras, order MAIN columns, formatting, numbering, DV, borders, visibility)
+    # Normalize main sheet (rename Data->TestPlan, map visible header, drop META & extras, order MAIN columns, formatting, numbering, DV, borders, visibility, macro strip)
     rename_and_normalize_main_sheet(wb)
 
     # Ensure output directory exists
@@ -401,10 +461,21 @@ def main():
         }))
         sys.exit(1)
 
+    # Strict post-save verification
+    try:
+        verify_workbook_strict(OUTPUT_PATH)
+    except AssertionError as ae:
+        print(json.dumps({
+            "Status": "FAILURE",
+            "Execution mode": "Strict verification failed",
+            "Final Excel file path": OUTPUT_PATH,
+            "Error": str(ae)
+        }))
+        sys.exit(1)
+
     # Commit only the finalized Excel file
     git_commit_file(OUTPUT_PATH, "Final formatted Excel generated from JSON input")
 
-    # Report JSON status to stdout
     print(json.dumps({
         "Status": "SUCCESS",
         "Execution mode": "Fallback automation executed in GitHub Actions",
