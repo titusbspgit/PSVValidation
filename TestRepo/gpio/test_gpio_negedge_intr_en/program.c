@@ -1,135 +1,174 @@
-#include <stdio.h>
-#include <lss_sysreg.h>
+#include<stdio.h>
+#include<lss_sysreg.h>
 #include "test_define.c"
-#include <test_common.h>
+#include<test_common.h>
 
-unsigned int gpio_number, test_err, rdata, wr_val, i, addr1;
+
+unsigned int gpio_number,test_err,rdata,wr_val,i,addr1;
 extern int int_pend;
+
 
 int test_case()
 {
-    test_err = 0;
-
-#ifdef GPIO0
+test_err = 0;
+ #ifdef GPIO0
     GIC_EnableIRQ(87);
-#endif
+ #endif
 
-#ifdef GPIO1
-    GIC_EnableIRQ(88);
-#endif
+ #ifdef GPIO1
+     GIC_EnableIRQ(88);
+ #endif
+ 
+ //enabling sysreg interrupt
+ #ifdef GPIO0
+     write_reg(MIZAR_LSS_SYSREG_INTR_EN1,LSS_SYSREG_INTR_EN1_GPIO0_INTR);
+ #endif
 
-    // enabling sysreg interrupt
-#ifdef GPIO0
-    write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);
-#endif
+ #ifdef GPIO1
+       write_reg(MIZAR_LSS_SYSREG_INTR_EN1,LSS_SYSREG_INTR_EN1_GPIO1_INTR);
+ #endif
+ 
+ write_reg(0xA0243ffc,0xffffffff);
+ 
+  // For enabling input mode and negedge interrupt for GPIOs 8-39
+  for(i = 0; i < 32; i++)
+  { 
+     // Programming GPIO in Input Mode and enabling negedge interrupt(20th bit as '1' & 18th bit as '1')
+     //
 
-#ifdef GPIO1
-    write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);
-#endif
+    addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
+     
+     write_reg(addr1,0x00140000);
 
-    // Drive all high initially (known state)
-    write_reg(0xA0243ffc, 0xffffffff);
+     wait_on(50);
 
-    // Phase 1: Configure GPIOs 8..39: input + negedge, and clear any pending raw
-    for (i = 0; i < 32; i++) {
-        // doe=1 (input), neie=1, iclr=1
-        addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
-        write_reg(addr1, (1u << 20) | (1u << 18) | (1u << 16));
-        wait_on(10);
-    }
+     wr_val = 1<<i;
 
-    // Phase 2: For each bit, enable, generate falling edge, and wait with timeout
-    for (i = 0; i < 32; i++) {
-        wr_val = 1u << i;
+     //enabling the gpio group interrupt
+     write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1,wr_val); //84
+     
+     //writing into sram location
+     wait_on(10);
+     write_reg(0xA0243ffc,0xffffffff);
 
-        // Pre-clear any latched raw for this bit at group level (belt-and-suspenders)
-        write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, wr_val);
+     wait_on(30);
+     write_reg(0xA0243ffc,~(wr_val));
+    
+     int_pend = 1;
 
-        // Enable only this bit
-        write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val);
-        wait_on(10);
+    while(int_pend)
+     {
+          ////printf("Waiting for interrupt\n");
+          wait_on(10);
+     }
 
-        // Arm the wait BEFORE generating the edge to avoid race
-        int_pend = 1;
-
-        // Create falling edge on bit i (1 -> 0)
-        write_reg(0xA0243ffc, 0xffffffff);
-        wait_on(30);
-        write_reg(0xA0243ffc, ~wr_val);
-
-        // Bounded wait instead of infinite loop
-        unsigned int timeout = 5000; // adjust to your sim time base if needed
-        while (int_pend && timeout--) {
-            wait_on(10);
-        }
-        if (timeout == 0) {
-            printf("ERROR: Timeout waiting for GPIO%u negedge interrupt\n", (unsigned)(i + 8));
-            test_err++;
-            // Optionally continue to next pin
-        }
-    }
-
-    finish(test_err);
+  }
+  finish(test_err);
 }
 
-void Default_IRQHandler()
+void Default_IRQHandler() 
 {
-    unsigned int rdata_grp, raddr, raddr2;
-    // Recompute current bit mask safely based on global i
-    unsigned int local_wr = 1u << i;
 
-    int_pend = 0;
+  unsigned int rdata_grp,raddr,raddr2;
+  //wr_val = 1<<i;
+  int_pend = 0;
 
-    // Return pad driver to known state (all high)
-    write_reg(0xA0243ffc, 0xffffffff);
+  write_reg(0xA0243ffc,0xffffffff);
 
-    raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
-    rdata = read_reg(raddr);
+  raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
+  rdata = read_reg(raddr);
+  
+   #ifdef DEBUG_DISPLAY
+      //printf("Entered into default IRQ Handler!! with pad value = %d",i);
+   #endif
+   //Check for DIN value during negedge for active/enabled Pad  
+   if((rdata & 0x1) != 0x0)
+   {
+        //#ifdef DEBUG_DISPLAY
+         //printf("SUCCESS: GPIO_NUM = %0d Default_IRQHandler:: DIN value matches with the Pad_value ..read data = %0x\n",i,rdata);
+        //#endif
+   }
+    else 
+    {
+        //printf("ERROR: GPIO_NUM = %0d Default_IRQHandler:: DIN value does not match with the Pad_value read_data = %0x\n",i,rdata);
+        test_err++; 
+    }
+    // Check for interrupt raw status bit during negedge for active/enabled Pad
+    if((rdata & 0x2) != 0x0)
+    {
+       #ifdef DEBUG_DISPLAY
+        //printf("SUCCESS: GPIO_NUM = %0d  status = %0x Default_IRQHandler:: Raw Interrupt raised at negedge\n",i,rdata);
+       #endif
+	
+	rdata_grp =read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);//88
+	
+	if((rdata_grp & (wr_val)) != 0)          
+        {
+        // #ifdef DEBUG_DISPLAY
+          //printf("SUCCESS: GPIO_NUM = %0d  status = %0x Default_IRQHandler:: group Interrupt raised\n",i,rdata_grp);
+        // #endif
+	}
+	else
+	{
+	 //printf("ERROR: Group Interrupt not occured\n");
+	 test_err = test_err + 1;
+	}
+        
+        // Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1')
+         //write_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1,wr_val);
 
-#ifdef DEBUG_DISPLAY
-    // printf("Entered into default IRQ Handler!! with pad value = %d", i);
-#endif
+         raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
+         write_reg(raddr2,0x00110001);
+	 rdata = read_reg(raddr2); 
+	if(rdata == 0x100001)
+	{  
+    
+            // #ifdef DEBUG_DISPLAY
+		//printf("SUCCESS : Interrupt cleared successfully  rdata = %0x\n",rdata);
+              //#endif
+	}
+	else
+	{		
+		//printf("ERROR : Interrupt clear failed : Interrupt value = %x\n",rdata);
+		test_err = test_err + 1;
+	}
 
-    // For falling edge, DIN should be 0 after the edge
-    if ((rdata & 0x1) != 0) {
-        // Wrong DIN value for negedge
-        test_err++;
+       // write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1,0x00000000);
+
+	rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);//88
+	if(rdata_grp == 0x0)
+	{
+         //#ifdef DEBUG_DISPLAY
+	  //printf("SUCCESS : Group Interrupt cleared successfully\n");
+         //#endif
+
+	}
+	else
+	{
+        	//printf("ERROR : Group Interrupt clear failed: Interrupt value:%x\n",rdata_grp);
+          	test_err = test_err + 1;
+	}
+        #ifdef GPIO0
+ 
+	        write_reg(MIZAR_LSS_SYSREG_RAW_STCR1,LSS_SYSREG_RAW_STCR1_GPIO0_INTR);
+        GIC_ClearIRQ(87);                 
+                
+       #endif
+
+       #ifdef GPIO1
+                  
+            write_reg(MIZAR_LSS_SYSREG_RAW_STCR1,LSS_SYSREG_RAW_STCR1_GPIO1_INTR);
+            GIC_ClearIRQ(88);                 
+      
+       #endif 
+
+
     }
 
-    // Check raw interrupt (irs bit1 should be set)
-    if ((rdata & 0x2) != 0x0) {
-        rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); // 88
-
-        // Ensure group bit is set for this pin
-        if ((rdata_grp & local_wr) == 0) {
-            test_err++;
-        }
-
-        // Clear per-pin raw status (iclr=1) while keeping doe=1
-        raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4);
-        write_reg(raddr2, (1u << 20) | (1u << 16)); // doe=1, iclr=1
-
-        // Also clear group raw bit (if RAW_STCLR1 is W1C)
-        write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, local_wr);
-
-        // Verify group clear
-        rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);
-        if (rdata_grp != 0x0) {
-            test_err++;
-        }
-
-#ifdef GPIO0
-        write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR);
-        GIC_ClearIRQ(87);
-#endif
-
-#ifdef GPIO1
-        write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR);
-        GIC_ClearIRQ(88);
-#endif
-
-    } else {
-        // Raw bit not set -> unexpected for negedge
-        test_err++;
+    else
+    {
+	    //printf("Interrupt Not occured\n");
+	    test_err++;
     }
 }
+
