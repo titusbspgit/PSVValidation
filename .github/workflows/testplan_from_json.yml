@@ -1,0 +1,76 @@
+name: Generate Test Plan Excel from JSON
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_data:
+        description: 'JSON array or dict of testcase objects (Stage1 schema)'
+        required: true
+        type: string
+      output_file_name:
+        description: 'Output Excel file name (supports <YYYYMMDD>_<HHMMSS>)'
+        required: false
+        default: 'GPIO_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx'
+      commit_changes:
+        description: 'Commit the generated Excel to the repository'
+        required: false
+        default: 'true'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Write JSON input to file
+        shell: bash
+        run: |
+          mkdir -p tools
+          cat > tools/_tmp_testplan_input.json << 'JSONEOF'
+          ${{ inputs.json_data }}
+          JSONEOF
+
+      - name: Generate Test Plan Excel
+        id: gen
+        shell: bash
+        run: |
+          python tools/generate_testplan_from_json.py \
+            --json tools/_tmp_testplan_input.json \
+            --output-dir Test_Output/GPIO/TestPlan \
+            --file-name "${{ inputs.output_file_name }}" \
+            --ist-timestamp | tee gen_output.json
+
+          echo "GEN_JSON=$(cat gen_output.json | tr -d '\n')" >> $GITHUB_OUTPUT
+
+      - name: Commit Excel (if enabled)
+        if: ${{ inputs.commit_changes == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine output path from generator JSON
+          OUT_PATH=$(jq -r '.output_path' gen_output.json)
+          if [ -z "$OUT_PATH" ] || [ ! -f "$OUT_PATH" ]; then
+            echo "ERROR: Generated Excel not found at $OUT_PATH" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$OUT_PATH"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "Nothing to commit"
+          git push
+
+      - name: Print result
+        run: |
+          cat gen_output.json
