@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Append Batch 2 (Indices 6–9) to existing GPIO TestPlan WORKING.xlsx
 # - Requires that Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx already exists (from Batch 1)
-# - Reads existing TestPlan sheet rows and appends Batch 2 JSON
+# - Reads existing TestPlan and Meta_data_sheet rows and appends Batch 2 JSON
 # - Preserves formatting rules, meta sheet, in-cell numbering, and validation per Stage1
 
 import os, sys, json, re, zipfile
@@ -35,7 +35,8 @@ JSON_DATA: List[Dict] = [
         "Hidden_Test_Description": "Walking zeros falling-edge test using 0xA0243ffc with per-pin 0x00040000 config; ISR checks DIN, raw, group, clears raw with 0x00110001 and sysreg sticky.",
         "Hidden_Remarks": "int_pend gating loop; GIC_ClearIRQ for IRQ 87/88; IO_CTRL groups set to 0x000000FF per code.",
         "Hidden_Test_Steps_Procedure": "Source: program.c. See inline sequence for configuration and ISR checks.",
-        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_INTR_EN1", "MIZAR_LSS_SYSREG_RAW_STCR1"]
+        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_INTR_EN1", "MIZAR_LSS_SYSREG_RAW_STCR1"],
+        "Hidden_Validation_Acceptance_Criteria": "DIN active, RAW set, group bit set; after 0x00110001 readback 0x100001; group clears; RAW_STCR1 cleared."
     },
     {
         "Index": 7,
@@ -56,7 +57,8 @@ JSON_DATA: List[Dict] = [
         "Hidden_Test_Description": "All pads falling-edge test; ISR checks only group status and performs bulk raw clear with 0x00110001.",
         "Hidden_Remarks": "Disables group EN1 before clearing; uses IO_CTRL groups 0x000000FF.",
         "Hidden_Test_Steps_Procedure": "Source: program.c. See ISR sequence and loop over all pads.",
-        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1"]
+        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1"],
+        "Hidden_Validation_Acceptance_Criteria": "Group status set then cleared after raw clears; RAW_STCR1 cleared."
     },
     {
         "Index": 8,
@@ -77,7 +79,8 @@ JSON_DATA: List[Dict] = [
         "Hidden_Test_Description": "Per-pin negedge with mask enable flow; ISR validates and clears per-pin and group state.",
         "Hidden_Remarks": "Uses addr1 and raddr2 per code; uses int_pend loop and clears via GIC_ClearIRQ.",
         "Hidden_Test_Steps_Procedure": "Source: program.c. See loop and ISR details.",
-        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1"]
+        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GP0_GPIO_8", "MIZAR_GPIO_GP0_INTR1_INTR_EN1", "MIZAR_GPIO_GP0_INTR1_INTR_STS1", "MIZAR_LSS_SYSREG_RAW_STCR1"],
+        "Hidden_Validation_Acceptance_Criteria": "DIN active, RAW set, group set; 0x00110001 readback 0x100001; group cleared; RAW_STCR1 cleared."
     },
     {
         "Index": 9,
@@ -98,8 +101,8 @@ JSON_DATA: List[Dict] = [
         "Hidden_Test_Description": "Output mode across IO groups with per-pin DOUT toggling; verification via 0xA0243ffc; Default_IRQHandler increments test_err.",
         "Hidden_Remarks": "Uses gp0_flag_dout_one/zero logic in helper; GIC_ClearIRQ after checks.",
         "Hidden_Test_Steps_Procedure": "Source: program.c. See loop and helper function.",
-        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GPIO_IO_CTRL_GROUP1", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP2", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP3", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP4", "MIZAR_GPIO_GP0_GPIO_8"]
-    }
+        "Hidden_Impacted_Registers": ["MIZAR_GPIO_GPIO_IO_CTRL_GROUP1", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP2", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP3", "MIZAR_GPIO_GPIO_IO_CTRL_GROUP4", "MIZAR_GPIO_GP0_GPIO_8"],
+        "Hidden_Validation_Acceptance_Criteria": "Pad bit reflects DOUT high/low; no unexpected interrupts."    }
 ]
 
 META_COLUMNS = [
@@ -108,6 +111,7 @@ META_COLUMNS = [
     "Hidden_Remarks",
     "Hidden_Test_Steps_Procedure",
     "Hidden_Impacted_Registers",
+    "Hidden_Validation_Acceptance_Criteria",
 ]
 
 MAIN_COLUMNS = [
@@ -135,31 +139,42 @@ NUMBER_WRAP_COLS = [
 ALLOWED_DV = ["Required", "Blank", "Not Required"]
 
 
-def read_existing_rows(path: str) -> List[Dict]:
+def read_existing(path: str):
+    rows = []
+    meta_rows = []
     if not os.path.exists(path):
-        return []
+        return rows, meta_rows
     try:
         wb = load_workbook(path, data_only=True)
-        if 'TestPlan' not in wb.sheetnames:
-            return []
-        ws = wb['TestPlan']
-        rows = list(ws.iter_rows(values_only=True))
-        if not rows:
-            return []
-        headers = [str(h) if h is not None else '' for h in rows[0]]
-        data = []
-        for r in rows[1:]:
-            if all(v is None for v in r):
-                continue
-            rec = {}
-            for k, v in zip(headers, r):
-                if k == '':
-                    continue
-                rec[k] = v if v is not None else ''
-            data.append(rec)
-        return data
+        if 'TestPlan' in wb.sheetnames:
+            ws = wb['TestPlan']
+            vals = list(ws.iter_rows(values_only=True))
+            if vals:
+                headers = [str(h) if h is not None else '' for h in vals[0]]
+                for r in vals[1:]:
+                    if all(v is None for v in r):
+                        continue
+                    rec = {}
+                    for k, v in zip(headers, r):
+                        if k == '':
+                            continue
+                        rec[k] = v if v is not None else ''
+                    rows.append(rec)
+        if 'Meta_data_sheet' in wb.sheetnames:
+            ms = wb['Meta_data_sheet']
+            mvals = list(ms.iter_rows(values_only=True))
+            if mvals:
+                mheaders = [str(h) if h is not None else '' for h in mvals[0]]
+                for r in mvals[1:]:
+                    meta = {}
+                    for k, v in zip(mheaders, r):
+                        if k == '':
+                            continue
+                        meta[k] = v if v is not None else ''
+                    meta_rows.append(meta)
     except Exception:
-        return []
+        pass
+    return rows, meta_rows
 
 
 def first_seen_union_keys(records: List[Dict]) -> List[str]:
@@ -176,7 +191,6 @@ def first_seen_union_keys(records: List[Dict]) -> List[str]:
 def enforce_numbering(text: str) -> str:
     if text is None:
         return ''
-    import re
     lines = [ln.strip() for ln in str(text).splitlines()]
     lines = [ln for ln in lines if ln]
     out = []
@@ -199,10 +213,6 @@ def build_meta_sheet(wb, records: List[Dict]):
 
 
 def write_workbook(records: List[Dict]):
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-    from openpyxl.worksheet.datavalidation import DataValidation
-
     headers = first_seen_union_keys(records)
     wb = Workbook()
     ws = wb.active
@@ -309,9 +319,20 @@ def main():
         print(json.dumps({"Status":"FAILURE","Error":"Batch 1 WORKING.xlsx not found; aborting Batch 2 append"}))
         sys.exit(1)
 
-    existing = read_existing_rows(OUTPUT_FILE_PATH)
+    existing_rows, existing_meta = read_existing(OUTPUT_FILE_PATH)
+
+    # Merge existing TestPlan rows with their meta fields (by index order)
+    merged_existing: List[Dict] = []
+    for idx, rec in enumerate(existing_rows):
+        rec2 = dict(rec)
+        if idx < len(existing_meta):
+            for k in META_COLUMNS:
+                if k in existing_meta[idx]:
+                    rec2[k] = existing_meta[idx][k]
+        merged_existing.append(rec2)
+
     merged = []
-    merged.extend(existing)
+    merged.extend(merged_existing)
     merged.extend(deepcopy(JSON_DATA))
 
     try:
