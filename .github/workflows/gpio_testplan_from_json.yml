@@ -31,7 +31,7 @@ jobs:
           OUTPUT_FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx
         run: |
           python scripts/generate_gpio_testplan.py
-      - name: Validate generated XLSX
+      - name: Validate generated XLSX structure
         run: |
           python - << 'PY'
           import sys, os, zipfile
@@ -41,9 +41,28 @@ jobs:
           with zipfile.ZipFile(p, 'r') as z:
               names = set(z.namelist())
           required = {'[Content_Types].xml', 'xl/workbook.xml', 'xl/worksheets/sheet1.xml'}
-          if not required.issubset(names):
-              print('Invalid XLSX structure; missing:', required - names); sys.exit(1)
-          print('XLSX validation passed')
+          missing = required - names
+          if missing:
+              print('Invalid XLSX structure; missing:', missing); sys.exit(1)
+          print('XLSX basic structure validation passed')
+          PY
+      - name: Verify workbook sheets and visibility
+        run: |
+          python - << 'PY'
+          import sys
+          from openpyxl import load_workbook
+          p = 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx'
+          wb = load_workbook(p)
+          sheets = set(wb.sheetnames)
+          if sheets != {'TestPlan','Meta_data_sheet'}:
+              print('Unexpected sheets:', sheets); sys.exit(1)
+          tp = wb['TestPlan']
+          md = wb['Meta_data_sheet']
+          if getattr(md, 'sheet_state', 'visible') != 'veryHidden':
+              print('Meta_data_sheet is not veryHidden:', getattr(md,'sheet_state',None)); sys.exit(1)
+          if getattr(tp, 'sheet_state', 'visible') not in ('visible', None, ''):
+              print('TestPlan not visible:', getattr(tp,'sheet_state',None)); sys.exit(1)
+          print('Sheet verification passed')
           PY
       - name: Commit Excel only
         run: |
@@ -55,4 +74,11 @@ jobs:
           else
             git commit -m "Final formatted Excel generated from JSON input"
             git push
+          fi
+      - name: Output commit hash if Excel committed
+        run: |
+          if git log -1 --pretty=%B | grep -q "Final formatted Excel generated from JSON input"; then
+            echo "excel_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          else
+            echo "excel_commit_sha=" >> $GITHUB_OUTPUT
           fi
