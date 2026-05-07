@@ -1,0 +1,58 @@
+name: Finalize GPIO TestPlan Timestamped Copy
+
+on:
+  push:
+    paths:
+      - ".github/workflows/finalize_gpio_copy.yml"
+      - "Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx"
+  workflow_dispatch:
+
+jobs:
+  finalize-copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify source Excel exists
+        run: |
+          if [ ! -f "Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx" ]; then
+            echo "ERROR: Source Excel not found at Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx" >&2
+            exit 1
+          fi
+
+      - name: Validate XLSX (ZIP-based OOXML)
+        run: |
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y unzip >/dev/null 2>&1 || true
+          unzip -t "Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx"
+
+      - name: Generate IST timestamp and copy file
+        id: copy
+        run: |
+          TS=$(TZ=Asia/Kolkata date +'%Y%m%d_%H%M%S')
+          SRC="Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx"
+          DST="Test_Output/GPIO/TestPlan/GPIO_TestPlan_${TS}.xlsx"
+          cp -f "$SRC" "$DST"
+          echo "dst=$DST" >> $GITHUB_OUTPUT
+
+      - name: Commit timestamped Excel only
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "${{ steps.copy.outputs.dst }}"
+          # Ensure only the new file is committed
+          git reset -- Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
+
+      - name: Output final path
+        run: echo "Final Excel path: ${{ steps.copy.outputs.dst }}"
