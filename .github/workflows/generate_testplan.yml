@@ -1,0 +1,41 @@
+name: Generate GPIO TestPlan XLSX
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_payload:
+        description: JSON payload for testcases (object or array)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate and Commit Excel
+        env:
+          JSON_PAYLOAD: ${{ inputs.json_payload }}
+          IP_NAME: GPIO
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          COMMIT_CHANGES: "true"
+        run: |
+          python scripts/generate_testplan.py --ip-name "$IP_NAME" --output-dir "$OUTPUT_DIR" --commit "$COMMIT_CHANGES"
+      - name: List outputs
+        run: |
+          ls -la Test_Output/GPIO/TestPlan || true
