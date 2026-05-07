@@ -1,0 +1,66 @@
+name: GPIO TestPlan Batch 2 from JSON (post Batch 1)
+
+on:
+  workflow_run:
+    workflows: ["GPIO TestPlan from JSON (Batch 1/2)"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  append:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl==3.1.2
+      - name: Append Batch 2 rows to existing WORKING.xlsx
+        env:
+          OUTPUT_FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx
+        run: |
+          python scripts/append_gpio_testplan_batch2.py
+      - name: Validate workbook structure and visibility
+        run: |
+          python - << 'PY'
+          from openpyxl import load_workbook
+          import sys
+          p = 'Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx'
+          wb = load_workbook(p)
+          sheets = set(wb.sheetnames)
+          if sheets != {'TestPlan','Meta_data_sheet'}:
+              print('Unexpected sheets:', sheets); sys.exit(1)
+          md = wb['Meta_data_sheet']
+          if getattr(md, 'sheet_state', 'visible') != 'veryHidden':
+              print('Meta_data_sheet visibility invalid:', md.sheet_state); sys.exit(1)
+          print('Workbook structure/visibility OK')
+          PY
+      - name: Commit updated Excel only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
+      - name: Output commit hash if committed
+        id: out
+        run: |
+          if git log -1 --pretty=%B | grep -q "Final formatted Excel generated from JSON input"; then
+            echo "excel_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          else
+            echo "excel_commit_sha=" >> $GITHUB_OUTPUT
+          fi
