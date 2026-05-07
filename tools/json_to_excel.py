@@ -233,7 +233,7 @@ def write_workbook(final_rows, output_path):
     # Data validation for Code Generation (Required / Not)
     if 'Code Generation (Required / Not)' in MAIN_ORDER:
         col_idx = MAIN_ORDER.index('Code Generation (Required / Not)') + 1
-        dv = DataValidation(type='list', formula1='"Required,Blank,Not Required"', allow_blank=True)
+        dv = DataValidation(type='list', formula1='"Required, Blank, Not Required"', allow_blank=True)
         ws.add_data_validation(dv)
         if max_row >= 2:
             dv.add(f"{chr(64+col_idx)}2:{chr(64+col_idx)}{max_row}")
