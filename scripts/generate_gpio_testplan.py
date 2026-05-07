@@ -3,6 +3,7 @@
 # - Reads embedded JSON data (updated Index 1..5)
 # - If existing Excel exists at output path, reads TestPlan sheet and appends rows
 # - Generates true XLSX with formatting and meta sheet per strict rules
+# NOTE: No-op change to re-trigger Batch 1 workflow
 
 import os, sys, json, re, zipfile
 from copy import deepcopy
@@ -443,7 +444,6 @@ def main():
     # Generate Excel
     try:
         generate_excel(merged)
-        # Emit summary to stdout for logs
         cols = len(first_seen_union_keys(merged))
         print(json.dumps({
             "Status": "SUCCESS",
