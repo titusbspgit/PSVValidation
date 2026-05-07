@@ -1,0 +1,42 @@
+name: JSON to Excel Generator (GPIO Batch1)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/json_inputs/gpio_batch1.json'
+      - 'tools/json_to_excel.py'
+      - '.github/workflows/json_to_excel_gpio_batch1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install openpyxl==3.1.2 xlsxwriter==3.2.0
+      - name: Generate Excel from JSON
+        env:
+          JSON_INPUT: .github/json_inputs/gpio_batch1.json
+          OUTPUT_FILE_PATH: Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx
+        run: |
+          python tools/json_to_excel.py --json "$JSON_INPUT" --output "$OUTPUT_FILE_PATH"
+      - name: Commit Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/GPIO/TestPlan/GPIO_TestPlan_WORKING.xlsx"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
