@@ -2,6 +2,10 @@ name: Generate GPIO TestPlan Excel (Batch 1)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
 
 permissions:
   contents: write
