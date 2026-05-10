@@ -1,0 +1,4 @@
+[2026-05-10T10:58:05.524248Z] Computed headers=['email', 'first_name', 'gender', 'id', 'ip_address', 'last_name']
+[2026-05-10T10:58:05.525088Z] Appended row 4/4
+[2026-05-10T10:58:05.529398Z] Saved Excel to Test_Output/GPIO/TestPlan/local_excel_test.xlsx
+[2026-05-10T10:58:05.533180Z] Validation OK: 4 rows
