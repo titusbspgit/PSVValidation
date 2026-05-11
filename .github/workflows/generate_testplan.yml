@@ -8,6 +8,9 @@ on:
       - 'scripts/gen_testplan.py'
       - '.github/workflows/generate_testplan.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-testplan:
     runs-on: ubuntu-latest
@@ -39,22 +42,20 @@ jobs:
             --ip-name "$IP_NAME"
 
       - name: Validate XLSX (ZIP structure)
+        env:
+          TZ: Asia/Kolkata
         run: |
           set -e
           latest_file=$(ls -1t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx | head -n1)
           echo "Latest generated file: $latest_file"
-          file "$latest_file"
-          python - << 'PY'
-import sys, zipfile, os
-p = os.environ.get('LATEST')
-PY
-          export LATEST=$(ls -1t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx | head -n1)
+          echo "LATEST=$latest_file" >> "$GITHUB_ENV"
           python - << 'PY'
 import os, zipfile, sys
 p = os.environ['LATEST']
-ok = zipfile.is_zipfile(p)
-print('is_zipfile=', ok)
-sys.exit(0 if ok else 1)
+if not zipfile.is_zipfile(p):
+    print('Not a valid XLSX (zip) ->', p)
+    sys.exit(1)
+print('Validated XLSX zip structure:', p)
 PY
 
       - name: Commit Excel
@@ -64,5 +65,5 @@ PY
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add "$latest_file"
-          git commit -m "Final formatted Excel generated from JSON input"
-          git push
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
+          git push || echo "Nothing to push"
