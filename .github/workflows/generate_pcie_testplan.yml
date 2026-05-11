@@ -20,8 +20,6 @@ jobs:
       BRANCH: main
       BASE_DIR: TestRepo/pcie
       IP_NAME: PCIE
-      # Preset filename to ensure deterministic output path communicated by the agent
-      EXACT_FILENAME: PCIE_TestPlan_20260511_125052.xlsx
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +31,7 @@ jobs:
           python-version: '3.x'
       - name: Install deps
         run: pip install --upgrade pip openpyxl
-      - name: Generate Excel Test Plan
+      - name: Generate Excel Test Plan (IST timestamped)
         run: python scripts/generate_pcie_testplan.py
       - name: Commit Test Plan
         uses: stefanzweifel/git-auto-commit-action@v5
