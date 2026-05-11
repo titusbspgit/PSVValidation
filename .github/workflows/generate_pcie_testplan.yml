@@ -1,0 +1,42 @@
+name: Generate PCIE Test Plan (xlsx)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'TestRepo/pcie/**'
+      - 'scripts/generate_pcie_testplan.py'
+      - '.github/workflows/generate_pcie_testplan.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      OWNER: titusbspgit
+      REPO: PSVValidation
+      BRANCH: main
+      BASE_DIR: TestRepo/pcie
+      IP_NAME: PCIE
+      # Preset filename to ensure deterministic output path communicated by the agent
+      EXACT_FILENAME: PCIE_TestPlan_20260511_125052.xlsx
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install deps
+        run: pip install --upgrade pip openpyxl
+      - name: Generate Excel Test Plan
+        run: python scripts/generate_pcie_testplan.py
+      - name: Commit Test Plan
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Add auto-generated PCIE Test Plan (xlsx)"
+          file_pattern: Test_Output/PCIE/TestPlan/*.xlsx
