@@ -4,39 +4,65 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - .github/workflows/generate_testplan.yml
-      - scripts/generate_testplan.py
-
-permissions:
-  contents: write
+      - 'automation/testplan.json'
+      - 'scripts/gen_testplan.py'
+      - '.github/workflows/generate_testplan.yml'
 
 jobs:
-  build:
+  build-testplan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel
+
+      - name: Generate Excel from JSON
+        env:
+          TZ: Asia/Kolkata
+          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+          IP_NAME: PCIE
         run: |
-          python scripts/generate_testplan.py
-      - name: Commit Excel artifact
+          python scripts/gen_testplan.py \
+            --json automation/testplan.json \
+            --output-dir "$OUTPUT_DIR" \
+            --ip-name "$IP_NAME"
+
+      - name: Validate XLSX (ZIP structure)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260511_000000.xlsx"
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Final formatted Excel generated from JSON input"
-            git push
-          fi
+          set -e
+          latest_file=$(ls -1t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx | head -n1)
+          echo "Latest generated file: $latest_file"
+          file "$latest_file"
+          python - << 'PY'
+import sys, zipfile, os
+p = os.environ.get('LATEST')
+PY
+          export LATEST=$(ls -1t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx | head -n1)
+          python - << 'PY'
+import os, zipfile, sys
+p = os.environ['LATEST']
+ok = zipfile.is_zipfile(p)
+print('is_zipfile=', ok)
+sys.exit(0 if ok else 1)
+PY
+
+      - name: Commit Excel
+        if: success()
+        run: |
+          latest_file=$(ls -1t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx | head -n1)
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "$latest_file"
+          git commit -m "Final formatted Excel generated from JSON input"
+          git push
