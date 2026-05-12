@@ -1,0 +1,38 @@
+name: Generate GPIO TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/full_json_gpio.json
+      - .github/workflows/generate_gpio_testplan_excel.yml
+      - tools/generate_testplan_excel.py
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Generate Excel
+        run: python tools/generate_testplan_excel.py
+      - name: Commit Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "Test_Output/GPIO/TestPlan/"*.xlsx
+          if git diff --cached --quiet; then
+            echo "No Excel changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
