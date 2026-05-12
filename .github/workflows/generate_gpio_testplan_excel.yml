@@ -2,398 +2,145 @@ name: Generate GPIO TestPlan Excel
 
 on:
   push:
+    branches: [ main ]
     paths:
-      - .github/workflows/generate_gpio_testplan_excel.yml
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
+      - '.github/workflows/generate_gpio_testplan_excel.yml'
+      - '.github/scripts/generate_testplan_excel.py'
+      - '.github/workflows/trigger_gpio_testplan_run.txt'
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
-    env:
-      REPO_DIR: .
-      DEST_DIR: Test_Output/GPIO/TestPlan
-      IP_NAME: GPIO
-      JSON_INPUT: |
-        [
-          {
-            "Index": 1,
-            "SS / Module": "GPIO",
-            "Feature": "interrupts can be generated based on negative edge detection at GPIO input",
-            "Test Case Name": "test_gpio_nedge_random_pads_en",
-            "Test Description": "Validate negative edge interrupt behavior on randomly selected GPIO pads by enabling input mode, triggering a negative edge, and verifying interrupt and status clearing.",
-            "Speed": "NA",
-            "Mode": "ISR",
-            "Memory Start Offset": "0xA0243ffc",
-            "Memory End Offset": "0xA0243ffc",
-            "Remarks": "Input mode and negative edge are used on GPIO pads 8 to 39. Group interrupt is enabled. System interrupt enable depends on GPIO0 or GPIO1 configuration.",
-            "Test Steps / Procedure": "1) Enable the system interrupt source using gp0_intr2_intr_en1.\n2) Configure the pad control register for input and negative edge detection.\n3) Enable the group interrupt in gp0_intr2_intr_en1 for the selected pad.\n4) Trigger a negative edge on the selected pad input.\n5) Read INTR1_INTR_STS1 to confirm the group interrupt status for the pad.\n6) Clear the pad interrupt and status using gp0_intr2_intr_en1 and confirm group status is cleared in INTR1_INTR_STS1.\n7) Clear the system raw status using RAW_STCR1 and verify it is cleared.",
-            "Impacted Registers": "gp0_intr2_intr_en1, INTR1_INTR_STS1, RAW_STCR1",
-            "Validation / Acceptance Criteria": "1) DIN status during the negative edge is read as active for the enabled pad → Pass if the input status bit is set.\n2) Raw interrupt status for the enabled pad is asserted on negative edge → Pass if the raw status bit is set.\n3) Group interrupt status for the enabled pad is asserted → Pass if the corresponding bit in INTR1_INTR_STS1 is set.\n4) After clearing the pad interrupt, the pad status reflects the cleared value → Pass if the pad register readback equals the expected clear value.\n5) After clearing, group interrupt status is cleared → Pass if INTR1_INTR_STS1 reads 0x0 for the group.\n6) System raw status is cleared → Pass if the corresponding bit in RAW_STCR1 reads as cleared.",
-            "Code Generation (Required / Not)": "",
-            "Hidden_Test_Case_Name": "test_gpio_nedge_random_pads_en",
-            "Hidden_Test_Description": "For enabling input mode and negedge interrupt for GPIOs 8-39. Check for DIN value during negedge for active/enabled Pad. Check for interrupt raw status bit during negedge for active/enabled Pad. group Interrupt raised. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Group Interrupt cleared successfully. sysreg status cleared.",
-            "Hidden_Remarks": "For enabling input mode and negedge interrupt for GPIOs 8-39. enabling the gpio group interrupt. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Uses system register enable based on GPIO0 or GPIO1.",
-            "Hidden_Test_Steps_Procedure": "Initialization: If GPIO0 is defined, call GIC_EnableIRQ(87); if GPIO1 is defined, call GIC_EnableIRQ(88). If GPIO0, write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); if GPIO1, write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR). Seed RNG with srand(time(NULL)). Write 0xFFFFFFFF to 0xA0243ffc.\nLoop for i = 0 to 31: pick pad_num = rand() % 32; ensure pad_num is unique in arr[0..i-1]; if unique then arr[i]=pad_num; wr_val = 1 << pad_num; write_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4), 0x00140000) to set input and negedge; wait_on(50); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 1 << pad_num) to enable group interrupt; wait_on(10); write_reg(0xA0243ffc, ~wr_val); wait_on(10); write_reg(0xA0243ffc, 0xFFFFFFFF); set int_pend = 1; while (int_pend == 0x1) { wait_on(10); } else decrement i to retry if duplicate pad.\nISR Default_IRQHandler: set wr_val = 1 << pad_num; set int_pend = 0x0; rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4)); if ((rdata & 0x1) != 0) then success; else print error and increment test_err. If ((rdata & 0x2) != 0x0) then: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << pad_num)) != 0) then success; else print \"Group Interrupt not occured\" and increment test_err. Clear path: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); write_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4), 0x00110001); wait_on(2); rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4)); if (rdata == 0x100001) then success; else print error and increment test_err. rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) then success; else print error and increment test_err. If GPIO0: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) == 0) success; else print error and increment test_err. If GPIO1: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) == 0) success; else print error and increment test_err. Else branch: if ((rdata & 0x2) == 0) then print \"Interrupt Not occured\" and increment test_err. At end: if GPIO0 defined call GIC_ClearIRQ(87); if GPIO1 defined call GIC_ClearIRQ(88). Main end: finish(test_err).",
-            "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
-            "Hidden_Validation_Acceptance_Criteria": "DIN bit check: if ((rdata & 0x1) != 0) then PASS else ERROR and test_err++. Raw interrupt check: if ((rdata & 0x2) != 0x0) then PASS else print \"Interrupt Not occured\" and test_err++. Group interrupt check: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << pad_num)) != 0) then PASS else ERROR and test_err++. Interrupt clear readback: after write 0x00110001 to MIZAR_GPIO_GP0_GPIO_8 + (pad_num*4), if readback rdata == 0x100001 then PASS else ERROR and test_err++. Group status clear: if rdata_grp == 0x0 then PASS else ERROR and test_err++. Sysreg raw status clear (GPIO0 or GPIO1 as applicable): after writing to MIZAR_LSS_SYSREG_RAW_STCR1, if (read & respective bit) == 0 then PASS else ERROR and test_err++.",
-            "source_repo": "titusbspgit/PSVValidation",
-            "branch": "main",
-            "folder_path": "TestRepo/gpio/test_gpio_nedge_random_pads_en",
-            "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_nedge_random_pads_en"
-          },
-          {
-            "Index": 2,
-            "SS / Module": "GPIO",
-            "Feature": "interrupts can be generated based on negative edge detection at GPIO input",
-            "Test Case Name": "test_gpio_nedge_walking_zeros_pattern",
-            "Test Description": "This test verifies negative-edge interrupt behavior across GPIO inputs by applying a walking-zeros stimulus and handling interrupts. It configures input mode and negative-edge detection, enables group and system interrupts, and validates status and clear flows.",
-            "Speed": "NA",
-            "Mode": "ISR",
-            "Memory Start Offset": "0xA0243ffc",
-            "Memory End Offset": "0xA0243ffc",
-            "Remarks": "Pads 8 through 39 are configured for input and negative-edge detection. System interrupt enable depends on the selected GPIO block. All group interrupts are enabled before stimulus.",
-            "Test Steps / Procedure": "1) Enable the system interrupt source in INTR_EN1.\n2) Configure negative-edge detection for each pad using the GPIO_8 register range.\n3) Set input mode for all pads via GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, and GPIO_IO_CTRL_GROUP4.\n4) Enable group interrupts in gp0_intr2_intr_en1.\n5) Apply a walking-zeros pattern on the external input to generate falling edges for each pad in sequence.\n6) On each interrupt, read the pad control register to verify input and raw status, clear the pad interrupt, and verify group status in INTR1_INTR_STS1.\n7) Clear the system raw interrupt status in RAW_STCR1 and verify it is cleared.",
-            "Impacted Registers": "GPIO_8, GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, GPIO_IO_CTRL_GROUP4, gp0_intr2_intr_en1, INTR1_INTR_STS1, INTR_EN1, RAW_STCR1",
-            "Validation / Acceptance Criteria": "1) Input bit set during falling transition → Pass if the input status reflects an active state for the pad.\n2) Raw interrupt status asserted on falling transition → Pass if the raw status bit is set for the pad.\n3) Group interrupt status asserted → Pass if the corresponding bit in the group status register is set for the pad.\n4) Pad interrupt clear sequence → Pass if the pad register readback equals the expected cleared value.\n5) Group interrupt status clear → Pass if the group status register reads zero after clear.\n6) System raw status clear → Pass if the corresponding system raw status bit reads cleared.",
-            "Code Generation (Required / Not)": "",
-            "Hidden_Test_Case_Name": "test_gpio_nedge_walking_zeros_pattern",
-            "Hidden_Test_Description": "Test configures negative-edge interrupt and input mode on GPIOs 8–39, enables system and group interrupts, and drives a walking-zeros pattern to generate falling edges on each pad. The ISR checks DIN and raw status, verifies group status, performs pad interrupt clear and readback, confirms group status clear, and clears system raw status.",
-            "Hidden_Remarks": "For enabling input mode and negedge interrupt for GPIOs 8-39. Enabling the GPIO group interrupt (all bits). System interrupt enable via LSS SYSREG depends on GPIO0 or GPIO1 compile-time selection. Uses GIC interrupts 87/88. Walking-zeros stimulus is applied by writes to 0xA0243ffc with per-bit inversion.",
-            "Hidden_Test_Steps_Procedure": "Initialization:\n- If GPIO0 is defined: GIC_EnableIRQ(87);\n- If GPIO1 is defined: GIC_EnableIRQ(88);\n- If GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);\n- If GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);\n\nConfigure per-pad negative-edge detection:\n- For i = 0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00040000); // enabling negedge interrupt (comment: 17th bit as '1')\n- wait_on(10);\n\nConfigure input mode for pads 8–39:\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF);\n- wait_on(10);\n\nEnable group interrupts:\n- write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);\n\nStimulus and wait for IRQ per pad (walking zeros):\n- For i = 0..31:\n  - wr_val = 1 << i;\n  - write_reg(0xA0243ffc, 0xFFFFFFFF);\n  - wait_on(30);\n  - write_reg(0xA0243ffc, ~wr_val);\n  - wait_on(30);\n  - int_pend = 1;\n  - while (int_pend == 1) { printf(\"Waiting for interrupt\"); wait_on(10); }\n\nISR (Default_IRQHandler):\n- wr_val = 1 << i;\n- int_pend = 0;\n- write_reg(0xA0243ffc, 0xFFFFFFFF);\n- rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4));\n- If ((rdata & 0x1) != 0) then PASS DIN check else print error and test_err++;\n- If ((rdata & 0x2) != 0x0) then\n  - rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n  - If ((rdata_grp & (1 << i)) != 0) then PASS group status else print error and test_err++;\n  - write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00110001); // clear raw status\n  - wait_on(2);\n  - rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4));\n  - If (rdata == 0x100001) then PASS clear readback else print error and test_err++;\n  - rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n  - If (rdata_grp == 0x0) then PASS group clear else print error and test_err++;\n  - If GPIO0:\n    - write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR);\n    - rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1);\n    - If ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) == 0) then PASS else print error and test_err++;\n  - If GPIO1:\n    - write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR);\n    - rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1);\n    - If ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) == 0) then PASS else print error and test_err++;\n- Else (no raw status): print \"Interrupt Not occured\" and test_err++;\n- If GPIO0: GIC_ClearIRQ(87);\n- If GPIO1: GIC_ClearIRQ(88);\n\nCompletion:\n- finish(test_err);",
-            "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
-            "Hidden_Validation_Acceptance_Criteria": "DIN check: if ((rdata & 0x1) != 0) then PASS else ERROR and test_err++. Raw interrupt check: if ((rdata & 0x2) != 0x0) then PASS else print \"Interrupt Not occured\" and test_err++. Group interrupt check: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << i)) != 0) then PASS else ERROR and test_err++. Interrupt clear readback: after write 0x00110001 to MIZAR_GPIO_GP0_GPIO_8 + (i*4), if rdata == 0x100001 then PASS else ERROR and test_err++. Group status clear: if rdata_grp == 0x0 after clear then PASS else ERROR and test_err++. Sysreg raw status clear (GPIO0 or GPIO1 as applicable): after writing to MIZAR_LSS_SYSREG_RAW_STCR1, if (read & respective bit) == 0 then PASS else ERROR and test_err++.",
-            "source_repo": "titusbspgit/PSVValidation",
-            "branch": "main",
-            "folder_path": "TestRepo/gpio/test_gpio_nedge_walking_zeros_pattern",
-            "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_nedge_walking_zeros_pattern"
-          },
-          {
-            "Index": 3,
-            "SS / Module": "GPIO",
-            "Feature": "GPIO negative-edge interrupt on input",
-            "Test Case Name": "test_gpio_negedge_intr_en",
-            "Test Description": "Verify negative-edge interrupt handling on GPIO inputs by configuring input pads, generating falling transitions, and confirming interrupt status and clearing.",
-            "Speed": "NA",
-            "Mode": "ISR",
-            "Memory Start Offset": "0xA0243ffc",
-            "Memory End Offset": "0xA0243ffc",
-            "Remarks": "Pads 8 to 39 are targeted. System interrupt source selection depends on GPIO0 or GPIO1 configuration. External input stimulus is driven via a memory-mapped interface. The interrupt controller uses line 87 or 88.",
-            "Test Steps / Procedure": "1) Enable the system interrupt source. 2) Configure the per-pad input control register for input mode and negative-edge detection. 3) Enable the group interrupt for the selected pad. 4) Drive the input interface to create a falling transition on the selected pad. 5) Read the per-pad status to check input and raw interrupt status. 6) Clear the per-pad interrupt and confirm the group status is cleared. 7) Clear the system raw interrupt status.",
-            "Impacted Registers": "NA",
-            "Validation / Acceptance Criteria": "1) Input status during the falling transition → The input bit is set. 2) Raw interrupt status during the falling transition → The raw interrupt bit is set. 3) Group interrupt status during the falling transition → The corresponding group status bit is set. 4) After the per-pad clear sequence → The per-pad readback equals the expected cleared value. 5) After clearing → The group interrupt status reads as cleared. 6) After clearing the system raw interrupt → The system raw status is cleared.",
-            "Code Generation (Required / Not)": "",
-            "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en",
-            "Hidden_Test_Description": "For enabling input mode and negedge interrupt for GPIOs 8-39. Programming GPIO in Input Mode and enabling negedge interrupt (20th bit as '1' & 18th bit as '1'). Check for DIN value during negedge for active/enabled Pad. Check for interrupt raw status bit during negedge for active/enabled Pad. Group Interrupt raised. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Group Interrupt cleared successfully. Stimulus is driven by writes to 0xA0243ffc.",
-            "Hidden_Remarks": "#ifdef GPIO0: GIC_EnableIRQ(87) and write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR). #ifdef GPIO1: GIC_EnableIRQ(88) and write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR). For each i = 0..31, wr_val = (1<<i); stimulus via write_reg(0xA0243ffc, 0xffffffff) then write_reg(0xA0243ffc, ~(wr_val)); int_pend used to wait for IRQ. In ISR, clear using write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00110001) and check readback equals 0x100001; verify group status with MIZAR_GPIO_GP0_INTR1_INTR_STS1; clear system raw status via write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR or LSS_SYSREG_RAW_STCR1_GPIO1_INTR) and call GIC_ClearIRQ(87/88).",
-            "Hidden_Test_Steps_Procedure": "test_err = 0; #ifdef GPIO0: GIC_EnableIRQ(87); #endif #ifdef GPIO1: GIC_EnableIRQ(88); #endif #ifdef GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); #endif #ifdef GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR); #endif write_reg(0xA0243ffc, 0xffffffff); for (i = 0; i < 32; i++) { addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); write_reg(addr1, 0x00140000); wait_on(50); wr_val = 1 << i; write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); write_reg(0xA0243ffc, 0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~(wr_val)); int_pend = 1; while (int_pend) { wait_on(10); } } finish(test_err); Default_IRQHandler(): int_pend = 0; write_reg(0xA0243ffc, 0xffffffff); raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); rdata = read_reg(raddr); if ((rdata & 0x1) != 0x0) { /* DIN match pass */ } else { test_err++; } if ((rdata & 0x2) != 0x0) { rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (wr_val)) != 0) { /* group interrupt pass */ } else { test_err++; } raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); write_reg(raddr2, 0x00110001); rdata = read_reg(raddr2); if (rdata == 0x100001) { /* interrupt clear pass */ } else { test_err++; } rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) { /* group clear pass */ } else { test_err++; } #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); GIC_ClearIRQ(87); #endif #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); GIC_ClearIRQ(88); #endif } else { test_err++; }",
-            "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
-            "Hidden_Validation_Acceptance_Criteria": "1) If ((rdata & 0x1) != 0x0) then DIN value matches during negedge; else test_err++. 2) If ((rdata & 0x2) != 0x0) then raw interrupt raised; else test_err++. 3) If ((rdata_grp & wr_val) != 0) then group interrupt raised; else test_err++. 4) After write 0x00110001 to (MIZAR_GPIO_GP0_GPIO_8 + i*4), if readback rdata == 0x100001 then interrupt clear pass; else test_err++. 5) If rdata_grp == 0x0 after clear then group interrupt clear pass; else test_err++.",
-            "source_repo": "titusbspgit/PSVValidation",
-            "branch": "main",
-            "folder_path": "TestRepo/gpio/test_gpio_negedge_intr_en",
-            "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en"
-          },
-          {
-            "Index": 4,
-            "SS / Module": "GPIO",
-            "Feature": "Each GPIO can be used as input or output, to configure same doe(data output enable) need to be programmed",
-            "Test Case Name": "test_gpio_op_mode_all_pad_en",
-            "Test Description": "Verify GPIO output mode by driving each pad and checking that the observed pad value matches the driven output.",
-            "Speed": "NA",
-            "Mode": "loops",
-            "Memory Start Offset": "0xA0243ffc",
-            "Memory End Offset": "0xA0243ffc",
-            "Remarks": "Pads 8 through 39 are configured for output mode. Interrupts are enabled but not used for validation. Pad state is read from a memory-mapped address.",
-            "Test Steps / Procedure": "1) Enable the interrupt controller lines for the selected GPIO instance.\n2) Configure the group I/O control registers to set pads 8 through 39 to output mode.\n3) Enable the group interrupt mask for all pads.\n4) For each pad from 8 through 39, drive the pad output high using the per‑pad control register and verify the pad state.\n5) For each pad, drive the pad output low using the per‑pad control register and verify the pad state.\n6) Complete the test and report the error count.",
-            "Impacted Registers": "NA",
-            "Validation / Acceptance Criteria": "1) When a pad is driven high → The observed pad state for that pad is high.\n2) When a pad is driven low → The observed pad state for that pad is low.\n3) Any unexpected interrupt handler entry → Counted as an error.",
-            "Code Generation (Required / Not)": "",
-            "Hidden_Test_Case_Name": "test_gpio_op_mode_all_pad_en",
-            "Hidden_Test_Description": "For enabling output mode GPIOs 8-39 using group I/O control registers, then for each pad toggling the per-pad control to drive high (0x00200000) and low (0x00000000), reading rdata = read_reg(0xA0243ffc), and checking that (rdata & (1 << gpio_pad_num)) is non-zero for high and zero for low. Interrupts (GIC 87/88) and group interrupt enable are set; Default_IRQHandler increments test_err on unexpected entry.",
-            "Hidden_Remarks": "Pads 8-39 configured for output mode via group I/O control writes. Group interrupt enable set to 0xFFFFFFFF. GIC IRQ 87 or 88 enabled based on GPIO0/GPIO1. Pad state is read from 0xA0243ffc.",
-            "Hidden_Test_Steps_Procedure": "test_err = 0;\n#ifdef GPIO0\nGIC_EnableIRQ(87);\n#endif\n#ifdef GPIO1\nGIC_EnableIRQ(88);\n#endif\n// For enabling output mode GPIOs 8-39\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x00FF00FF);\nwait_on(10);\nwrite_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);\nfor (i = 0; i < 32; i++) {\n  write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00200000);\n  gp0_flag_dout_one = 1;\n  check_for_pad_value(i);\n  wait_on(20);\n  write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00000000);\n  gp0_flag_dout_zero = 1;\n  check_for_pad_value(i);\n}\nfinish(test_err);\n\nvoid check_for_pad_value(unsigned int gpio_pad_num) {\n  int rdata;\n  rdata = read_reg(0xA0243ffc);\n  if (gp0_flag_dout_one == 1) {\n    if ((rdata & (1 << (gpio_pad_num))) != 0) {\n      gp0_flag_dout_one = 0;\n    } else {\n      printf(\"ERROR: GPIO_NUM = %0d DOUT_ONE:: GPIO Pad value does not match with dout value %x\\n\", gpio_pad_num, rdata);\n      gp0_flag_dout_one = 0;\n      test_err++;\n    }\n  }\n  if (gp0_flag_dout_zero == 1) {\n    if ((rdata & (1 << (gpio_pad_num))) == 0) {\n      gp0_flag_dout_zero = 0;\n    } else {\n      printf(\"ERROR: GPIO_NUM = %0d DOUT_ZERO:: GPIO Pad value does not match with dout value %x\\n\", gpio_pad_num, rdata);\n      gp0_flag_dout_zero = 0;\n      test_err++;\n    }\n  }\n#ifdef GPIO0\n  GIC_ClearIRQ(87);\n#endif\n#ifdef GPIO1\n  GIC_ClearIRQ(88);\n#endif\n}\n\nvoid Default_IRQHandler() {\n  printf(\"ERROR:: Entered Default IRQ_Handler.. :( \\n \" );\n  test_err++;\n}",
-            "Hidden_Impacted_Registers": "MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_GPIO_8",
-            "Hidden_Validation_Acceptance_Criteria": "If gp0_flag_dout_one == 1: PASS if ((rdata & (1 << gpio_pad_num)) != 0), else ERROR and test_err++. If gp0_flag_dout_zero == 1: PASS if ((rdata & (1 << gpio_pad_num)) == 0), else ERROR and test_err++. Any entry to Default_IRQHandler increments test_err.",
-            "source_repo": "titusbspgit/PSVValidation",
-            "branch": "main",
-            "folder_path": "TestRepo/gpio/test_gpio_op_mode_all_pad_en",
-            "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_op_mode_all_pad_en"
-          }
-        ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel from JSON and commit
-        shell: bash
+      - name: Generate Excel
+        id: gen
+        env:
+          IP_NAME: GPIO
+          DEST_DIR: Test_Output/GPIO/TestPlan
+          JSON_DATA: |
+            [
+              {
+                "Index": 1,
+                "SS / Module": "GPIO",
+                "Feature": "interrupts can be generated based on negative edge detection at GPIO input",
+                "Test Case Name": "test_gpio_nedge_random_pads_en",
+                "Test Description": "Validate negative edge interrupt behavior on randomly selected GPIO pads by enabling input mode, triggering a negative edge, and verifying interrupt and status clearing.",
+                "Speed": "NA",
+                "Mode": "ISR",
+                "Memory Start Offset": "0xA0243ffc",
+                "Memory End Offset": "0xA0243ffc",
+                "Remarks": "Input mode and negative edge are used on GPIO pads 8 to 39. Group interrupt is enabled. System interrupt enable depends on GPIO0 or GPIO1 configuration.",
+                "Test Steps / Procedure": "1) Enable the system interrupt source using gp0_intr2_intr_en1.\n2) Configure the pad control register for input and negative edge detection.\n3) Enable the group interrupt in gp0_intr2_intr_en1 for the selected pad.\n4) Trigger a negative edge on the selected pad input.\n5) Read INTR1_INTR_STS1 to confirm the group interrupt status for the pad.\n6) Clear the pad interrupt and status using gp0_intr2_intr_en1 and confirm group status is cleared in INTR1_INTR_STS1.\n7) Clear the system raw status using RAW_STCR1 and verify it is cleared.",
+                "Impacted Registers": "gp0_intr2_intr_en1, INTR1_INTR_STS1, RAW_STCR1",
+                "Validation / Acceptance Criteria": "1) DIN status during the negative edge is read as active for the enabled pad → Pass if the input status bit is set.\n2) Raw interrupt status for the enabled pad is asserted on negative edge → Pass if the raw status bit is set.\n3) Group interrupt status for the enabled pad is asserted → Pass if the corresponding bit in INTR1_INTR_STS1 is set.\n4) After clearing the pad interrupt, the pad status reflects the cleared value → Pass if the pad register readback equals the expected clear value.\n5) After clearing, group interrupt status is cleared → Pass if INTR1_INTR_STS1 reads 0x0 for the group.\n6) System raw status is cleared → Pass if the corresponding bit in RAW_STCR1 reads as cleared.",
+                "Code Generation (Required / Not)": "",
+                "Hidden_Test_Case_Name": "test_gpio_nedge_random_pads_en",
+                "Hidden_Test_Description": "For enabling input mode and negedge interrupt for GPIOs 8-39. Check for DIN value during negedge for active/enabled Pad. Check for interrupt raw status bit during negedge for active/enabled Pad. group Interrupt raised. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Group Interrupt cleared successfully. sysreg status cleared.",
+                "Hidden_Remarks": "For enabling input mode and negedge interrupt for GPIOs 8-39. enabling the gpio group interrupt. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Uses system register enable based on GPIO0 or GPIO1.",
+                "Hidden_Test_Steps_Procedure": "Initialization: If GPIO0 is defined, call GIC_EnableIRQ(87); if GPIO1 is defined, call GIC_EnableIRQ(88). If GPIO0, write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); if GPIO1, write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR). Seed RNG with srand(time(NULL)). Write 0xFFFFFFFF to 0xA0243ffc.\nLoop for i = 0 to 31: pick pad_num = rand() % 32; ensure pad_num is unique in arr[0..i-1]; if unique then arr[i]=pad_num; wr_val = 1 << pad_num; write_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4), 0x00140000) to set input and negedge; wait_on(50); write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 1 << pad_num) to enable group interrupt; wait_on(10); write_reg(0xA0243ffc, ~wr_val); wait_on(10); write_reg(0xA0243ffc, 0xFFFFFFFF); set int_pend = 1; while (int_pend == 0x1) { wait_on(10); } else decrement i to retry if duplicate pad.\nISR Default_IRQHandler: set wr_val = 1 << pad_num; set int_pend = 0x0; rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4)); if ((rdata & 0x1) != 0) then success; else print error and increment test_err. If ((rdata & 0x2) != 0x0) then: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << pad_num)) != 0) then success; else print \"Group Interrupt not occured\" and increment test_err. Clear path: write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000); write_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4), 0x00110001); wait_on(2); rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (pad_num * 4)); if (rdata == 0x100001) then success; else print error and increment test_err. rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) then success; else print error and increment test_err. If GPIO0: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) == 0) success; else print error and increment test_err. If GPIO1: write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1); if ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) == 0) success; else print error and increment test_err. Else branch: if ((rdata & 0x2) == 0) then print \"Interrupt Not occured\" and increment test_err. At end: if GPIO0 defined call GIC_ClearIRQ(87); if GPIO1 defined call GIC_ClearIRQ(88). Main end: finish(test_err).",
+                "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
+                "Hidden_Validation_Acceptance_Criteria": "DIN bit check: if ((rdata & 0x1) != 0) then PASS else ERROR and test_err++. Raw interrupt check: if ((rdata & 0x2) != 0x0) then PASS else print \"Interrupt Not occured\" and test_err++. Group interrupt check: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << pad_num)) != 0) then PASS else ERROR and test_err++. Interrupt clear readback: after write 0x00110001 to MIZAR_GPIO_GP0_GPIO_8 + (pad_num*4), if readback rdata == 0x100001 then PASS else ERROR and test_err++. Group status clear: if rdata_grp == 0x0 then PASS else ERROR and test_err++. Sysreg raw status clear (GPIO0 or GPIO1 as applicable): after writing to MIZAR_LSS_SYSREG_RAW_STCR1, if (read & respective bit) == 0 then PASS else ERROR and test_err++.",
+                "source_repo": "titusbspgit/PSVValidation",
+                "branch": "main",
+                "folder_path": "TestRepo/gpio/test_gpio_nedge_random_pads_en",
+                "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_nedge_random_pads_en"
+              },
+              {
+                "Index": 2,
+                "SS / Module": "GPIO",
+                "Feature": "interrupts can be generated based on negative edge detection at GPIO input",
+                "Test Case Name": "test_gpio_nedge_walking_zeros_pattern",
+                "Test Description": "This test verifies negative-edge interrupt behavior across GPIO inputs by applying a walking-zeros stimulus and handling interrupts. It configures input mode and negative-edge detection, enables group and system interrupts, and validates status and clear flows.",
+                "Speed": "NA",
+                "Mode": "ISR",
+                "Memory Start Offset": "0xA0243ffc",
+                "Memory End Offset": "0xA0243ffc",
+                "Remarks": "Pads 8 through 39 are configured for input and negative-edge detection. System interrupt enable depends on the selected GPIO block. All group interrupts are enabled before stimulus.",
+                "Test Steps / Procedure": "1) Enable the system interrupt source in INTR_EN1.\n2) Configure negative-edge detection for each pad using the GPIO_8 register range.\n3) Set input mode for all pads via GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, and GPIO_IO_CTRL_GROUP4.\n4) Enable group interrupts in gp0_intr2_intr_en1.\n5) Apply a walking-zeros pattern on the external input to generate falling edges for each pad in sequence.\n6) On each interrupt, read the pad control register to verify input and raw status, clear the pad interrupt, and verify group status in INTR1_INTR_STS1.\n7) Clear the system raw interrupt status in RAW_STCR1 and verify it is cleared.",
+                "Impacted Registers": "GPIO_8, GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, GPIO_IO_CTRL_GROUP4, gp0_intr2_intr_en1, INTR1_INTR_STS1, INTR_EN1, RAW_STCR1",
+                "Validation / Acceptance Criteria": "1) Input bit set during falling transition → Pass if the input status reflects an active state for the pad.\n2) Raw interrupt status asserted on falling transition → Pass if the raw status bit is set for the pad.\n3) Group interrupt status asserted → Pass if the corresponding bit in the group status register is set for the pad.\n4) Pad interrupt clear sequence → Pass if the pad register readback equals the expected cleared value.\n5) Group interrupt status clear → Pass if the group status register reads zero after clear.\n6) System raw status clear → Pass if the corresponding system raw status bit reads cleared.",
+                "Code Generation (Required / Not)": "",
+                "Hidden_Test_Case_Name": "test_gpio_nedge_walking_zeros_pattern",
+                "Hidden_Test_Description": "Test configures negative-edge interrupt and input mode on GPIOs 8–39, enables system and group interrupts, and drives a walking-zeros pattern to generate falling edges on each pad. The ISR checks DIN and raw status, verifies group status, performs pad interrupt clear and readback, confirms group status clear, and clears system raw status.",
+                "Hidden_Remarks": "For enabling input mode and negedge interrupt for GPIOs 8-39. Enabling the GPIO group interrupt (all bits). System interrupt enable via LSS SYSREG depends on GPIO0 or GPIO1 compile-time selection. Uses GIC interrupts 87/88. Walking-zeros stimulus is applied by writes to 0xA0243ffc with per-bit inversion.",
+                "Hidden_Test_Steps_Procedure": "Initialization:\n- If GPIO0 is defined: GIC_EnableIRQ(87);\n- If GPIO1 is defined: GIC_EnableIRQ(88);\n- If GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR);\n- If GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR);\n\nConfigure per-pad negative-edge detection:\n- For i = 0..31: write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00040000); // enabling negedge interrupt (comment: 17th bit as '1')\n- wait_on(10);\n\nConfigure input mode for pads 8–39:\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x000000FF);\n- write_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x000000FF);\n- wait_on(10);\n\nEnable group interrupts:\n- write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);\n\nStimulus and wait for IRQ per pad (walking zeros):\n- For i = 0..31:\n  - wr_val = 1 << i;\n  - write_reg(0xA0243ffc, 0xFFFFFFFF);\n  - wait_on(30);\n  - write_reg(0xA0243ffc, ~wr_val);\n  - wait_on(30);\n  - int_pend = 1;\n  - while (int_pend == 1) { printf(\"Waiting for interrupt\"); wait_on(10); }\n\nISR (Default_IRQHandler):\n- wr_val = 1 << i;\n- int_pend = 0;\n- write_reg(0xA0243ffc, 0xFFFFFFFF);\n- rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4));\n- If ((rdata & 0x1) != 0) then PASS DIN check else print error and test_err++;\n- If ((rdata & 0x2) != 0x0) then\n  - rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n  - If ((rdata_grp & (1 << i)) != 0) then PASS group status else print error and test_err++;\n  - write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00110001); // clear raw status\n  - wait_on(2);\n  - rdata = read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4));\n  - If (rdata == 0x100001) then PASS clear readback else print error and test_err++;\n  - rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1);\n  - If (rdata_grp == 0x0) then PASS group clear else print error and test_err++;\n  - If GPIO0:\n    - write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR);\n    - rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1);\n    - If ((rdata & LSS_SYSREG_RAW_STCR1_GPIO0_INTR) == 0) then PASS else print error and test_err++;\n  - If GPIO1:\n    - write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR);\n    - rdata = read_reg(MIZAR_LSS_SYSREG_RAW_STCR1);\n    - If ((rdata & LSS_SYSREG_RAW_STCR1_GPIO1_INTR) == 0) then PASS else print error and test_err++;\n- Else (no raw status): print \"Interrupt Not occured\" and test_err++;\n- If GPIO0: GIC_ClearIRQ(87);\n- If GPIO1: GIC_ClearIRQ(88);\n\nCompletion:\n- finish(test_err);",
+                "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
+                "Hidden_Validation_Acceptance_Criteria": "DIN check: if ((rdata & 0x1) != 0) then PASS else ERROR and test_err++. Raw interrupt check: if ((rdata & 0x2) != 0x0) then PASS else print \"Interrupt Not occured\" and test_err++. Group interrupt check: rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1 << i)) != 0) then PASS else ERROR and test_err++. Interrupt clear readback: after write 0x00110001 to MIZAR_GPIO_GP0_GPIO_8 + (i*4), if rdata == 0x100001 then PASS else ERROR and test_err++. Group status clear: if rdata_grp == 0x0 after clear then PASS else ERROR and test_err++. Sysreg raw status clear (GPIO0 or GPIO1 as applicable): after writing to MIZAR_LSS_SYSREG_RAW_STCR1, if (read & respective bit) == 0 then PASS else ERROR and test_err++.",
+                "source_repo": "titusbspgit/PSVValidation",
+                "branch": "main",
+                "folder_path": "TestRepo/gpio/test_gpio_nedge_walking_zeros_pattern",
+                "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_nedge_walking_zeros_pattern"
+              },
+              {
+                "Index": 3,
+                "SS / Module": "GPIO",
+                "Feature": "GPIO negative-edge interrupt on input",
+                "Test Case Name": "test_gpio_negedge_intr_en",
+                "Test Description": "Verify negative-edge interrupt handling on GPIO inputs by configuring input pads, generating falling transitions, and confirming interrupt status and clearing.",
+                "Speed": "NA",
+                "Mode": "ISR",
+                "Memory Start Offset": "0xA0243ffc",
+                "Memory End Offset": "0xA0243ffc",
+                "Remarks": "Pads 8 to 39 are targeted. System interrupt source selection depends on GPIO0 or GPIO1 configuration. External input stimulus is driven via a memory-mapped interface. The interrupt controller uses line 87 or 88.",
+                "Test Steps / Procedure": "1) Enable the system interrupt source. 2) Configure the per-pad input control register for input mode and negative-edge detection. 3) Enable the group interrupt for the selected pad. 4) Drive the input interface to create a falling transition on the selected pad. 5) Read the per-pad status to check input and raw interrupt status. 6) Clear the per-pad interrupt and confirm the group status is cleared. 7) Clear the system raw interrupt status.",
+                "Impacted Registers": "NA",
+                "Validation / Acceptance Criteria": "1) Input status during the falling transition → The input bit is set. 2) Raw interrupt status during the falling transition → The raw interrupt bit is set. 3) Group interrupt status during the falling transition → The corresponding group status bit is set. 4) After the per-pad clear sequence → The per-pad readback equals the expected cleared value. 5) After clearing → The group interrupt status reads as cleared. 6) After clearing the system raw interrupt → The system raw status is cleared.",
+                "Code Generation (Required / Not)": "",
+                "Hidden_Test_Case_Name": "test_gpio_negedge_intr_en",
+                "Hidden_Test_Description": "For enabling input mode and negedge interrupt for GPIOs 8-39. Programming GPIO in Input Mode and enabling negedge interrupt (20th bit as '1' & 18th bit as '1'). Check for DIN value during negedge for active/enabled Pad. Check for interrupt raw status bit during negedge for active/enabled Pad. Group Interrupt raised. Clearing the interrupt raw status bit (16th bit of GPIO reg set to '1'). Group Interrupt cleared successfully. Stimulus is driven by writes to 0xA0243ffc.",
+                "Hidden_Remarks": "#ifdef GPIO0: GIC_EnableIRQ(87) and write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR). #ifdef GPIO1: GIC_EnableIRQ(88) and write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR). For each i = 0..31, wr_val = (1<<i); stimulus via write_reg(0xA0243ffc, 0xffffffff) then write_reg(0xA0243ffc, ~(wr_val)); int_pend used to wait for IRQ. In ISR, clear using write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00110001) and check readback equals 0x100001; verify group status with MIZAR_GPIO_GP0_INTR1_INTR_STS1; clear system raw status via write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR or LSS_SYSREG_RAW_STCR1_GPIO1_INTR) and call GIC_ClearIRQ(87/88).",
+                "Hidden_Test_Steps_Procedure": "test_err = 0; #ifdef GPIO0: GIC_EnableIRQ(87); #endif #ifdef GPIO1: GIC_EnableIRQ(88); #endif #ifdef GPIO0: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR); #endif #ifdef GPIO1: write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO1_INTR); #endif write_reg(0xA0243ffc, 0xffffffff); for (i = 0; i < 32; i++) { addr1 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); write_reg(addr1, 0x00140000); wait_on(50); wr_val = 1 << i; write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, wr_val); wait_on(10); write_reg(0xA0243ffc, 0xffffffff); wait_on(30); write_reg(0xA0243ffc, ~(wr_val)); int_pend = 1; while (int_pend) { wait_on(10); } } finish(test_err); Default_IRQHandler(): int_pend = 0; write_reg(0xA0243ffc, 0xffffffff); raddr = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); rdata = read_reg(raddr); if ((rdata & 0x1) != 0x0) { /* DIN match pass */ } else { test_err++; } if ((rdata & 0x2) != 0x0) { rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (wr_val)) != 0) { /* group interrupt pass */ } else { test_err++; } raddr2 = MIZAR_GPIO_GP0_GPIO_8 + (i * 4); write_reg(raddr2, 0x00110001); rdata = read_reg(raddr2); if (rdata == 0x100001) { /* interrupt clear pass */ } else { test_err++; } rdata_grp = read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp == 0x0) { /* group clear pass */ } else { test_err++; } #ifdef GPIO0 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR); GIC_ClearIRQ(87); #endif #ifdef GPIO1 write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO1_INTR); GIC_ClearIRQ(88); #endif } else { test_err++; }",
+                "Hidden_Impacted_Registers": "MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR, LSS_SYSREG_INTR_EN1_GPIO1_INTR, MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_INTR1_INTR_EN1, MIZAR_GPIO_GP0_INTR1_INTR_STS1, MIZAR_LSS_SYSREG_RAW_STCR1, LSS_SYSREG_RAW_STCR1_GPIO0_INTR, LSS_SYSREG_RAW_STCR1_GPIO1_INTR",
+                "Hidden_Validation_Acceptance_Criteria": "1) If ((rdata & 0x1) != 0x0) then DIN value matches during negedge; else test_err++. 2) If ((rdata & 0x2) != 0x0) then raw interrupt raised; else test_err++. 3) If ((rdata_grp & wr_val) != 0) then group interrupt raised; else test_err++. 4) After write 0x00110001 to (MIZAR_GPIO_GP0_GPIO_8 + i*4), if readback rdata == 0x100001 then interrupt clear pass; else test_err++. 5) If rdata_grp == 0x0 after clear then group interrupt clear pass; else test_err++.",
+                "source_repo": "titusbspgit/PSVValidation",
+                "branch": "main",
+                "folder_path": "TestRepo/gpio/test_gpio_negedge_intr_en",
+                "github_url": "https://github.com/titusbspgit/PSVValidation/tree/main/TestRepo/gpio/test_gpio_negedge_intr_en"
+              },
+              {
+                "Index": 4,
+                "SS / Module": "GPIO",
+                "Feature": "Each GPIO can be used as input or output, to configure same doe(data output enable) need to be programmed",
+                "Test Case Name": "test_gpio_op_mode_all_pad_en",
+                "Test Description": "Verify GPIO output mode by driving each pad and checking that the observed pad value matches the driven output.",
+                "Speed": "NA",
+                "Mode": "loops",
+                "Memory Start Offset": "0xA0243ffc",
+                "Memory End Offset": "0xA0243ffc",
+                "Remarks": "Pads 8 through 39 are configured for output mode. Interrupts are enabled but not used for validation. Pad state is read from a memory-mapped address.",
+                "Test Steps / Procedure": "1) Enable the interrupt controller lines for the selected GPIO instance.\n2) Configure the group I/O control registers to set pads 8 through 39 to output mode.\n3) Enable the group interrupt mask for all pads.\n4) For each pad from 8 through 39, drive the pad output high using the per‑pad control register and verify the pad state.\n5) For each pad, drive the pad output low using the per‑pad control register and verify the pad state.\n6) Complete the test and report the error count.",
+                "Impacted Registers": "NA",
+                "Validation / Acceptance Criteria": "1) When a pad is driven high → The observed pad state for that pad is high.\n2) When a pad is driven low → The observed pad state for that pad is low.\n3) Any unexpected interrupt handler entry → Counted as an error.",
+                "Code Generation (Required / Not)": "",
+                "Hidden_Test_Case_Name": "test_gpio_op_mode_all_pad_en",
+                "Hidden_Test_Description": "For enabling output mode GPIOs 8-39 using group I/O control registers, then for each pad toggling the per-pad control to drive high (0x00200000) and low (0x00000000), reading rdata = read_reg(0xA0243ffc), and checking that (rdata & (1 << gpio_pad_num)) is non-zero for high and zero for low. Interrupts (GIC 87/88) and group interrupt enable are set; Default_IRQHandler increments test_err on unexpected entry.",
+                "Hidden_Remarks": "Pads 8-39 configured for output mode via group I/O control writes. Group interrupt enable set to 0xFFFFFFFF. GIC IRQ 87 or 88 enabled based on GPIO0/GPIO1. Pad state is read from 0xA0243ffc.",
+                "Hidden_Test_Steps_Procedure": "test_err = 0;\n#ifdef GPIO0\nGIC_EnableIRQ(87);\n#endif\n#ifdef GPIO1\nGIC_EnableIRQ(88);\n#endif\n// For enabling output mode GPIOs 8-39\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP1, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP2, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP3, 0x00FF00FF);\nwrite_reg(MIZAR_GPIO_GPIO_IO_CTRL_GROUP4, 0x00FF00FF);\nwait_on(10);\nwrite_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0xFFFFFFFF);\nfor (i = 0; i < 32; i++) {\n  write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00200000);\n  gp0_flag_dout_one = 1;\n  check_for_pad_value(i);\n  wait_on(20);\n  write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i * 4), 0x00000000);\n  gp0_flag_dout_zero = 1;\n  check_for_pad_value(i);\n}\nfinish(test_err);\n\nvoid check_for_pad_value(unsigned int gpio_pad_num) {\n  int rdata;\n  rdata = read_reg(0xA0243ffc);\n  if (gp0_flag_dout_one == 1) {\n    if ((rdata & (1 << (gpio_pad_num))) != 0) {\n      gp0_flag_dout_one = 0;\n    } else {\n      printf(\"ERROR: GPIO_NUM = %0d DOUT_ONE:: GPIO Pad value does not match with dout value %x\\n\", gpio_pad_num, rdata);\n      gp0_flag_dout_one = 0;\n      test_err++;\n    }\n  }\n  if (gp0_flag_dout_zero == 1) {\n    if ((rdata & (1 << (gpio_pad_num))) == 0) {\n      gp0_flag_dout_zero = 0;\n    } else {\n      printf(\"ERROR: GPIO_NUM = %0d DOUT_ZERO:: GPIO Pad value does not match with dout value %x\\n\", gpio_pad_num, rdata);\n      gp0_flag_dout_zero = 0;\n      test_err++;\n    }\n  }\n#ifdef GPIO0\n  GIC_ClearIRQ(87);\n#endif\n#ifdef GPIO1\n  GIC_ClearIRQ(88);\n#endif\n}\n\nvoid Default_IRQHandler() {\n  printf(\"ERROR:: Entered Default IRQ_Handler.. :( \\n \" );\n  test_err++;\n}
+              }
+            ]
         run: |
-          set -e
-          python - <<'PY'
-import os, json, sys, re, zipfile
-from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.utils import get_column_letter
-
-# Read and validate JSON
-def fail(msg):
-    print(msg, file=sys.stderr)
-    sys.exit(1)
-raw = os.environ.get('JSON_INPUT', '').strip()
-if not raw:
-    fail('Missing JSON_INPUT')
-try:
-    data = json.loads(raw)
-except Exception as e:
-    fail(f'Invalid JSON: {e}')
-if not isinstance(data, list) or len(data) == 0:
-    fail('JSON must be a non-empty array')
-
-# Derive schema, preserve first-seen key order
-key_order = []
-seen = set()
-for row in data:
-    for k in row.keys():
-        if k not in seen:
-            seen.add(k)
-            key_order.append(k)
-
-# Create workbook and Data sheet
-wb = Workbook()
-ws = wb.active
-ws.title = 'Data'
-
-# Headers
-for c, k in enumerate(key_order, 1):
-    ws.cell(row=1, column=c, value=k)
-
-# Rows
-for r, row in enumerate(data, start=2):
-    for c, k in enumerate(key_order, 1):
-        ws.cell(row=r, column=c, value=row.get(k, ''))
-
-# Base formatting
-for c in range(1, len(key_order)+1):
-    cell = ws.cell(row=1, column=c)
-    cell.font = Font(bold=True)
-ws.freeze_panes = 'A2'
-
-# Approx autofit columns
-for c, k in enumerate(key_order, 1):
-    max_len = max(len(str(k)), 10)
-    for r in range(2, ws.max_row+1):
-        v = ws.cell(row=r, column=c).value
-        max_len = max(max_len, len(str(v)) if v is not None else 0)
-    ws.column_dimensions[get_column_letter(c)].width = min(max(12, max_len + 2), 100)
-
-# Create META sheet
-meta_cols = [
-  'Hidden_Test_Case_Name',
-  'Hidden_Test_Description',
-  'Hidden_Remarks',
-  'Hidden_Test_Steps_Procedure',
-  'Hidden_Impacted_Registers',
-  'Hidden_Validation_Acceptance_Criteria',
-]
-ws_meta = wb.create_sheet('Meta_data_sheet')
-for c, k in enumerate(meta_cols, 1):
-    ws_meta.cell(row=1, column=c, value=k)
-for r, row in enumerate(data, start=2):
-    for c, k in enumerate(meta_cols, 1):
-        ws_meta.cell(row=r, column=c, value=row.get(k, ''))
-ws_meta.sheet_state = 'veryHidden'
-
-# Normalize main sheet on Data
-main_cols = [
-  'Index',
-  'SS / Module',
-  'Feature',
-  'Test Case Name',
-  'Test Description',
-  'Speed',
-  'Mode',
-  'Memory Start Offset',
-  'Memory End Offset',
-  'Remarks',
-  'Test Steps / Procedure',
-  'Impacted Registers',
-  'Validation / Acceptance Criteria',
-  'Code Generation (Required / Not)'
-]
-
-header_idx = { ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column+1) }
-new_order = []
-for name in main_cols:
-    if name not in header_idx:
-        ws.cell(row=1, column=ws.max_column+1, value=name)
-        header_idx[name] = ws.max_column
-    new_order.append(header_idx[name])
-
-# Copy into new order
-buffer = []
-for r in range(1, ws.max_row+1):
-    row_vals = [ ws.cell(row=r, column=idx).value for idx in new_order ]
-    buffer.append(row_vals)
-# Clear and rewrite
-ws.delete_cols(1, ws.max_column)
-for c, name in enumerate(main_cols, 1):
-    ws.cell(row=1, column=c, value=name)
-for r, row_vals in enumerate(buffer[1:], start=2):
-    for c, v in enumerate(row_vals, start=1):
-        ws.cell(row=r, column=c, value=v)
-
-# Rename to TestPlan
-ws.title = 'TestPlan'
-
-# Formatting rules
-wrap_cols = set(['Test Description','Remarks','Test Steps / Procedure','Validation / Acceptance Criteria'])
-blue_fill = PatternFill('solid', fgColor='9DC3E6')
-thin = Side(style='thin', color='000000')
-border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-# Header style
-for c in range(1, len(main_cols)+1):
-    cell = ws.cell(row=1, column=c)
-    cell.font = Font(bold=True)
-    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    cell.fill = blue_fill
-    cell.border = border_all
-ws.row_dimensions[1].height = 24
-
-# Data rows style + wrap
-for r in range(2, ws.max_row+1):
-    for c, name in enumerate(main_cols, 1):
-        cell = ws.cell(row=r, column=c)
-        if name in wrap_cols:
-            cell.alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
-        else:
-            if name in ('Index',):
-                cell.alignment = Alignment(vertical='top', horizontal='center')
-            else:
-                cell.alignment = Alignment(vertical='top', horizontal='left')
-        cell.border = border_all
-
-# Numbering normalization
-def normalize_numbering(text):
-    if text is None:
-        return ''
-    s = str(text).strip()
-    if not s:
-        return s
-    parts = [p.strip() for p in re.split(r'[\r\n]+', s) if p.strip()]
-    out = []
-    for i, p in enumerate(parts, start=1):
-        p2 = re.sub(r'^\s*\d+[\.)]\s*', '', p)
-        out.append(f"{i}. {p2}")
-    return "\n".join(out)
-
-col_idx = { name: i+1 for i, name in enumerate(main_cols) }
-for r in range(2, ws.max_row+1):
-    for name in ('Test Steps / Procedure','Validation / Acceptance Criteria'):
-        c = col_idx[name]
-        v = ws.cell(row=r, column=c).value
-        ws.cell(row=r, column=c, value=normalize_numbering(v))
-
-# Autofit columns again
-for c, name in enumerate(main_cols, 1):
-    max_len = max(len(str(name)), 12)
-    for r in range(2, ws.max_row+1):
-        v = ws.cell(row=r, column=c).value
-        max_len = max(max_len, len(str(v)) if v is not None else 0)
-    ws.column_dimensions[get_column_letter(c)].width = min(max(12, max_len + 2), 100)
-
-# Autosize row heights based on wrapped content
-for r in range(2, ws.max_row+1):
-    max_lines = 1
-    for name in wrap_cols:
-        c = col_idx[name]
-        v = ws.cell(row=r, column=c).value
-        lines = (str(v).count('\n') + 1) if v else 1
-        if lines > max_lines:
-            max_lines = lines
-    ws.row_dimensions[r].height = min(15 * max_lines, 200)
-
-# Data validation only for Code Generation (Required / Not)
-cg_c = col_idx['Code Generation (Required / Not)']
-start = f"{get_column_letter(cg_c)}2"
-end = f"{get_column_letter(cg_c)}{ws.max_row}"
-dv = DataValidation(type='list', formula1='"Required,Blank,Not Required"', allow_blank=True, showErrorMessage=True)
-dv.add(f"{start}:{end}")
-ws.add_data_validation(dv)
-
-# Ensure no stray 'Data' sheet remains
-for s in list(wb.worksheets):
-    if s.title == 'Data':
-        wb.remove(s)
-
-# Prepare filename and save
-try:
-    now = datetime.now(ZoneInfo('Asia/Kolkata')) if ZoneInfo else datetime.utcnow()
-except Exception:
-    now = datetime.utcnow()
-fname_ts = now.strftime('%Y%m%d_%H%M%S')
-ts_human = now.strftime('%Y-%m-%d %H:%M:%S')
-ip_name = os.environ.get('IP_NAME','IP')
-dest_dir = os.environ.get('DEST_DIR','Test_Output/TestPlan')
-base_name = f"{ip_name}_TestPlan_{fname_ts}.xlsx"
-os.makedirs(dest_dir, exist_ok=True)
-full_path = os.path.join(dest_dir, base_name)
-# Collision-safe naming
-if os.path.exists(full_path):
-    i = 2
-    while True:
-        alt = os.path.join(dest_dir, f"{ip_name}_TestPlan_{fname_ts}_v{i}.xlsx")
-        if not os.path.exists(alt):
-            full_path = alt
-            break
-        i += 1
-wb.save(full_path)
-
-# Validate XLSX structure
-with zipfile.ZipFile(full_path, 'r') as z:
-    names = z.namelist()
-    has_content = '[Content_Types].xml' in names
-    has_wb = 'xl/workbook.xml' in names
-    has_sheets = any(n.startswith('xl/worksheets/') for n in names)
-    ok = has_content and has_wb and has_sheets
-if not ok:
-    print('XLSX validation failed', file=sys.stderr)
-    sys.exit(2)
-
-print(full_path)
-print(ts_human)
-PY
-          EXCEL_PATH=$(python - <<'PY'
-import os, glob
-paths = sorted(glob.glob('Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx'))
-print(paths[-1] if paths else '')
-PY
-)
-          IST_TS=$(python - <<'PY'
-from datetime import datetime
-from zoneinfo import ZoneInfo
-print(datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M:%S'))
-PY
-)
-          if [ -z "$EXCEL_PATH" ]; then
-            echo "Excel file was not generated" >&2
-            exit 1
-          fi
-          git config user.name "github-actions[bot]"
+          python .github/scripts/generate_testplan_excel.py
+      - name: Commit Excel
+        run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$EXCEL_PATH"
-          git commit -m "Add GPIO TestPlan Excel generated on $IST_TS" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git add "${{ steps.gen.outputs.excel_path }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push origin main
+          fi
