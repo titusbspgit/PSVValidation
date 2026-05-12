@@ -1,1 +1,1 @@
-trigger: generate GPIO TestPlan Excel
+trigger: generate GPIO TestPlan Excel v2
