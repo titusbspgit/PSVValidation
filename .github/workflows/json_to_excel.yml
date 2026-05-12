@@ -1,0 +1,37 @@
+name: JSON to Excel TestPlan
+
+on:
+  push:
+    paths:
+      - '.github/workflows/json_to_excel.yml'
+      - 'scripts/generate_testplan_xlsx.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Generate Excel
+        env:
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          IP_NAME: GPIO
+        run: |
+          python scripts/generate_testplan_xlsx.py
+      - name: Commit and push Excel
+        run: |
+          FILEPATH=$(cat generated_path.txt)
+          echo "Committing $FILEPATH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILEPATH"
+          git commit -m "Auto-generate and publish GPIO TestPlan (IST timestamp)" || exit 0
+          git push
