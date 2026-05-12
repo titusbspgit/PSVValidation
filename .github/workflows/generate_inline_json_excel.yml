@@ -1,0 +1,38 @@
+name: Generate inline JSON Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/inline_json_input.json
+      - tools/generate_excel_from_inline_json.py
+      - .github/workflows/generate_inline_json_excel.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Generate Excel from inline JSON
+        run: python tools/generate_excel_from_inline_json.py
+      - name: Commit ONLY the Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "Test_Output/GPIO/TestPlan/newfile.xlsx"
+          if git diff --cached --quiet; then
+            echo "No Excel changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
