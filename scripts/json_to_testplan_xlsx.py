@@ -3,28 +3,15 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import zipfile
-from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any
 
-try:
-    from openpyxl import Workbook, load_workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-    from openpyxl.worksheet.datavalidation import DataValidation
-except Exception as e:
-    print(f"ERROR: openpyxl not available: {e}")
-    sys.exit(2)
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.worksheet.datavalidation import DataValidation
 
-META_COLS = [
-    "Hidden_Test_Case_Name",
-    "Hidden_Test_Description",
-    "Hidden_Remarks",
-    "Hidden_Test_Steps_Procedure",
-    "Hidden_Impacted_Registers",
-    "Hidden_Validation_Acceptance_Criteria",
-]
-
-MAIN_ORDER = [
+MAIN_COLUMNS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -36,306 +23,288 @@ MAIN_ORDER = [
     "Memory End Offset",
     "Remarks",
     "Test Steps / Procedure",
-    "Imparted Registers",  # placeholder if typo occurs; corrected below if real key exists
     "Impacted Registers",
     "Validation / Acceptance Criteria",
     "Code Generation (Required / Not)",
 ]
 
-WRAP_COLS = [
-    "Test Description",
-    "Remarks",
-    "Test Steps / Procedure",
-    "Validation / Acceptance Criteria",
+META_COLUMNS = [
+    "Hidden_Test_Case_Name",
+    "Hidden_Test_Description",
+    "Hidden_Remarks",
+    "Hidden_Test_Steps_Procedure",
+    "Hidden_Impacted_Registers",
+    "Hidden_Validation_Acceptance_Criteria",
 ]
 
-ALLOWED_DV = ["Required", "Blank", "Not Required"]
+THIN_BORDER = Border(
+    left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin")
+)
+
+BLUE_FILL = PatternFill(start_color="FFCCE5FF", end_color="FFCCE5FF", fill_type="solid")
 
 
 def parse_args():
-    ap = argparse.ArgumentParser(description="Convert JSON to formatted TestPlan XLSX")
-    ap.add_argument("--json", required=True, help="Path to JSON array file")
-    ap.add_argument("--ipname", required=True, help="IP name for filename rule")
-    ap.add_argument("--outdir", required=True, help="Output directory in repo")
+    ap = argparse.ArgumentParser(description="Generate GPIO TestPlan Excel from JSON")
+    ap.add_argument("--json", required=True, help="Path to JSON array input")
+    ap.add_argument("--outdir", required=True, help="Output directory inside repo")
+    ap.add_argument("--ip-name", required=True, help="IP name for filename rule")
+    ap.add_argument("--gha-output", required=False, help="Path to GITHUB_OUTPUT file to write outputs")
     return ap.parse_args()
 
 
-def load_json(path: str) -> List[Dict[str, Any]]:
+def validate_json_array(path):
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, list) or len(data) == 0:
-        raise ValueError("JSON input must be a non-empty array of objects")
-    # Ensure each item is a dict
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise ValueError(f"JSON item at index {i} is not an object")
+        raise ValueError("JSON must be a non-empty array of objects")
+    for i, rec in enumerate(data):
+        if not isinstance(rec, dict):
+            raise ValueError(f"JSON element {i} is not an object")
     return data
 
 
-def schema_union_first_seen(rows: List[Dict[str, Any]]) -> List[str]:
-    keys = []
-    seen = set()
-    for row in rows:
-        for k in row.keys():
+def normalize_schema(records):
+    # Preserve first-seen key order across the array
+    seen = []
+    for rec in records:
+        for k in rec.keys():
             if k not in seen:
-                seen.add(k)
-                keys.append(k)
-    return keys
-
-
-def normalize_rows(rows: List[Dict[str, Any]], keys: List[str]) -> List[Dict[str, Any]]:
+                seen.append(k)
+    # Ensure META and MAIN columns exist (create blanks if missing)
+    for col in META_COLUMNS + MAIN_COLUMNS:
+        if col not in seen:
+            seen.append(col)
+    # Build rows with blanks for missing
     norm = []
-    for row in rows:
-        new = {}
-        for k in keys:
-            new[k] = row.get(k, "")
-        norm.append(new)
-    return norm
+    for rec in records:
+        row = {}
+        for k in seen:
+            row[k] = rec.get(k, "")
+        norm.append(row)
+    return seen, norm
 
 
-def numbering_from_text(text: str) -> str:
+def auto_width(ws):
+    # Compute approximate column widths
+    for col_cells in ws.columns:
+        max_len = 0
+        col_letter = col_cells[0].column_letter
+        for cell in col_cells:
+            try:
+                v = "" if cell.value is None else str(cell.value)
+            except Exception:
+                v = ""
+            max_len = max(max_len, len(v))
+        ws.column_dimensions[col_letter].width = min(max(10, max_len + 2), 80)
+
+
+def numberize_multiline(text):
     if text is None:
         return ""
-    # Split by newlines and filter empties
-    parts = [p.strip() for p in str(text).replace("\r", "\n").split("\n")]
-    parts = [p for p in parts if p]
-    if not parts:
-        return str(text) if text is not None else ""
-    # Re-number with 1., 2., ...
-    out_lines = []
-    for i, p in enumerate(parts, start=1):
-        # Remove any leading numeric bullets like '1) ' or '1. '
-        q = p
-        if len(q) > 2 and q[0].isdigit() and (q[1] in ")."):
-            q = q[2:].lstrip()
-        out_lines.append(f"{i}. {q}")
-    return "\n".join(out_lines)
+    s = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not s:
+        return s
+    # Split on explicit newlines; if none, return as-is
+    parts = [p.strip() for p in s.split("\n") if p.strip()]
+    if len(parts) <= 1:
+        return s
+    numbered = [f"{i+1}. {p}" for i, p in enumerate(parts)]
+    return "\n".join(numbered)
 
 
-def autosize_columns(ws):
-    # Approximate auto-fit by measuring max string length
-    for col in ws.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
-        for cell in col:
-            try:
-                val = cell.value
-                if val is None:
-                    length = 0
-                else:
-                    length = len(str(val))
-                if length > max_len:
-                    max_len = length
-            except Exception:
-                pass
-        ws.column_dimensions[col_letter].width = min(120, max(10, max_len + 2))
-
-
-def apply_borders(ws):
-    thin = Side(border_style="thin", color="000000")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for row in ws.iter_rows():
-        for cell in row:
-            if cell.value is not None and str(cell.value) != "":
-                cell.border = border
-
-
-def set_meta_sheet_very_hidden(wb):
-    meta = wb["Meta_data_sheet"]
-    meta.sheet_state = "veryHidden"
-
-
-def validate_xlsx(path: str) -> None:
-    # Ensure it's a zip and has OOXML core files
-    with zipfile.ZipFile(path, "r") as zf:
-        names = set(zf.namelist())
-        if "[Content_Types].xml" not in names or "xl/workbook.xml" not in names:
-            raise ValueError("Not a valid OOXML workbook (missing core files)")
-    # Re-open with openpyxl for sheet checks
-    wb = load_workbook(path, data_only=True)
-    sheets = wb.sheetnames
-    if set(sheets) != {"TestPlan", "Meta_data_sheet"}:
-        raise ValueError(f"Unexpected sheets: {sheets}")
-    if wb["Meta_data_sheet"].sheet_state != "veryHidden":
-        raise ValueError("Meta_data_sheet must be Very Hidden")
-    # Basic check for data validation only on Code Generation column
-    ws = wb["TestPlan"]
-    # Gather DV ranges
-    # We cannot fully assert ranges without heavy parsing; ensure at least one DV exists
-    # and its formula list matches allowed values
-    dvs = getattr(ws, 'data_validations', None)
-    if not dvs or not dvs.dataValidation:
-        raise ValueError("Data validation missing on TestPlan")
-    ok_list = False
-    for dv in dvs.dataValidation:
-        if dv.type == "list" and dv.formula1:
-            f = dv.formula1.replace('"', '').strip()
-            if f == ",".join(ALLOWED_DV):
-                ok_list = True
-                break
-    if not ok_list:
-        raise ValueError("Data validation list does not match required values")
-
-
-def main():
-    args = parse_args()
-    rows = load_json(args.json)
-    # Normalize schema
-    keys = schema_union_first_seen(rows)
-    norm_rows = normalize_rows(rows, keys)
-
-    # Prepare workbook with a single 'Data' sheet
+def build_workbook(records):
     wb = Workbook()
     ws = wb.active
     ws.title = "Data"
 
-    # Header row
-    header_font = Font(bold=True)
-    header_align = Alignment(horizontal="center", vertical="center")
-    header_fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+    # Write headers (all keys, preserved order)
+    keys, norm_rows = normalize_schema(records)
 
-    for j, k in enumerate(keys, start=1):
-        c = ws.cell(row=1, column=j, value=k)
-        c.font = header_font
-        c.alignment = header_align
-        c.fill = header_fill
+    for j, key in enumerate(keys, start=1):
+        c = ws.cell(row=1, column=j, value=key)
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.fill = BLUE_FILL
+        c.border = THIN_BORDER
 
-    # Data rows (preserve values exactly)
+    # Write data rows
     for i, row in enumerate(norm_rows, start=2):
-        for j, k in enumerate(keys, start=1):
-            ws.cell(row=i, column=j, value=row.get(k, ""))
+        for j, key in enumerate(keys, start=1):
+            val = row.get(key, "")
+            ws.cell(row=i, column=j, value=val)
 
     # Freeze top row
     ws.freeze_panes = "A2"
 
-    # Base autosize before transformations
-    autosize_columns(ws)
+    # Base autofit columns
+    auto_width(ws)
 
-    # Create Meta_data_sheet and copy META cols as-is (unnumbered)
-    meta_ws = wb.create_sheet("Meta_data_sheet")
-    for j, k in enumerate(META_COLS, start=1):
-        mc = meta_ws.cell(row=1, column=j, value=k)
-        mc.font = header_font
-        mc.alignment = header_align
-        mc.fill = header_fill
+    # Create META sheet
+    ws_meta = wb.create_sheet("Meta_data_sheet")
+    # Header
+    for j, key in enumerate(META_COLUMNS, start=1):
+        c = ws_meta.cell(row=1, column=j, value=key)
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.fill = BLUE_FILL
+        c.border = THIN_BORDER
+    # Data
     for i, row in enumerate(norm_rows, start=2):
-        for j, k in enumerate(META_COLS, start=1):
-            meta_ws.cell(row=i, column=j, value=row.get(k, ""))
+        for j, key in enumerate(META_COLUMNS, start=1):
+            ws_meta.cell(row=i, column=j, value=row.get(key, ""))
+    auto_width(ws_meta)
+    # Very Hidden
+    ws_meta.sheet_state = "veryHidden"
 
-    # Normalize MAIN sheet: operate on existing 'Data' sheet only
-    # Remove META cols and reorder to MAIN_ORDER
-    # Resolve potential typo in MAIN_ORDER (Imparted vs Impacted)
-    effective_order = []
-    for name in MAIN_ORDER:
-        if name == "Imparted Registers":
-            if "Impacted Registers" in keys:
-                effective_order.append("Impacted Registers")
-            elif name in keys:
-                effective_order.append(name)
-            continue
-        if name in keys:
-            effective_order.append(name)
-    # Keep any non-meta and non-main extras in original order after main columns
-    extras = [k for k in keys if k not in META_COLS and k not in effective_order]
-    final_order = effective_order + extras
+    # Normalize main sheet (in-place on "Data")
+    # Build a mapping from header to column index
+    header_to_idx = {ws.cell(row=1, column=j).value: j for j in range(1, ws.max_column + 1)}
 
-    # Snapshot current data
-    data_matrix = [[r.get(k, "") for k in final_order] for r in norm_rows]
+    # Determine column order for TestPlan (ensure blanks if missing)
+    # If a column missing, append a new blank column with that header
+    current_last_col = ws.max_column
+    for col_name in MAIN_COLUMNS:
+        if col_name not in header_to_idx:
+            current_last_col += 1
+            ws.cell(row=1, column=current_last_col, value=col_name)
+            header_to_idx[col_name] = current_last_col
+            for i in range(2, ws.max_row + 1):
+                ws.cell(row=i, column=current_last_col, value="")
 
-    # Clear and rewrite 'Data' as per final_order
+    # Remove META columns from main sheet (set values to blank, but keep structure by reordering copy)
+    # Create a new ordered matrix for TestPlan
+    rows_matrix = []
+    # Header row in final order
+    rows_matrix.append(MAIN_COLUMNS)
+    for i in range(2, ws.max_row + 1):
+        final_row = []
+        for col_name in MAIN_COLUMNS:
+            col_idx = header_to_idx[col_name]
+            final_row.append(ws.cell(row=i, column=col_idx).value)
+        rows_matrix.append(final_row)
+
+    # Clear and rewrite ws
     ws.delete_rows(1, ws.max_row)
-    for j, k in enumerate(final_order, start=1):
-        c = ws.cell(row=1, column=j, value=k)
-        c.font = header_font
-        c.alignment = header_align
-        c.fill = header_fill
-    for i, rowvals in enumerate(data_matrix, start=2):
-        for j, val in enumerate(rowvals, start=1):
-            ws.cell(row=i, column=j, value=val)
-
-    # Rename Data -> TestPlan
+    for r, row_vals in enumerate(rows_matrix, start=1):
+        for c, v in enumerate(row_vals, start=1):
+            ws.cell(row=r, column=c, value=v)
+    # Rename to TestPlan
     ws.title = "TestPlan"
 
-    # Apply formatting to TestPlan
-    wrap_cols_idx = [final_order.index(c) + 1 for c in WRAP_COLS if c in final_order]
-    for i in range(2, ws.max_row + 1):
-        for j in range(1, ws.max_column + 1):
+    # Apply formatting on TestPlan
+    max_row = ws.max_row
+    max_col = ws.max_column
+
+    # Header formatting
+    for j in range(1, max_col + 1):
+        cell = ws.cell(row=1, column=j)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = BLUE_FILL
+        cell.border = THIN_BORDER
+
+    # Data alignment, wrapping, borders
+    wrap_headers = {
+        "Test Description",
+        "Remarks",
+        "Test Steps / Procedure",
+        "Validation / Acceptance Criteria",
+    }
+
+    # Numbering enforcement for two columns on TestPlan only (not on META)
+    # Find column indices
+    header_idx = {ws.cell(row=1, column=j).value: j for j in range(1, max_col + 1)}
+    idx_steps = header_idx.get("Test Steps / Procedure")
+    idx_val = header_idx.get("Validation / Acceptance Criteria")
+
+    for i in range(2, max_row + 1):
+        for j in range(1, max_col + 1):
             cell = ws.cell(row=i, column=j)
-            is_wrap = j in wrap_cols_idx
-            halign = "left"
-            if final_order[j - 1] == "Index":
-                halign = "center"
-            cell.alignment = Alignment(wrap_text=is_wrap, horizontal=halign, vertical="top")
+            header = ws.cell(row=1, column=j).value
+            if header in wrap_headers:
+                # For numbering-required columns, transform content
+                if j == idx_steps or j == idx_val:
+                    cell.value = numberize_multiline(cell.value)
+                cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
+            else:
+                # Numeric-ish columns center/right, others left
+                if header in ("Index",):
+                    cell.alignment = Alignment(vertical="top", horizontal="center")
+                else:
+                    cell.alignment = Alignment(vertical="top", horizontal="left")
+            cell.border = THIN_BORDER
 
-    # Number inside cells for procedure and acceptance criteria
-    for col_name in ["Test Steps / Procedure", "Validation / Acceptance Criteria"]:
-        if col_name in final_order:
-            ci = final_order.index(col_name) + 1
-            for i in range(2, ws.max_row + 1):
-                v = ws.cell(row=i, column=ci).value
-                ws.cell(row=i, column=ci, value=numbering_from_text(v))
+    # Autofit columns again after wrapping
+    auto_width(ws)
 
-    # Autosize and approximate auto row height based on line breaks
-    autosize_columns(ws)
-    base_height = 15
-    for i in range(2, ws.max_row + 1):
-        max_lines = 1
-        for j in wrap_cols_idx:
-            v = ws.cell(row=i, column=j).value
-            if v is None:
-                continue
-            lines = str(v).count("\n") + 1
-            if lines > max_lines:
-                max_lines = lines
-        ws.row_dimensions[i].height = base_height * max_lines
-
-    # Apply thin borders to all populated cells
-    apply_borders(ws)
-
-    # Data validation only on Code Generation (Required / Not)
-    if "Code Generation (Required / Not)" in final_order:
-        cg_col = final_order.index("Code Generation (Required / Not)") + 1
-        dv = DataValidation(type="list", formula1='"' + ",".join(ALLOWED_DV) + '"', allow_blank=True)
-        dv.errorTitle = "Invalid choice"
-        dv.error = "Select one of: Required, Blank, Not Required"
-        start_cell = ws.cell(row=2, column=cg_col).coordinate
-        end_cell = ws.cell(row=max(2, ws.max_row), column=cg_col).coordinate
-        dv.ranges.append(f"{start_cell}:{end_cell}")
-        # Clear any existing validations then add ours
-        if hasattr(ws, 'data_validations') and ws.data_validations is not None:
-            ws.data_validations.dataValidation = []
+    # Data validation ONLY on Code Generation (Required / Not)
+    if "Code Generation (Required / Not)" in header_idx:
+        col = header_idx["Code Generation (Required / Not)"]
+        col_letter = ws.cell(row=1, column=col).column_letter
+        dv = DataValidation(type="list", formula1='"Required,Blank,Not Required"', allow_blank=True, showDropDown=True)
+        dv.error = "Select a value from the list"
+        dv.errorTitle = "Invalid Input"
         ws.add_data_validation(dv)
+        data_range = f"{col_letter}2:{col_letter}{max_row}"
+        dv.add(data_range)
 
-    # Meta sheet visibility
-    set_meta_sheet_very_hidden(wb)
+    # Safety: ensure no sheet named Data remains
+    if any(s.title == "Data" for s in wb.worksheets):
+        # Delete any worksheet named Data
+        for s in list(wb.worksheets):
+            if s.title == "Data":
+                wb.remove(s)
 
-    # Safety: only TestPlan and Meta_data_sheet should exist
-    if set(wb.sheetnames) != {"TestPlan", "Meta_data_sheet"}:
-        raise RuntimeError(f"Unexpected sheets present: {wb.sheetnames}")
+    # Return workbook
+    return wb
 
-    # Compute IST timestamped filename
-    ist = timezone(timedelta(hours=5, minutes=30))
-    now_ist = datetime.now(ist)
-    fname = f"{args.ipname}_TestPlan_{now_ist.strftime('%Y%m%d')}_{now_ist.strftime('%H%M%S')}.xlsx"
+
+def validate_final_xlsx(path):
+    # Must be a valid ZIP-based OOXML
+    if not zipfile.is_zipfile(path):
+        return False, "Not a ZIP-based OOXML file"
+    try:
+        wb = load_workbook(path, data_only=True, read_only=True)
+        names = [ws.title for ws in wb.worksheets]
+        states = {ws.title: ws.sheet_state for ws in wb.worksheets}
+        if set(names) != {"TestPlan", "Meta_data_sheet"}:
+            return False, f"Unexpected sheets: {names}"
+        if states.get("TestPlan", "visible") != "visible":
+            return False, "TestPlan sheet not visible"
+        if states.get("Meta_data_sheet") != "veryHidden":
+            return False, "Meta_data_sheet not Very Hidden"
+        return True, "OK"
+    except Exception as e:
+        return False, f"load_workbook failed: {e}"
+
+
+def main():
+    args = parse_args()
+    records = validate_json_array(args.json)
+
+    wb = build_workbook(records)
+
+    # Filename rule with IST timestamp
+    ist = ZoneInfo("Asia/Kolkata")
+    now = datetime.now(ist)
+    fname = f"{args.ip_name}_TestPlan_{now.strftime('%Y%m%d')}_{now.strftime('%H%M%S')}.xlsx"
     outdir = args.outdir.rstrip("/")
     os.makedirs(outdir, exist_ok=True)
-    outpath = os.path.join(outdir, fname)
+    out_path = os.path.join(outdir, fname)
 
-    wb.save(outpath)
+    wb.save(out_path)
 
-    # Validate saved workbook
-    validate_xlsx(outpath)
+    ok, msg = validate_final_xlsx(out_path)
+    if not ok:
+        print(f"Validation failed: {msg}", file=sys.stderr)
+        sys.exit(2)
 
-    print(outpath)
-    # Export for GitHub Actions
-    ghe = os.getenv("GITHUB_ENV")
-    if ghe:
-        with open(ghe, "a", encoding="utf-8") as envf:
-            envf.write(f"OUTPUT_FILE={outpath}\n")
+    # Write path for downstream steps
+    with open(".xlsx_path.txt", "w", encoding="utf-8") as f:
+        f.write(out_path)
+
+    print(f"Generated: {out_path}")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"FATAL: {e}")
-        sys.exit(1)
+    main()
