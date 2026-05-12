@@ -1,11 +1,13 @@
-name: Generate GPIO TestPlan XLSX
+name: Generate GPIO TestPlan Excel
 
 on:
   push:
+    branches: [ main ]
     paths:
+      - '.github/triggers/run_gpio_testplan.txt'
       - '.github/workflows/generate_gpio_testplan.yml'
-      - 'scripts/generate_gpio_testplan_xlsx.py'
-  workflow_dispatch:
+      - 'scripts/json_to_excel_gpio.py'
+      - 'data/gpio_full_json.json'
 
 permissions:
   contents: write
@@ -14,42 +16,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
-
+          pip install openpyxl tzdata
       - name: Generate Excel
         env:
           IP_NAME: GPIO
           OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          OUTPUT_FILENAME_PREFIX: GPIO_TestPlan
         run: |
-          python scripts/generate_gpio_testplan_xlsx.py --ip-name "$IP_NAME" --output-dir "$OUTPUT_DIR"
-
-      - name: Commit Excel artifact
+          python scripts/json_to_excel_gpio.py
+      - name: Commit Excel
         run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Add only .xlsx files under the target directory
-          if ls Test_Output/GPIO/TestPlan/*.xlsx 1> /dev/null 2>&1; then
-            git add Test_Output/GPIO/TestPlan/*.xlsx
-            if git diff --cached --quiet; then
-              echo "No new Excel files to commit."
-            else
-              git commit -m "Final formatted Excel generated from JSON input"
-              git push
-            fi
+          git config user.name "Auto Excel Bot"
+          git config user.email "auto-excel-bot@psvvalidation.local"
+          git add Test_Output/GPIO/TestPlan/*.xlsx || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
           else
-            echo "No Excel files found to commit."
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
           fi
