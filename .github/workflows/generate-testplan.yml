@@ -1,0 +1,51 @@
+name: Generate TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate XLSX
+        run: |
+          python .github/scripts/generate_xlsx.py
+
+      - name: Validate ZIP-based OOXML
+        run: |
+          python - << 'PY'
+          import zipfile, sys
+          p = 'Test_Output/GPIO/TestPlan/testing.xlsx'
+          assert zipfile.is_zipfile(p), 'Not a ZIP-based OOXML file'
+          print('Validated:', p)
+          PY
+
+      - name: Commit finalized Excel only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force Test_Output/GPIO/TestPlan/testing.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
+          fi
