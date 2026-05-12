@@ -149,18 +149,18 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 
 # Read and validate JSON
+def fail(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
 raw = os.environ.get('JSON_INPUT', '').strip()
 if not raw:
-    print('Missing JSON_INPUT', file=sys.stderr)
-    sys.exit(1)
+    fail('Missing JSON_INPUT')
 try:
     data = json.loads(raw)
 except Exception as e:
-    print(f'Invalid JSON: {e}', file=sys.stderr)
-    sys.exit(1)
+    fail(f'Invalid JSON: {e}')
 if not isinstance(data, list) or len(data) == 0:
-    print('JSON must be a non-empty array', file=sys.stderr)
-    sys.exit(1)
+    fail('JSON must be a non-empty array')
 
 # Derive schema, preserve first-seen key order
 key_order = []
@@ -271,8 +271,9 @@ for c in range(1, len(main_cols)+1):
     cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     cell.fill = blue_fill
     cell.border = border_all
+ws.row_dimensions[1].height = 24
 
-# Data rows style
+# Data rows style + wrap
 for r in range(2, ws.max_row+1):
     for c, name in enumerate(main_cols, 1):
         cell = ws.cell(row=r, column=c)
@@ -314,6 +315,17 @@ for c, name in enumerate(main_cols, 1):
         max_len = max(max_len, len(str(v)) if v is not None else 0)
     ws.column_dimensions[get_column_letter(c)].width = min(max(12, max_len + 2), 100)
 
+# Autosize row heights based on wrapped content
+for r in range(2, ws.max_row+1):
+    max_lines = 1
+    for name in wrap_cols:
+        c = col_idx[name]
+        v = ws.cell(row=r, column=c).value
+        lines = (str(v).count('\n') + 1) if v else 1
+        if lines > max_lines:
+            max_lines = lines
+    ws.row_dimensions[r].height = min(15 * max_lines, 200)
+
 # Data validation only for Code Generation (Required / Not)
 cg_c = col_idx['Code Generation (Required / Not)']
 start = f"{get_column_letter(cg_c)}2"
@@ -322,7 +334,7 @@ dv = DataValidation(type='list', formula1='"Required,Blank,Not Required"', allow
 dv.add(f"{start}:{end}")
 ws.add_data_validation(dv)
 
-# Ensure no 'Data' sheet left
+# Ensure no stray 'Data' sheet remains
 for s in list(wb.worksheets):
     if s.title == 'Data':
         wb.remove(s)
@@ -339,13 +351,24 @@ dest_dir = os.environ.get('DEST_DIR','Test_Output/TestPlan')
 base_name = f"{ip_name}_TestPlan_{fname_ts}.xlsx"
 os.makedirs(dest_dir, exist_ok=True)
 full_path = os.path.join(dest_dir, base_name)
+# Collision-safe naming
+if os.path.exists(full_path):
+    i = 2
+    while True:
+        alt = os.path.join(dest_dir, f"{ip_name}_TestPlan_{fname_ts}_v{i}.xlsx")
+        if not os.path.exists(alt):
+            full_path = alt
+            break
+        i += 1
 wb.save(full_path)
 
 # Validate XLSX structure
-required = ['[Content_Types].xml','xl/workbook.xml','xl/worksheets']
 with zipfile.ZipFile(full_path, 'r') as z:
     names = z.namelist()
-    ok = all((req in names) if not req.endswith('/') else any(n.startswith(req) for n in names) for req in required)
+    has_content = '[Content_Types].xml' in names
+    has_wb = 'xl/workbook.xml' in names
+    has_sheets = any(n.startswith('xl/worksheets/') for n in names)
+    ok = has_content and has_wb and has_sheets
 if not ok:
     print('XLSX validation failed', file=sys.stderr)
     sys.exit(2)
