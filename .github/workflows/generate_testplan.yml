@@ -35,12 +35,14 @@ jobs:
         run: |
           set -e
           echo "Workspace root: $(pwd)"
-          ls -la
+          echo "--- .gitignore (if present) ---"; (test -f .gitignore && cat .gitignore) || echo "(none)"
           echo "--- Tree under Test_Output ---"
-          find Test_Output -maxdepth 3 -type f -name "*.xlsx" -printf "%p\n" || true
+          mkdir -p Test_Output || true
+          find Test_Output -maxdepth 4 -type f -printf "%p\n" || true
           echo "--- last_output_path.txt content ---"
           cat tools/last_output_path.txt
           FILE=$(cat tools/last_output_path.txt)
+          echo "git check-ignore -v $FILE (if ignored):"; git check-ignore -v "$FILE" || true
           python - << 'PY'
 import sys, zipfile, os
 p = open('tools/last_output_path.txt','r',encoding='utf-8').read().strip()
@@ -55,7 +57,7 @@ PY
       - name: Show git status before commit
         run: |
           git status --porcelain
-      - name: Commit Excel
+      - name: Commit Excel (force add if ignored)
         run: |
           set -e
           OUTPUT_PATH=$(cat tools/last_output_path.txt)
@@ -63,7 +65,7 @@ PY
           if [ -f "$OUTPUT_PATH" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add "$OUTPUT_PATH"
+            git add -f "$OUTPUT_PATH"
             git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
             git push
           else
