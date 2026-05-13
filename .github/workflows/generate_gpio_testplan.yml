@@ -1,44 +1,39 @@
 name: Generate GPIO TestPlan Excel
-
 on:
   push:
     branches: [ main ]
-    paths:
-      - '.github/triggers/run_gpio_testplan.txt'
-      - '.github/workflows/generate_gpio_testplan.yml'
-      - 'scripts/json_to_excel_gpio.py'
-      - 'data/gpio_full_json.json'
-
+  workflow_dispatch:
 permissions:
   contents: write
-
 jobs:
-  build:
+  generate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl tzdata
-      - name: Generate Excel
-        env:
-          IP_NAME: GPIO
-          OUTPUT_DIR: Test_Output/GPIO/TestPlan
-          OUTPUT_FILENAME_PREFIX: GPIO_TestPlan
+          pip install openpyxl
+      - name: Generate Excel from JSON
         run: |
-          python scripts/json_to_excel_gpio.py
-      - name: Commit Excel
+          python scripts/generate_testplan_excel.py \
+            --json "data/testplans/GPIO_FULL_JSON_STRUCTURE.json" \
+            --output-dir "Test_Output/GPIO/TestPlan" \
+            --ip-name "GPIO"
+      - name: Commit Excel artifact
         run: |
-          git config user.name "Auto Excel Bot"
-          git config user.email "auto-excel-bot@psvvalidation.local"
-          git add Test_Output/GPIO/TestPlan/*.xlsx || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Final formatted Excel generated from JSON input"
-            git push
-          fi
+          set -e
+          FILE=$(ls -1 Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx | tail -n 1)
+          echo "Detected Excel: $FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
+          git push
