@@ -1,0 +1,50 @@
+[
+  {
+    "Index": 1,
+    "SS / Module": "PCIE0 SII RC",
+    "Feature": "writeAsRead",
+    "Test Case Name": "pcie0_sii_rc_reg_wr_rd_test",
+    "Test Description": "Verifies that registers report reset defaults and that writes update only writable fields while read-only fields remain unchanged.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE68C0000",
+    "Memory End Offset": "NA",
+    "Remarks": "Non-readable entries are skipped. Non-writable entries are skipped. Entries in the skip list are skipped. The PHY reset control register is excluded from default checks. The soft reset is not executed.",
+    "Test Steps / Procedure": "1) Read each readable SII register and compare with its documented default; exclude the PHY reset control register.\n2) For each data pattern, write to each writable SII register that is not skipped.\n3) Read back each affected register and compute the expected value using writable and read-only fields.\n4) Compare read-back with the expected value across all registers and patterns and record mismatches.\n5) Declare pass if no mismatches are found; otherwise declare fail.",
+    "Impacted Registers": "SII_CFG_BAR0_START1\nSII_CFG_BAR0_START2\nSII_CFG_BAR0_LIMIT1\nSII_CFG_BAR0_LIMIT2\nSII_CFG_BAR1_START\nSII_CFG_BAR1_LIMIT1\nSII_CFG_BAR2_START1\nSII_CFG_BAR2_START2\nSII_CFG_BAR2_LIMIT1\nSII_CFG_BAR2_LIMIT2\nSII_CFG_BAR3_START\nSII_CFG_BAR3_LIMIT\nSII_CFG_BAR4_START1\nSII_CFG_BAR4_START2\nSII_CFG_BAR4_LIMIT1\nSII_CFG_BAR4_LIMIT2\nSII_CFG_BAR5_START\nSII_CFG_BAR5_LIMIT\nSII_PCIE0_CONFIG_INFO1\nSII_PCIE0_CONFIG_INFO2\nSII_PCIE0_GEN_CONTROL1\nSII_PCIE0_GEN_CONTROL2\nSII_PCIE0_GEN_CONTROL3\nSII_PCIE0_PM_CONTROL\nSII_PCIE0_CONTROL_PM_STS\nSII_PCIE0_TRANSMIT_HEADER1\nSII_PCIE0_TRANSMIT_HEADER2\nSII_PCIE0_TRANSMIT_HEADER3\nSII_PCIE0_TRANSMIT_HEADER4\nSII_PCIE0_TRANSMIT_REQ\nSII_PCIE0_RCV_MSG_HDR1\nSII_PCIE0_RCV_MSG_HDR2\nSII_PCIE0_RCV_MSG_HDR3\nSII_PCIE0_RCV_MSG_HDR4\nSII_PCIE0_RCV_MSG_STS\nSII_RCV_INTERRPUT_CTRL\nSII_CFG_EXP_ROM_START\nSII_CFG_EXP_ROM_LIMIT\nSII_CFG_EXP_ROM_INFO\nSII_CXPL_DEBUG_INFO1\nSII_CXPL_DEBUG_INFO2\nSII_CXPL_DEBUG_INFO_EI\nSII_PCIE0_TARGET_INFO1\nSII_PCIE0_TARGET_INFO2\nSII_PCIE0_CONTOLLER_ERROR_STATUS\nSII_PCIE0_CONTROLLER_INT_STS\nSII_PCIE0_CONTROLLER_INTERRUPT_CONTROL\nSII_PHY_RST_CONTROL\nSII_LINK_DEBUG_DATA\nSII_PCIE0_ERR_STS\nSII_PCIE0_ERR_INTERRUPT_CTRL\nSII_CFG_MSI_INT\nSII_LTR_MSG\nSII_LTR_MSG_LATENCY\nSII_APP_LTR_LATENCY\nSII_CFG_LTR_MAX_LATENCY\nSII_OBFF_CNTRL\nSII_SLV_AWMISC_INFO\nSII_SLV_AWMISC_INFO_HDR_34DW_HI\nSII_SLV_AWMISC_INFO_HDR_34DW_LO\nSII_SLV_MISC_INFO\nSII_SLV_MISC_RESP_INFO\nSII_MSTR_AWMISC_INFO_CNTRL\nSII_MSTR_AWMISC_INFO_1\nSII_MSTR_AWMISC_INFO_0\nSII_MSTR_AWMISC_INFO_HDR_34DW_HI\nSII_MSTR_AWMISC_INFO_HDR_34DW_LO\nSII_MSTR_ARMISC_INFO_CNTRL\nSII_MSTR_ARMISC_INFO_1\nSII_MSTR_ARMISC_INFO_0\nSII_MSTR_BMISC_RMISC_CPL_STAT_INFO\nSII_RADM_TIMEOUT_INFO\nSII_CFG_MSI_INFO\nSII_CFG_MSI_DATA\nSII_CFG_MSI_ADDR_HI\nSII_CFG_MSI_ADDR_LO\nSII_CFG_AER_INT_AND_PCIE0_CAP_INT_MSG\nSII_RTLH_RFC_DATA\nSII_APP_HDR_INFO\nSII_APP_HDR_LOG_3\nSII_APP_HDR_LOG_2\nSII_APP_HDR_LOG_1\nSII_APP_HDR_LOG_0\nSII_CFG_BUS_NUM\nSII_CFG_BR_CTRL_SERREN\nSII_APP_DEV_AND_BUS_NUM\nSII_PCIE0_CONTROLLER_INT_STS_1\nSII_PCIE0_CONTROLLER_INTERRUPT_CONTROL_1\nSII_APP_AND_SLOT_CONTROL_REG\nSII_DIAG_CTRL_BUS\nSII_CFG_REG_RO\nSII_CFG_ARI_FWD_EN\nSII_RADM_SLOT_PWR_PAYLOAD\nSII_DIAG_STATUS_BUS_0\nSII_DIAG_STATUS_BUS_1\nSII_DIAG_STATUS_BUS_2\nSII_DIAG_STATUS_BUS_3\nSII_DIAG_STATUS_BUS_4\nSII_DIAG_STATUS_BUS_5\nSII_DIAG_STATUS_BUS_6\nSII_DIAG_STATUS_BUS_7\nSII_DIAG_STATUS_BUS_8\nSII_DIAG_STATUS_BUS_9\nSII_DIAG_STATUS_BUS_10\nSII_DIAG_STATUS_BUS_11\nSII_DIAG_STATUS_BUS_12\nSII_DIAG_STATUS_BUS_13\nSII_DIAG_STATUS_BUS_14\nSII_DIAG_STATUS_BUS_15\nSII_DIAG_STATUS_BUS_16\nSII_DIAG_STATUS_BUS_17\nSII_DIAG_STATUS_BUS_18\nSII_DIAG_STATUS_BUS_19\nSII_RAM_PWR_CNTRL_0\nSII_RAM_PWR_CNTRL_1\nSII_SOFT_RESET_CTRL\nSII_CFG_MSI_PENDING_B\nSII_SMLH_LTSSM_STATE_TRAN_1\nSII_SMLH_LTSSM_STATE_TRAN_2\nSII_SMLH_LTSSM_STATE_TRAN_3\nSII_SMLH_LTSSM_STATE_TRAN_4\nSII_SMLH_LTSSM_STATE_TRAN_5\nSII_SMLH_LTSSM_STATE_TRAN_6\nSII_SMLH_LTSSM_STATE_TRAN_7\nSII_PHY_CONTROL_0\nSII_PHY_CONTROL_1\nSII_PHY_CONTROL_2\nSII_PHY_CONTROL_3\nSII_PHY_CONTROL_4\nSII_PHY_CONTROL_5\nSII_PHY_CONTROL_6\nSII_PHY_CONTROL_7\nSII_PHY_CONTROL_8\nSII_PHY_CONTROL_9\nSII_PHY_CONTROL_10\nSII_PHY_CONTROL_11\nSII_PHY_CONTROL_12\nSII_PHY_CONTROL_13\nSII_PHY_CONTROL_14\nSII_PHY_CONTROL_15\nSII_PHY_CONTROL_16\nSII_PHY_CONTROL_17\nSII_PHY_CONTROL_18\nSII_PHY_CONTROL_19\nSII_PHY_CONTROL_20\nSII_PHY_CONTROL_21\nSII_PHY_CONTROL_22\nSII_PHY_CONTROL_23\nSII_PHY_CONTROL_24\nSII_PHY_CONTROL_25\nSII_PHY_CONTROL_26\nSII_MSI_CTRL_IO\nSII_MSI_CTRL_INT_VEC",
+    "Validation / Acceptance Criteria": "1) Default value read equals the documented default for each readable register and excludes the PHY reset control register → Pass for that register.\n2) For each writable and readable register, the read-back equals the expected masked value derived from the data pattern and defaults → Pass for that register.\n3) No mismatches in default checks or write-read checks → Overall pass; any mismatch results in fail.",
+    "Code Generation (Required / Not)": ""
+  },
+  {
+    "Index": 2,
+    "SS / Module": "PCIE1 SII RC",
+    "Feature": "writeAsRead",
+    "Test Case Name": "pcie1_sii_rc_reg_wr_rd_test",
+    "Test Description": "Verifies that registers report reset defaults and that writes update only writable fields while read-only fields remain unchanged.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE68C1000",
+    "Memory End Offset": "NA",
+    "Remarks": "Non-readable entries are skipped. Non-writable entries are skipped. Entries in the skip list are skipped. The PHY reset control register is excluded from default checks. The soft reset is not executed.",
+    "Test Steps / Procedure": "1) Read each readable SII register and compare with its documented default; exclude the PHY reset control register.\n2) For each data pattern, write to each writable SII register that is not skipped.\n3) Read back each affected register and compute the expected value using writable and read-only fields.\n4) Compare read-back with the expected value across all registers and patterns and record mismatches.\n5) Declare pass if no mismatches are found; otherwise declare fail.",
+    "Impacted Registers": "SII_CFG_BAR0_START1\nSII_CFG_BAR0_START2\nSII_CFG_BAR0_LIMIT1\nSII_CFG_BAR0_LIMIT2\nSII_CFG_BAR1_START\nSII_CFG_BAR1_LIMIT1\nSII_CFG_BAR2_START1\nSII_CFG_BAR2_START2\nSII_CFG_BAR2_LIMIT1\nSII_CFG_BAR2_LIMIT2\nSII_CFG_BAR3_START\nSII_CFG_BAR3_LIMIT\nSII_CFG_BAR4_START1\nSII_CFG_BAR4_START2\nSII_CFG_BAR4_LIMIT1\nSII_CFG_BAR4_LIMIT2\nSII_CFG_BAR5_START\nSII_CFG_BAR5_LIMIT\nSII_PHY_RST_CONTROL\nSII_SOFT_RESET_CTRL\nSII_MSI_CTRL_IO\nSII_MSI_CTRL_INT_VEC",
+    "Validation / Acceptance Criteria": "1) Default value read equals the documented default for each readable register and excludes the PHY reset control register → Pass for that register.\n2) For each writable and readable register, the read-back equals the expected masked value derived from the data pattern and defaults → Pass for that register.\n3) No mismatches in default checks or write-read checks → Overall pass; any mismatch results in fail.",
+    "Code Generation (Required / Not)": ""
+  },
+  {
+    "Index": 3,
+    "SS / Module": "PCIE",
+    "Feature": "PF_TYPE0_HDR_DBI2i (DBI2 Shadow Block: PF PCI-Compatible Configuration Space Header Type0)",
+    "Test Case Name": "pcie_cfg_wr_rd_test",
+    "Test Description": "Verifies PCIe configuration by programming coherency controls, configuring BARs, polling readiness, and confirming completion.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE6004100",
+    "Memory End Offset": "NA",
+    "Remarks": "Execution depends on compile-time role defines. Status is polled until ready. Completion requires a signature at a control register.",
+    "Test Steps / Procedure": "1) Program DBI_DSP_COHERENCY_CONTROL_3_OFF for the first instance and then for the second instance. 2) Poll the status register until readiness is indicated. 3) For the first instance, read configuration space, then program all BAR registers with patterns and enable memory, I/O, and bus mastering. 4) For the second instance, read configuration space, then program all BAR registers with patterns and enable memory, I/O, and bus mastering. 5) Wait and poll the control register until the completion signature is observed, then end the test.",
+    "Impacted Registers": "DBI_DSP_COHERENCY_CONTROL_3_OFF",
+    "Validation / Acceptance Criteria": "1) SII status ready check → The status register indicates ready. 2) Final handshake check → The control register equals the sentinel value. 3) Configuration access flow → No blocking conditions remain and the test completes.",
+    "Code Generation (Required / Not)": ""
+  }
+]

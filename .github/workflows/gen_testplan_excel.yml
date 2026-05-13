@@ -3,45 +3,44 @@ name: Generate PCIE TestPlan Excel
 on:
   workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
-      - '.github/scripts/gen_testplan_excel.py'
       - '.github/workflows/gen_testplan_excel.yml'
-
-permissions:
-  contents: write
+      - 'tools/gen_testplan_from_json.py'
+      - 'Test_Output/PCIE/TestPlan/src/PCIE_full_json_input.json'
 
 jobs:
-  build:
+  generate_excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel from embedded JSON
+
+      - name: Generate and commit Excel
         env:
           IP_NAME: PCIE
-          OUTPUT_DIR: Test_Output/PCIE/TestPlan
-          BRANCH: main
+          INPUT_JSON: Test_Output/PCIE/TestPlan/src/PCIE_full_json_input.json
+          OUTPUT_DIR: Test_Output/PCIE/TestPlan/
+          COMMIT_MSG: Final formatted Excel generated from JSON input
+          AUTHOR_NAME: Auto TestPlan Bot
+          AUTHOR_EMAIL: bot@example.com
         run: |
-          python .github/scripts/gen_testplan_excel.py
-      - name: Commit Excel artifact
-        run: |
-          git config user.name "Auto TestPlan Bot"
-          git config user.email "bot@example.com"
-          if git status --porcelain | grep -q "^ M\|^??"; then
-            git add Test_Output/PCIE/TestPlan/*.xlsx
-            if git diff --cached --quiet; then
-              echo "No Excel changes to commit."
-            else
-              git commit -m "Final formatted Excel generated from JSON input [skip ci]"
-              git push
-            fi
-          else
-            echo "No changes detected."
+          python tools/gen_testplan_from_json.py \
+            --input "$INPUT_JSON" \
+            --ip-name "$IP_NAME" \
+            --outdir "$OUTPUT_DIR" \
+            --commit-msg "$COMMIT_MSG" \
+            --author-name "$AUTHOR_NAME" \
+            --author-email "$AUTHOR_EMAIL"
