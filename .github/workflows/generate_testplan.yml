@@ -31,6 +31,30 @@ jobs:
       - name: Generate Excel
         run: |
           python tools/generate_testplan.py
+      - name: Debug listing and verify XLSX
+        run: |
+          set -e
+          echo "Workspace root: $(pwd)"
+          ls -la
+          echo "--- Tree under Test_Output ---"
+          find Test_Output -maxdepth 3 -type f -name "*.xlsx" -printf "%p\n" || true
+          echo "--- last_output_path.txt content ---"
+          cat tools/last_output_path.txt
+          FILE=$(cat tools/last_output_path.txt)
+          python - << 'PY'
+import sys, zipfile, os
+p = open('tools/last_output_path.txt','r',encoding='utf-8').read().strip()
+assert os.path.isfile(p), f"Not found: {p}"
+assert zipfile.is_zipfile(p), f"Not a zip-based xlsx: {p}"
+with zipfile.ZipFile(p,'r') as z:
+    names = set(z.namelist())
+    assert '[Content_Types].xml' in names, 'Missing [Content_Types].xml'
+    assert 'xl/workbook.xml' in names, 'Missing xl/workbook.xml'
+print('XLSX structure verified for', p)
+PY
+      - name: Show git status before commit
+        run: |
+          git status --porcelain
       - name: Commit Excel
         run: |
           set -e
@@ -45,5 +69,3 @@ jobs:
           else
             echo "Output file not found at $OUTPUT_PATH"
             exit 1
-
-# noop retrigger 2026-05-13T17:02:40Z
