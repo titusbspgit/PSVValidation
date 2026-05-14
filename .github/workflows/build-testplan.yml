@@ -36,9 +36,11 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Add only the generated Excel files under the target directory
+          echo "Listing generated files:"
+          ls -lah Test_Output/PCIE/TestPlan || true
           if ls Test_Output/PCIE/TestPlan/*.xlsx 1> /dev/null 2>&1; then
-            git add Test_Output/PCIE/TestPlan/*.xlsx
+            # Force add in case of .gitignore exclusions
+            git add -f Test_Output/PCIE/TestPlan/*.xlsx
             if git diff --cached --quiet; then
               echo "No new Excel changes to commit."
             else
