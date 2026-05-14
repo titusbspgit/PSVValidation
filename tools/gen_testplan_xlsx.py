@@ -31,7 +31,8 @@ META_COLUMNS = [
     'Hidden_Impacted_Registers',
     'Hidden_Validation_Acceptance_Criteria',
     'Hidden_Header_Includes',
-    'Hidden_Macro_Define',  # Note: if not present in JSON, remains blank by design
+    'Hidden_Macro_Define',      # required by spec; may be blank
+    'Hidden_Macro_Defines',     # preserve original key from data if present
     'Hidden_Skip_Array_Definition'
 ]
 
@@ -97,6 +98,14 @@ def union_keys(records):
     return seen
 
 
+def _col_letter(n):
+    s = ''
+    while n:
+        n, r = divmod(n-1, 26)
+        s = chr(65+r) + s
+    return s
+
+
 def auto_widths(ws):
     max_len = {}
     for row in ws.iter_rows(values_only=True):
@@ -106,16 +115,7 @@ def auto_widths(ws):
             if l > max_len.get(idx, 0):
                 max_len[idx] = l
     for idx, l in max_len.items():
-        # heuristic: character count + padding
-        ws.column_dimensions[chr(64+idx) if idx <= 26 else _col_letter(idx)].width = min(120, max(10, l + 2))
-
-
-def _col_letter(n):
-    s = ''
-    while n:
-        n, r = divmod(n-1, 26)
-        s = chr(65+r) + s
-    return s
+        ws.column_dimensions[_col_letter(idx)].width = min(120, max(10, l + 2))
 
 
 def renumber_block(text):
@@ -134,6 +134,18 @@ def renumber_block(text):
         out.append(f"{k}. {t}")
         k += 1
     return '\n'.join(out) if out else s
+
+
+def calc_row_height_for_wrapped(ws, r, wrap_header_indices, base=15.0):
+    max_lines = 1
+    for c in wrap_header_indices:
+        val = ws.cell(row=r, column=c).value
+        if val is None:
+            continue
+        lines = str(val).count('\n') + 1
+        if lines > max_lines:
+            max_lines = lines
+    ws.row_dimensions[r].height = base * max_lines
 
 
 def build_workbook(records, output_path):
@@ -179,17 +191,7 @@ def build_workbook(records, output_path):
     # Determine columns to keep and order
     keep_headers = MAIN_COLUMNS
 
-    # Create a new header row in place (row 1)
-    # First, clear row 1
-    for c in range(1, ws.max_column+1):
-        ws.cell(row=1, column=c, value=None)
-    for col_idx, h in enumerate(keep_headers, start=1):
-        ws.cell(row=1, column=col_idx, value=h)
-        ws.cell(row=1, column=col_idx).font = HEADER_FONT
-        ws.cell(row=1, column=col_idx).alignment = CENTER
-        ws.cell(row=1, column=col_idx).fill = BLUE_FILL
-
-    # Rebuild data rows according to keep_headers
+    # Rebuild data rows according to keep_headers using original data
     data_rows = []
     for r in range(2, ws.max_row+1):
         rec_map = {}
@@ -197,28 +199,33 @@ def build_workbook(records, output_path):
             rec_map[h] = ws.cell(row=r, column=idx).value
         data_rows.append([rec_map.get(h, '') for h in keep_headers])
 
-    # Clear existing data (rows 2..end)
-    ws.delete_rows(2, ws.max_row)
+    # Clear sheet entirely and write new header
+    ws.delete_rows(1, ws.max_row)
+    ws.append(keep_headers)
+    for col_idx in range(1, len(keep_headers)+1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = HEADER_FONT
+        cell.alignment = CENTER
+        cell.fill = BLUE_FILL
+    ws.freeze_panes = 'A2'
 
     # Write normalized rows
     for row in data_rows:
         ws.append(row)
 
-    # Enable wrap text for specified columns
-    wrap_cols = set([
-        'Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria'
-    ])
+    # Enable wrap text for specified columns and set alignments
+    wrap_cols = ['Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria']
     header_index = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column+1)}
+    wrap_indices = [header_index[h] for h in wrap_cols if h in header_index]
 
     for r in range(2, ws.max_row+1):
         for c in range(1, ws.max_column+1):
-            val = ws.cell(row=1, column=c).value
+            hname = ws.cell(row=1, column=c).value
             cell = ws.cell(row=r, column=c)
-            if val in wrap_cols:
+            if hname in wrap_cols:
                 cell.alignment = LEFT_TOP
             else:
-                # Index and numeric-like: center/right; everything else left
-                if val == 'Index' or isinstance(cell.value, (int, float)):
+                if hname == 'Index' or isinstance(cell.value, (int, float)):
                     cell.alignment = CENTER
                 else:
                     cell.alignment = LEFT_TOP
@@ -237,7 +244,10 @@ def build_workbook(records, output_path):
         for c in range(1, ws.max_column+1):
             ws.cell(row=r, column=c).border = THIN_BORDER
 
+    # Auto widths and row heights after wrapping
     auto_widths(ws)
+    for r in range(2, ws.max_row+1):
+        calc_row_height_for_wrapped(ws, r, wrap_indices)
 
     # Data validation ONLY on Code Generation (Required / Not)
     if 'Code Generation (Required / Not)' in header_index and ws.max_row >= 2:
@@ -250,17 +260,12 @@ def build_workbook(records, output_path):
         dv.add(f'{col_letter}2:{col_letter}{ws.max_row}')
 
     # Final visibility enforcement: only TestPlan (visible) and Meta_data_sheet (Very Hidden)
-    # Ensure no sheet named 'Data' exists
     if 'Data' in wb.sheetnames:
-        # Delete if still exists for any reason
-        ws_data = wb['Data']
-        wb.remove(ws_data)
+        wb.remove(wb['Data'])
 
-    if set(wb.sheetnames) != {'TestPlan', 'Meta_data_sheet'}:
-        # Reorder to exactly two sheets if extras somehow appeared
-        for name in list(wb.sheetnames):
-            if name not in {'TestPlan', 'Meta_data_sheet'}:
-                wb.remove(wb[name])
+    for name in list(wb.sheetnames):
+        if name not in {'TestPlan', 'Meta_data_sheet'}:
+            wb.remove(wb[name])
 
     # Save workbook
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -296,13 +301,15 @@ def validate_xlsx(path):
         print('ERROR: Meta_data_sheet is not Very Hidden', file=sys.stderr)
         sys.exit(3)
     ws = wb['TestPlan']
-    # Validate single data validation on the specific column only
     dvs = getattr(ws, 'data_validations', None)
     if dvs is None or len(dvs.dataValidation) != 1:
         print('ERROR: Data validation not applied exactly once', file=sys.stderr)
         sys.exit(3)
     dv = list(dvs.dataValidation)[0]
-    if dv.type != 'list' or (dv.formula1 or '').strip('\"') != ALLOWED_VALIDATION_VALUES:
+    val = (dv.formula1 or '').strip()
+    if val.startswith('"') and val.endswith('"'):
+        val = val[1:-1]
+    if dv.type != 'list' or val != ALLOWED_VALIDATION_VALUES:
         print('ERROR: Data validation list mismatch', file=sys.stderr)
         sys.exit(3)
 
@@ -321,9 +328,7 @@ def main():
     out_dir = args.output_dir
     if not out_dir.endswith('/'):
         out_dir += '/'
-    output_path = os.path.join(out_dir, filename)
-    # Normalize path to repo root
-    output_path = os.path.normpath(output_path)
+    output_path = os.path.normpath(os.path.join(out_dir, filename))
 
     # Build workbook
     build_workbook(records, output_path)

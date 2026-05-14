@@ -14,6 +14,10 @@ on:
         description: Output filename (leave blank to auto-name with IST)
         required: false
         default: ''
+  push:
+    branches: [ main ]
+    paths:
+      - tools/payloads/pcie_testplan.json
 
 jobs:
   build:
@@ -35,17 +39,26 @@ jobs:
           pip install --no-cache-dir openpyxl
 
       - name: Generate Excel
+        shell: bash
         env:
           JSON_DATA: ${{ inputs.json_data }}
           OUTPUT_DIR: ${{ inputs.output_dir }}
           OUTPUT_FILENAME: ${{ inputs.output_filename }}
+          JSON_FILE: tools/payloads/pcie_testplan.json
           IP_NAME: PCIE
         run: |
-          python3 tools/gen_testplan_xlsx.py \
-            --json-data "$JSON_DATA" \
-            --output-dir "$OUTPUT_DIR" \
-            --output-filename "$OUTPUT_FILENAME" \
-            --ip-name "$IP_NAME"
+          set -euo pipefail
+          CMD=(python3 tools/gen_testplan_xlsx.py --output-dir "$OUTPUT_DIR" --output-filename "$OUTPUT_FILENAME" --ip-name "$IP_NAME")
+          if [ -n "${JSON_DATA:-}" ]; then
+            CMD+=(--json-data "$JSON_DATA")
+          elif [ -f "$JSON_FILE" ]; then
+            CMD+=(--json-file "$JSON_FILE")
+          else
+            echo "No JSON input provided" >&2
+            exit 2
+          fi
+          echo "Running: ${CMD[*]}"
+          "${CMD[@]}"
 
       - name: Commit Excel
         shell: bash
