@@ -1,3 +1,4 @@
+# Re-trigger: 2026-05-14T10:05:00Z
 name: Generate PCIE TestPlan Excel
 
 on:
@@ -319,7 +320,18 @@ soft_reset_chk():
               ws.column_dimensions[get_column_letter(col_idx)].width = min(max(10, width + 2), 120)
 
           # Create Meta_data_sheet with Very Hidden state
-          # Include any key that starts with 'Hidden_' as META
+          meta_candidates = [
+              "Hidden_Test_Case_Name",
+              "Hidden_Test_Description",
+              "Hidden_Remarks",
+              "Hidden_Test_Steps_Procedure",
+              "Hidden_Impacted_Registers",
+              "Hidden_Validation_Acceptance_Criteria",
+              "Hidden_Header_Includes",
+              "Hidden_Macro_Define",
+              "Hidden_Skip_Array_Definition",
+          ]
+          # Include any key that starts with 'Hidden_' as META as well
           meta_keys = [k for k in keys_order if k.startswith("Hidden_")]
 
           ms = wb.create_sheet("Meta_data_sheet")
@@ -351,7 +363,6 @@ soft_reset_chk():
               "Code Generation (Required / Not)",
           ]
 
-          # Rebuild the Data sheet content restricted to main_order
           final_headers = list(main_order)
 
           # Clear sheet
@@ -437,7 +448,7 @@ soft_reset_chk():
               rng = f"{get_column_letter(cg_col)}2:{get_column_letter(cg_col)}{ws.max_row}"
               dv.add(rng)
 
-          # Final sheet visibility enforcement: only TestPlan (visible) and Meta_data_sheet (veryHidden)
+          # Final sheet visibility enforcement
           allowed = {"TestPlan", "Meta_data_sheet"}
           to_delete = [s.title for s in wb.worksheets if s.title not in allowed]
           for name in to_delete:
@@ -453,7 +464,7 @@ soft_reset_chk():
           out_path = os.path.join(out_dir, f'PCIE_TestPlan_{ts}.xlsx')
           wb.save(out_path)
 
-          # Validate as real XLSX (ZIP-based OOXML) and reloadable
+          # Validate as real XLSX
           if not zipfile.is_zipfile(out_path):
               raise SystemExit("Validation failed: not a ZIP-based XLSX")
           try:
