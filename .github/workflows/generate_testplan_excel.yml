@@ -1,0 +1,58 @@
+name: Generate TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json'
+      - '.github/workflows/generate_testplan_excel.yml'
+      - 'tools/gen_testplan_excel.py'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Excel
+        env:
+          JSON_PATH: Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json
+          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+          IP_NAME: PCIE
+          COMMIT_MSG_PREFIX: Add PCIE TestPlan
+        run: |
+          python tools/gen_testplan_excel.py \
+            --json "$JSON_PATH" \
+            --output-dir "$OUTPUT_DIR" \
+            --ip-name "$IP_NAME" \
+            --commit-prefix "$COMMIT_MSG_PREFIX"
+      - name: Commit Excel
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f Test_Output/PCIE/TestPlan/.last_commit_msg.txt ]; then
+            COMMIT_MSG=$(cat Test_Output/PCIE/TestPlan/.last_commit_msg.txt)
+          else
+            COMMIT_MSG="Add PCIE TestPlan $(date -u +'%Y%m%d_%H%M%S')"
+          fi
+          FILE=$(ls -t Test_Output/PCIE/TestPlan/PCIE_TestPlan_*.xlsx 2>/dev/null | head -n1 || true)
+          if [ -n "$FILE" ]; then
+            git add "$FILE"
+            git commit -m "$COMMIT_MSG" || echo "No changes to commit"
+            git push || echo "Nothing to push"
+          else
+            echo "Expected Excel file not found; failing." >&2
+            exit 1
+          fi
