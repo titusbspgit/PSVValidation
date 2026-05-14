@@ -1,23 +1,11 @@
-name: Generate PCIE TestPlan XLSX
+name: Generate PCIE TestPlan
 
 on:
-  workflow_dispatch:
-    inputs:
-      json_data:
-        description: JSON array data (single-line or multiline)
-        required: true
-      output_dir:
-        description: Output directory in repo
-        required: false
-        default: Test_Output/PCIE/TestPlan/
-      output_filename:
-        description: Output filename (leave blank to auto-name with IST)
-        required: false
-        default: ''
   push:
     branches: [ main ]
     paths:
-      - tools/payloads/pcie_testplan.json
+      - 'Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,57 +15,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: '3.x'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --no-cache-dir openpyxl
-
-      - name: Generate Excel
-        shell: bash
-        env:
-          JSON_DATA: ${{ inputs.json_data }}
-          OUTPUT_DIR: ${{ inputs.output_dir }}
-          OUTPUT_FILENAME: ${{ inputs.output_filename }}
-          JSON_FILE: tools/payloads/pcie_testplan.json
-          IP_NAME: PCIE
+          pip install openpyxl
+      - name: Generate Excel from JSON
         run: |
-          set -euo pipefail
-          CMD=(python3 tools/gen_testplan_xlsx.py --output-dir "$OUTPUT_DIR" --output-filename "$OUTPUT_FILENAME" --ip-name "$IP_NAME")
-          if [ -n "${JSON_DATA:-}" ]; then
-            CMD+=(--json-data "$JSON_DATA")
-          elif [ -f "$JSON_FILE" ]; then
-            CMD+=(--json-file "$JSON_FILE")
-          else
-            echo "No JSON input provided" >&2
-            exit 2
-          fi
-          echo "Running: ${CMD[*]}"
-          "${CMD[@]}"
-
+          python scripts/gen_testplan_excel.py --json Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json --outdir Test_Output/PCIE/TestPlan --ipname PCIE
       - name: Commit Excel
-        shell: bash
         run: |
-          set -euo pipefail
-          if [ ! -f .gen_last_output.json ]; then
-            echo "Missing .gen_last_output.json from generator" >&2
-            exit 1
-          fi
-          FILEPATH=$(python3 - <<'PY'
-import json
-with open('.gen_last_output.json','r') as f:
-    j=json.load(f)
-print(j['output_path'])
-PY
-)
-          echo "Will commit $FILEPATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- "$FILEPATH"
-          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
-          git push
+          ts=$(python - <<'PY'
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+from datetime import timezone, timedelta
+if ZoneInfo:
+    tz = ZoneInfo('Asia/Kolkata')
+else:
+    tz = timezone(timedelta(hours=5, minutes=30))
+print(datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S IST'))
+PY
+)
+          git add Test_Output/PCIE/TestPlan/*.xlsx || true
+          if git commit -m "Add PCIE TestPlan ${ts}"; then
+            git push
+          else
+            echo "No changes to commit"
+          fi
