@@ -1,0 +1,70 @@
+name: Generate PCIE TestPlan XLSX
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_data:
+        description: JSON array data (single-line or multiline)
+        required: true
+      output_dir:
+        description: Output directory in repo
+        required: false
+        default: Test_Output/PCIE/TestPlan/
+      output_filename:
+        description: Output filename (leave blank to auto-name with IST)
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir openpyxl
+
+      - name: Generate Excel
+        env:
+          JSON_DATA: ${{ inputs.json_data }}
+          OUTPUT_DIR: ${{ inputs.output_dir }}
+          OUTPUT_FILENAME: ${{ inputs.output_filename }}
+          IP_NAME: PCIE
+        run: |
+          python3 tools/gen_testplan_xlsx.py \
+            --json-data "$JSON_DATA" \
+            --output-dir "$OUTPUT_DIR" \
+            --output-filename "$OUTPUT_FILENAME" \
+            --ip-name "$IP_NAME"
+
+      - name: Commit Excel
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .gen_last_output.json ]; then
+            echo "Missing .gen_last_output.json from generator" >&2
+            exit 1
+          fi
+          FILEPATH=$(python3 - <<'PY'
+import json
+with open('.gen_last_output.json','r') as f:
+    j=json.load(f)
+print(j['output_path'])
+PY
+)
+          echo "Will commit $FILEPATH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$FILEPATH"
+          git commit -m "Final formatted Excel generated from JSON input" || echo "No changes to commit"
+          git push
