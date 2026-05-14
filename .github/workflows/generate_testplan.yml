@@ -1,0 +1,51 @@
+name: Generate PCIE TestPlan Excel
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'tools/input/PCIE_TestPlan_input.json'
+      - 'tools/generate_testplan_xlsx.py'
+      - '.github/workflows/generate_testplan.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate Excel from JSON (IST timestamped)
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          python tools/generate_testplan_xlsx.py \
+            --input tools/input/PCIE_TestPlan_input.json \
+            --output-dir Test_Output/PCIE/TestPlan \
+            --ip-name PCIE
+
+      - name: Commit Excel to repo
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          git config user.name "Ag-Emb-Mpsoc-Stage1 Agent"
+          git config user.email "actions@github.com"
+          if [ -n "$(git status --porcelain Test_Output/PCIE/TestPlan)" ]; then
+            git add Test_Output/PCIE/TestPlan/*.xlsx
+            git commit -m "Add PCIE TestPlan generated on $(date '+%Y-%m-%d %H:%M:%S IST')"
+            git push
+          else
+            echo "No changes to commit."
+          fi
