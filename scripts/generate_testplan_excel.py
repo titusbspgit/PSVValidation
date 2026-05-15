@@ -4,7 +4,6 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from zipfile import ZipFile
-from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -89,7 +88,6 @@ META_PREFERRED_ORDER = [
     'Hidden_Impacted_Registers',
     'Hidden_Validation_Acceptance_Criteria',
     'Hidden_Header_Includes',
-    # Note: Input uses Hidden_Macro_Defines (plural). Preserve exact key name if present
     'Hidden_Macro_Defines',
     'Hidden_Skip_Array_Definition'
 ]
@@ -102,13 +100,10 @@ DATA_ALIGN_CENTER_TOP = Alignment(horizontal='center', vertical='top', wrap_text
 
 
 def validate_and_load_json(src: str):
-    try:
-        data = json.loads(src)
-        if not isinstance(data, list) or len(data) == 0:
-            raise ValueError('JSON must be a non-empty array')
-        return data
-    except Exception as e:
-        raise SystemExit(f'JSON validation failed: {e}')
+    data = json.loads(src)
+    if not isinstance(data, list) or len(data) == 0:
+        raise SystemExit('JSON must be a non-empty array')
+    return data
 
 
 def build_schema(records):
@@ -133,7 +128,6 @@ def number_lines(text: str) -> str:
         if raw == '':
             out.append('')
             continue
-        # strip common bullet/number prefixes
         raw = re.sub(r'^(?:-\s*|\d+[\.)]\s*)', '', raw)
         out.append(f"{idx}. {raw}")
         idx += 1
@@ -141,15 +135,12 @@ def number_lines(text: str) -> str:
 
 
 def autofit_columns(ws):
-    # Approximate auto-fit by max string length per column
     col_widths = {}
     for row in ws.iter_rows(values_only=True):
         for i, val in enumerate(row, start=1):
             s = '' if val is None else str(val)
             l = max(len(part) for part in s.split('\n')) if s else 0
             col_widths[i] = max(col_widths.get(i, 0), l)
-    for i, w in col_widths.items():
-        ws.column_dimensions[chr(64 + i) if i <= 26 else None]
     for i, w in col_widths.items():
         col_letter = ws.cell(row=1, column=i).column_letter
         ws.column_dimensions[col_letter].width = min(max(w + 2, 12), 80)
@@ -161,10 +152,28 @@ def apply_borders(ws):
             cell.border = BORDER_THIN
 
 
+def adjust_row_heights(ws, wrap_col_names):
+    header_height = 18
+    ws.row_dimensions[1].height = header_height
+    name_to_idx = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column + 1)}
+    wrap_cols = [name_to_idx[n] for n in wrap_col_names if n in name_to_idx]
+    base = 15  # approx points per line
+    for r in range(2, ws.max_row + 1):
+        max_lines = 1
+        for c in wrap_cols:
+            txt = ws.cell(row=r, column=c).value
+            s = '' if txt is None else str(txt)
+            lines = s.split('\n') if s else []
+            line_max = max((len(x) for x in lines), default=0)
+            # crude wrap estimation: assume ~60 chars per line
+            est_lines = sum(max(1, (len(x) // 60) + 1) for x in lines) if lines else 1
+            max_lines = max(max_lines, est_lines)
+        ws.row_dimensions[r].height = base * max_lines
+
+
 def save_and_validate_xlsx(wb, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     wb.save(path)
-    # Validate OOXML by reading ZIP structure
     with ZipFile(path, 'r') as zf:
         names = zf.namelist()
         if '[Content_Types].xml' not in names or not any(n.startswith('xl/') for n in names):
@@ -173,15 +182,12 @@ def save_and_validate_xlsx(wb, path):
 
 def main():
     records = validate_and_load_json(FULL_JSON)
-
-    # Build union schema in first-seen order
     schema = build_schema(records)
 
     wb = Workbook()
     ws = wb.active
     ws.title = 'Data'
 
-    # Header
     for c, key in enumerate(schema, start=1):
         cell = ws.cell(row=1, column=c, value=key)
         cell.font = Font(bold=True)
@@ -189,12 +195,10 @@ def main():
         cell.fill = BLUE_FILL
     ws.freeze_panes = 'A2'
 
-    # Rows (exact values)
     for r, rec in enumerate(records, start=2):
         for c, key in enumerate(schema, start=1):
             ws.cell(row=r, column=c, value=rec.get(key, ''))
 
-    # Create Meta_data_sheet with META columns as-is in preferred order if present
     meta_cols = [k for k in META_PREFERRED_ORDER if k in schema]
     meta_ws = wb.create_sheet('Meta_data_sheet')
     for c, key in enumerate(meta_cols, start=1):
@@ -206,13 +210,10 @@ def main():
             meta_ws.cell(row=r, column=c, value=rec.get(key, ''))
     meta_ws.sheet_state = 'veryHidden'
 
-    # Normalize main sheet in-place: rename Data -> TestPlan
     ws.title = 'TestPlan'
 
-    # Remove META columns from TestPlan and reorder visible columns
     visible_cols = [k for k in VISIBLE_ORDER if k in schema]
 
-    # Build new table data for TestPlan with required column order
     table = [visible_cols]
     for rec in records:
         row = []
@@ -221,10 +222,8 @@ def main():
             row.append(val)
         table.append(row)
 
-    # Clear existing data on TestPlan
     ws.delete_rows(1, ws.max_row)
 
-    # Write new header and rows
     for c, key in enumerate(visible_cols, start=1):
         cell = ws.cell(row=1, column=c, value=key)
         cell.font = Font(bold=True)
@@ -232,8 +231,8 @@ def main():
         cell.fill = BLUE_FILL
     ws.freeze_panes = 'A2'
 
-    # Apply numbering to specific columns while writing
-    wrap_cols = set(['Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria'])
+    wrap_col_names = ['Test Description', 'Remarks', 'Test Steps / Procedure', 'Validation / Acceptance Criteria']
+
     for r_idx, data_row in enumerate(table[1:], start=2):
         for c_idx, key in enumerate(visible_cols, start=1):
             val = data_row[c_idx - 1]
@@ -241,57 +240,44 @@ def main():
                 val = number_lines(val)
             ws.cell(row=r_idx, column=c_idx, value=val)
 
-    # Formatting
-    # Wrap text columns
     for c_idx, key in enumerate(visible_cols, start=1):
         for r in range(2, ws.max_row + 1):
             cell = ws.cell(row=r, column=c_idx)
-            if key in wrap_cols:
+            if key in wrap_col_names:
                 cell.alignment = DATA_ALIGN_LEFT_TOP
             elif key == 'Index':
                 cell.alignment = DATA_ALIGN_CENTER_TOP
             else:
                 cell.alignment = DATA_ALIGN_LEFT_TOP
 
-    # Header styling is already set; ensure vertical center
     for c in range(1, ws.max_column + 1):
         ws.cell(row=1, column=c).alignment = HEADER_ALIGN
 
-    # Borders
     apply_borders(ws)
-
-    # Approximate auto-fit widths
     autofit_columns(ws)
+    adjust_row_heights(ws, wrap_col_names)
 
-    # Data validation for Code Generation (Required / Not)
     if 'Code Generation (Required / Not)' in visible_cols:
         col_idx = visible_cols.index('Code Generation (Required / Not)') + 1
         dv = DataValidation(type='list', formula1='"Required, Blank, Not Required"', allow_blank=True, showErrorMessage=True)
         ws.add_data_validation(dv)
         dv.add(f"{ws.cell(row=1, column=col_idx).column_letter}2:{ws.cell(row=1, column=col_idx).column_letter}{ws.max_row}")
 
-    # Enforce final visibility: only TestPlan (visible) and Meta_data_sheet (veryHidden)
     if 'Data' in [s.title for s in wb.worksheets]:
-        # Try to delete if exists
         try:
             ds = wb['Data']
             wb.remove(ds)
         except Exception:
             raise SystemExit('Validation failed: lingering Data sheet could not be removed')
 
-    # Compute IST timestamp and filename
     ist = datetime.now(ZoneInfo('Asia/Kolkata'))
     ts_date = ist.strftime('%Y%m%d')
     ts_time = ist.strftime('%H%M%S')
     filename = f"PCIE_TestPlan_{ts_date}_{ts_time}.xlsx"
     rel_path = os.path.join(OUTPUT_DIR, filename)
 
-    # Save and validate
     save_and_validate_xlsx(wb, rel_path)
 
-    # Export variables for workflow step
-    with open('.testplan_ts', 'w', encoding='utf-8') as f:
-        f.write(f"{ts_date}_{ts_time}")
     with open('.testplan_fname', 'w', encoding='utf-8') as f:
         f.write(rel_path)
 

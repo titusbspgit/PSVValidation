@@ -30,7 +30,6 @@ jobs:
         shell: bash
         run: |
           FNAME=$(cat .testplan_fname)
-          TS=$(cat .testplan_ts)
           if [ ! -f "$FNAME" ]; then
             echo "Expected Excel file not found: $FNAME" >&2
             exit 1
@@ -41,6 +40,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Add PCIE Test Plan Excel generated on $TS"
+            git commit -m "Final formatted Excel generated from JSON input"
             git push
           fi
