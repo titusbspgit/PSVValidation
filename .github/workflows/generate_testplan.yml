@@ -1,51 +1,46 @@
 name: Generate PCIE TestPlan Excel
 
 on:
-  workflow_dispatch: {}
   push:
+    branches: [ main ]
     paths:
-      - 'tools/input/PCIE_TestPlan_input.json'
-      - 'tools/generate_testplan_xlsx.py'
-      - '.github/workflows/generate_testplan.yml'
+      - .github/workflows/generate_testplan.yml
+      - .github/scripts/generate_testplan.py
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
+          pip install openpyxl==3.1.2
 
-      - name: Generate Excel from JSON (IST timestamped)
-        env:
-          TZ: Asia/Kolkata
+      - name: Generate Excel from JSON
         run: |
-          python tools/generate_testplan_xlsx.py \
-            --input tools/input/PCIE_TestPlan_input.json \
-            --output-dir Test_Output/PCIE/TestPlan \
-            --ip-name PCIE
+          python .github/scripts/generate_testplan.py
 
-      - name: Commit Excel to repo
-        env:
-          TZ: Asia/Kolkata
+      - name: Commit Excel
         run: |
-          git config user.name "Ag-Emb-Mpsoc-Stage1 Agent"
-          git config user.email "actions@github.com"
-          if [ -n "$(git status --porcelain Test_Output/PCIE/TestPlan)" ]; then
-            git add Test_Output/PCIE/TestPlan/*.xlsx
-            git commit -m "Add PCIE TestPlan generated on $(date '+%Y-%m-%d %H:%M:%S IST')"
-            git push
-          else
+          git config user.name "Ag-Emb-Mpsoc-Stage1"
+          git config user.email "noreply@agent.local"
+          git add Test_Output/PCIE/TestPlan/*.xlsx || true
+          if git diff --cached --quiet; then
             echo "No changes to commit."
+          else
+            git commit -m "Final formatted Excel generated from JSON input"
+            git push
           fi
