@@ -1,52 +1,52 @@
-name: Generate PCIE TestPlan
+name: Generate PCIE TestPlan Excel
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json'
-  workflow_dispatch:
+      - .github/workflows/generate_pcie_testplan.yml
+      - scripts/gen_pcie_testplan.py
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel from JSON
+
+      - name: Generate Excel
         run: |
-          python scripts/gen_testplan_excel.py --json Test_Output/PCIE/TestPlan/FULL_JSON_STRUCTURE.json --outdir Test_Output/PCIE/TestPlan --ipname PCIE
-      - name: Commit Excel
+          python scripts/gen_pcie_testplan.py
+
+      - name: Read generated path and IST timestamp
+        id: info
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          ts=$(python - <<'PY'
-from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
-from datetime import timezone, timedelta
-if ZoneInfo:
-    tz = ZoneInfo('Asia/Kolkata')
-else:
-    tz = timezone(timedelta(hours=5, minutes=30))
-print(datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S IST'))
-PY
-)
-          git add Test_Output/PCIE/TestPlan/*.xlsx || true
-          if git commit -m "Add PCIE TestPlan ${ts}"; then
-            git push
-          else
-            echo "No changes to commit"
-          fi
+          FILEPATH=$(cat generated_path.txt)
+          IST_TS=$(cat ist_timestamp.txt)
+          echo "file_path=$FILEPATH" >> $GITHUB_OUTPUT
+          echo "ist_ts=$IST_TS" >> $GITHUB_OUTPUT
+
+      - name: Commit Excel file
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "Ag-Emb-Mpsoc-Stage1"
+          git config user.email "actions@localhost"
+          git add "${{ steps.info.outputs.file_path }}"
+          git commit -m "Add PCIE TestPlan Excel generated on IST ${{ steps.info.outputs.ist_ts }}" || echo "No changes to commit"
+          git push
