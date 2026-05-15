@@ -1,52 +1,46 @@
-name: Generate PCIE TestPlan Excel
+name: Generate PCIE Test Plan Excel
 
 on:
   push:
-    branches: [ main ]
     paths:
-      - .github/workflows/generate_pcie_testplan.yml
-      - scripts/gen_pcie_testplan.py
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_pcie_testplan.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           persist-credentials: true
-
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: '3.x'
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
-
+        run: pip install openpyxl
       - name: Generate Excel
+        run: python scripts/generate_testplan_excel.py
+      - name: Commit Excel
+        shell: bash
         run: |
-          python scripts/gen_pcie_testplan.py
-
-      - name: Read generated path and IST timestamp
-        id: info
-        run: |
-          FILEPATH=$(cat generated_path.txt)
-          IST_TS=$(cat ist_timestamp.txt)
-          echo "file_path=$FILEPATH" >> $GITHUB_OUTPUT
-          echo "ist_ts=$IST_TS" >> $GITHUB_OUTPUT
-
-      - name: Commit Excel file
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "Ag-Emb-Mpsoc-Stage1"
-          git config user.email "actions@localhost"
-          git add "${{ steps.info.outputs.file_path }}"
-          git commit -m "Add PCIE TestPlan Excel generated on IST ${{ steps.info.outputs.ist_ts }}" || echo "No changes to commit"
-          git push
+          FNAME=$(cat .testplan_fname)
+          TS=$(cat .testplan_ts)
+          if [ ! -f "$FNAME" ]; then
+            echo "Expected Excel file not found: $FNAME" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FNAME"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Add PCIE Test Plan Excel generated on $TS"
+            git push
+          fi
