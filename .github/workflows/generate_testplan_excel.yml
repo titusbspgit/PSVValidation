@@ -2,7 +2,11 @@ name: Generate TestPlan Excel
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
+    paths:
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan_excel.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,90 +15,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          persist-credentials: true
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-
-      - name: Generate Excel from embedded JSON and commit
-        shell: bash
+      - name: Generate Excel
+        id: gen
         run: |
-          set -euo pipefail
-          TMP_JSON="$(mktemp)"
-          cat > "$TMP_JSON" << 'JSON'
-          [
-            {
-              "Index": 1,
-              "SS / Module": "PCIE",
-              "Feature": "SII RC Register Read/Write and Default Value Verification",
-              "Test Case Name": "pcie1_sii_rc_reg_wr_rd_test",
-              "Test Description": "Checks default values of the SII RC registers and verifies masked write/read behavior using predefined patterns while skipping non-readable, non-writable, and listed skip entries.",
-              "Speed": "NA",
-              "Mode": "Polling",
-              "Memory Start Offset": "NA",
-              "Memory End Offset": "NA",
-              "Remarks": "Registers marked non-readable or non-writable are skipped. Entries flagged in the skip list are not accessed. The PHY reset control register is excluded from the default check. The optional soft reset sequence is present but disabled.",
-              "Test Steps / Procedure": "1) Read all SII RC registers permitted for reading and compare each to its default value; skip the PHY reset control register from this check.\n2) For each data pattern, write to all writable SII RC registers that are not in the skip list.\n3) Read back all registers that are both readable and writable and not in the skip list, and compare to the expected masked values derived from the pattern and defaults.\n4) Count mismatches for default checks and write/read checks and determine pass when both counts are zero, otherwise fail.",
-              "Impacted Registers": "SII_CFG_BAR0_START1\nSII_CFG_BAR0_START2\nSII_CFG_BAR0_LIMIT1\nSII_CFG_BAR0_LIMIT2\nSII_CFG_BAR1_START\nSII_CFG_BAR1_LIMIT1\nSII_CFG_BAR2_START1\nSII_CFG_BAR2_START2\nSII_CFG_BAR2_LIMIT1\nSII_CFG_BAR2_LIMIT2\nSII_CFG_BAR3_START\nSII_CFG_BAR3_LIMIT\nSII_CFG_BAR4_START1\nSII_CFG_BAR4_START2\nSII_CFG_BAR4_LIMIT1\nSII_CFG_BAR4_LIMIT2\nSII_CFG_BAR5_START\nSII_CFG_BAR5_LIMIT\nSII_PCIE1_CONFIG_INFO1\nSII_PCIE1_CONFIG_INFO2\nSII_PCIE1_GEN_CONTROL1\nSII_PCIE1_GEN_CONTROL2\nSII_PCIE1_GEN_CONTROL3\nSII_PCIE1_PM_CONTROL\nSII_PCIE1_CONTROL_PM_STS\nSII_PCIE1_TRANSMIT_HEADER1\nSII_PCIE1_TRANSMIT_HEADER2\nSII_PCIE1_TRANSMIT_HEADER3\nSII_PCIE1_TRANSMIT_HEADER4\nSII_PCIE1_TRANSMIT_REQ\nSII_PCIE1_RCV_MSG_HDR1\nSII_PCIE1_RCV_MSG_HDR2\nSII_PCIE1_RCV_MSG_HDR3\nSII_PCIE1_RCV_MSG_HDR4\nSII_PCIE1_RCV_MSG_STS\nSII_RCV_INTERRPUT_CTRL\nSII_CFG_EXP_ROM_START\nSII_CFG_EXP_ROM_LIMIT\nSII_CFG_EXP_ROM_INFO\nSII_CXPL_DEBUG_INFO1\nSII_CXPL_DEBUG_INFO2\nSII_CXPL_DEBUG_INFO_EI\nSII_PCIE1_TARGET_INFO1\nSII_PCIE1_TARGET_INFO2\nSII_PCIE1_CONTOLLER_ERROR_STATUS\nSII_PCIE1_CONTROLLER_INT_STS\nSII_PCIE1_CONTROLLER_INTERRUPT_CONTROL\nSII_PHY_RST_CONTROL\nSII_LINK_DEBUG_DATA\nSII_PCIE1_ERR_STS\nSII_PCIE1_ERR_INTERRUPT_CTRL\nSII_CFG_MSI_INT\nSII_LTR_MSG\nSII_LTR_MSG_LATENCY\nSII_APP_LTR_LATENCY\nSII_CFG_LTR_MAX_LATENCY\nSII_OBFF_CNTRL\nSII_SLV_AWMISC_INFO\nSII_SLV_AWMISC_INFO_HDR_34DW_HI\nSII_SLV_AWMISC_INFO_HDR_34DW_LO\nSII_SLV_MISC_INFO\nSII_SLV_MISC_RESP_INFO\nSII_MSTR_AWMISC_INFO_CNTRL\nSII_MSTR_AWMISC_INFO_1\nSII_MSTR_AWMISC_INFO_0\nSII_MSTR_AWMISC_INFO_HDR_34DW_HI\nSII_MSTR_AWMISC_INFO_HDR_34DW_LO\nSII_MSTR_ARMISC_INFO_CNTRL\nSII_MSTR_ARMISC_INFO_1\nSII_MSTR_ARMISC_INFO_0\nSII_MSTR_BMISC_RMISC_CPL_STAT_INFO\nSII_RADM_TIMEOUT_INFO\nSII_CFG_MSI_INFO\nSII_CFG_MSI_DATA\nSII_CFG_MSI_ADDR_HI\nSII_CFG_MSI_ADDR_LO\nSII_CFG_AER_INT_AND_PCIE1_CAP_INT_MSG\nSII_RTLH_RFC_DATA\nSII_APP_HDR_INFO\nSII_APP_HDR_LOG_3\nSII_APP_HDR_LOG_2\nSII_APP_HDR_LOG_1\nSII_APP_HDR_LOG_0\nSII_CFG_BUS_NUM\nSII_CFG_BR_CTRL_SERREN\nSII_APP_DEV_AND_BUS_NUM\nSII_PCIE1_CONTROLLER_INT_STS_1\nSII_PCIE1_CONTROLLER_INTERRUPT_CONTROL_1\nSII_APP_AND_SLOT_CONTROL_REG\nSII_DIAG_CTRL_BUS\nSII_CFG_REG_RO\nSII_CFG_ARI_FWD_EN\nSII_RADM_SLOT_PWR_PAYLOAD\nSII_DIAG_STATUS_BUS_0\nSII_DIAG_STATUS_BUS_1\nSII_DIAG_STATUS_BUS_2\nSII_DIAG_STATUS_BUS_3\nSII_DIAG_STATUS_BUS_4\nSII_DIAG_STATUS_BUS_5\nSII_DIAG_STATUS_BUS_6\nSII_DIAG_STATUS_BUS_7\nSII_DIAG_STATUS_BUS_8\nSII_DIAG_STATUS_BUS_9\nSII_DIAG_STATUS_BUS_10\nSII_DIAG_STATUS_BUS_11\nSII_DIAG_STATUS_BUS_12\nSII_DIAG_STATUS_BUS_13\nSII_DIAG_STATUS_BUS_14\nSII_DIAG_STATUS_BUS_15\nSII_DIAG_STATUS_BUS_16\nSII_DIAG_STATUS_BUS_17\nSII_DIAG_STATUS_BUS_18\nSII_DIAG_STATUS_BUS_19\nSII_RAM_PWR_CNTRL_0\nSII_RAM_PWR_CNTRL_1\nSII_SOFT_RESET_CTRL\nSII_CFG_MSI_PENDING_B\nSII_SMLH_LTSSM_STATE_TRAN_1\nSII_SMLH_LTSSM_STATE_TRAN_2\nSII_SMLH_LTSSM_STATE_TRAN_3\nSII_SMLH_LTSSM_STATE_TRAN_4\nSII_SMLH_LTSSM_STATE_TRAN_5\nSII_SMLH_LTSSM_STATE_TRAN_6\nSII_SMLH_LTSSM_STATE_TRAN_7\nSII_PHY_CONTROL_0\nSII_PHY_CONTROL_1\nSII_PHY_CONTROL_2\nSII_PHY_CONTROL_3\nSII_PHY_CONTROL_4\nSII_PHY_CONTROL_5\nSII_PHY_CONTROL_6\nSII_PHY_CONTROL_7\nSII_PHY_CONTROL_8\nSII_PHY_CONTROL_9\nSII_PHY_CONTROL_10\nSII_PHY_CONTROL_11\nSII_PHY_CONTROL_12\nSII_PHY_CONTROL_13\nSII_PHY_CONTROL_14\nSII_PHY_CONTROL_15\nSII_PHY_CONTROL_16\nSII_PHY_CONTROL_17\nSII_PHY_CONTROL_18\nSII_PHY_CONTROL_19\nSII_PHY_CONTROL_20\nSII_PHY_CONTROL_21\nSII_PHY_CONTROL_22\nSII_PHY_CONTROL_23\nSII_PHY_CONTROL_24\nSII_PHY_CONTROL_25\nSII_PHY_CONTROL_26\nSII_MSI_CTRL_IO\nSII_MSI_CTRL_INT_VEC",
-              "Validation / Acceptance Criteria": "1) Default value check for each readable register equals the expected default value → Pass.\n2) Readback for each writable and readable register equals the expected masked value computed from the pattern and default → Pass.\n3) Both default mismatch count and write/read mismatch count are zero at test end → Pass.",
-              "Code Generation (Required / Not)": "",
-              "Hidden_Test_Case_Name": "pcie1_sii_rc_reg_wr_rd_test",
-              "Hidden_Test_Description": "...omitted for brevity (present in source, keep as-is in storage)...",
-              "Hidden_Remarks": "...omitted for brevity (present in source, keep as-is in storage)...",
-              "Hidden_Test_Steps_Procedure": "...omitted for brevity (present in source, keep as-is in storage)...",
-              "Hidden_Impacted_Registers": "...long list beginning with mizar_PCIE1_SII_CFG_BAR0_START1...",
-              "Hidden_Validation_Acceptance_Criteria": "...omitted for brevity (present in source, keep as-is in storage)...",
-              "Hidden_Header_Includes": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include<pcie1/pcie_sii_rc_def.h>\n#include<pcie1/pcie_sii_rc_offset.h>",
-              "Hidden_Macro_Defines": "#define SOFT_RST_REG_ADDRESS\t0x00000000\n#define SOFT_RST_REG_DATA\t0x00000000\n#define MIZAR_PCIE1_SII_BASE     0xE68C1000\n#define CNT 153",
-              "Hidden_Skip_Array_Definition": "const int skip_array[153]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,}"
-            },
-            {
-              "Index": 2,
-              "SS / Module": "PCIE",
-              "Feature": "cfg_bus_master_en",
-              "Test Case Name": "pcie_cfg_wr_rd_test",
-              "Test Description": "Configures coherency control and verifies configuration space operations and BAR programming after link readiness. The test completes when the interface is ready and a synchronization condition is met.",
-              "Speed": "NA",
-              "Mode": "Polling",
-              "Memory Start Offset": "NA",
-              "Memory End Offset": "NA",
-              "Remarks": "Execution path depends on selected role at build time. Readiness is determined by polling. Debug prints are optional.",
-              "Test Steps / Procedure": "1) Program DBI_DSP_COHERENCY_CONTROL_3_OFF fields for both instances.\n2) Poll interface status until ready.\n3) Read configuration space, program BARs, and enable command settings.\n4) Wait for synchronization and finish when complete.",
-              "Impacted Registers": "DBI_DSP_COHERENCY_CONTROL_3_OFF",
-              "Validation / Acceptance Criteria": "1) Interface readiness is detected by status polling → Proceed.\n2) Synchronization condition is observed → Pass.\n3) Configuration and BAR values read back match programmed values → Pass.",
-              "Code Generation (Required / Not)": "",
-              "Hidden_Test_Case_Name": "pcie_cfg_wr_rd_test",
-              "Hidden_Test_Description": "Initializes a synchronization location, performs link training based on compile-time role macros, programs coherency control fields on two instances, polls status until ready, configures memory base and PCIe configuration space including BARs, enables command settings, and waits for a synchronization value before completing.\n- Writes 0x0 to 0xE6004100.\n- If DM0_RC: link_training_dm0_x4(4). If DM1_RC: link_training_dm1_x4(4). If DM0_EP: link_training_dm0_x4(4). If DM1_EP: link_training_dm1_x4(4).\n- Cache programming (PCIE0): rd_wr_data1 = set_data(read_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF), 11,14, 0xF); rd_wr_data1 = set_data(rd_wr_data1, 3,6, 0xF); write_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, rd_wr_data1). Then rd_wr_data1 = set_data(read_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF), 27,30, 0xF); rd_wr_data1 = set_data(rd_wr_data1, 19,22, 0xF); write_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, rd_wr_data1).\n- Cache programming (PCIE1): repeat the above sequences using mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF.\n- wait_on(20). Re-apply combined field settings for PCIE0 and PCIE1: set ranges [11:14], [3:6], [27:30], [19:22] and write back to the same register for each instance.\n- data_rd = read_sii0_reg(0xC0); optionally print under DEBUG_DISPLAY. Call non_secure_prot_nic(). While ((data_rd & 0xD1) != 0xD1): data_rd = read_sii0_reg(0xC0) and optionally print.\n- If DM1_RC: data_rd = read_sii1_reg(0xC0); while ((data_rd & 0xD1) != 0xD1): optionally print and update data_rd by read_sii1_reg(0xC0).\n- write_reg(0xE6004100, 0x11111111). wait_on(15000).\n- If DM0_RC: mem_base_program_dm0_x4(); wait_on(10); optionally print header; for i=0..9: rd_wr_data1 = read_pcie_slv0_reg(i*0x4). Then write first BAR set: write_pcie_slv0_reg(0x10,0xFFFFFFFF), (0x14,0xFFFFFFFF), (0x18,0xFFFFFFFF), (0x1c,0xFFFFFFFF), (0x20,0xFFFFFFFF), (0x24,0xFFFFFFFF). Read back each at 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24 with prints. Then write second BAR set: (0x10,0x0), (0x14,0x4), (0x18,0x20000000), (0x1c,0x40000000), (0x20,0x60000000), (0x24,0x80000000). Read back each with prints. Finally, write_pcie_slv0_reg(0x4, 0x7) to enable.\n- If DM1_RC: mem_base_program_dm1_x4(); optionally print header; for i=0..9: rd_wr_data1 = read_pcie_slv1_reg(i*0x4). Write_pcie_slv1_reg(0x4, 0x7). Write BARs with 0xFFFFFFFF at 0x10..0x24 and read back; then write (0x0, 0x4, 0x20000000, 0x40000000, 0x60000000, 0x80000000) at 0x10..0x24 and read back.\n- wait_on(10). data_rd = read_reg(0xE6004100). While (data_rd != 0x12345678): wait_on(5); optionally print; data_rd = read_reg(0xE6004100). Optionally print exit message; finish(0).",
-              "Hidden_Remarks": "Execution path is controlled by DM0_RC, DM1_RC, DM0_EP, DM1_EP macros. Readiness is asserted when (read_sii*_reg(0xC0) & 0xD1) equals 0xD1. A synchronization location at 0xE6004100 must reach 0x12345678 before completion. Debug prints are conditional on DEBUG_DISPLAY.",
-              "Hidden_Test_Steps_Procedure": "1) write_reg(0xE6004100, 0x0).\n2) If DM0_RC: link_training_dm0_x4(4). If DM1_RC: link_training_dm1_x4(4). If DM0_EP: link_training_dm0_x4(4). If DM1_EP: link_training_dm1_x4(4).\n3) Program PCIE0 coherency control: rd_wr_data1 = set_data(read_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF), 11,14, 0xF); rd_wr_data1 = set_data(rd_wr_data1, 3,6, 0xF); write_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, rd_wr_data1). Then rd_wr_data1 = set_data(read_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF), 27,30, 0xF); rd_wr_data1 = set_data(rd_wr_data1, 19,22, 0xF); write_reg(mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, rd_wr_data1).\n4) Program PCIE1 coherency control: same operations using mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF.\n5) wait_on(20). Re-apply combined programming for PCIE0 and PCIE1: set_data for ranges [11:14], [3:6], [27:30], [19:22], then write back to the same register for each instance.\n6) data_rd = read_sii0_reg(0xC0); optionally print.\n7) non_secure_prot_nic().\n8) While ((data_rd & 0xD1) != 0xD1): data_rd = read_sii0_reg(0xC0); optionally print.\n9) If DM1_RC: data_rd = read_sii1_reg(0xC0); while ((data_rd & 0xD1) != 0xD1): optionally print; data_rd = read_sii1_reg(0xC0).\n10) write_reg(0xE6004100, 0x11111111). wait_on(15000).\n11) If DM0_RC: mem_base_program_dm0_x4(); wait_on(10); for i=0..9: rd_wr_data1 = read_pcie_slv0_reg(i*0x4). Then write BARs at 0x10,0x14,0x18,0x1c,0x20,0x24 with 0xFFFFFFFF; read back each; then write BARs with 0x0, 0x4, 0x20000000, 0x40000000, 0x60000000, 0x80000000 at 0x10..0x24; read back each; write_pcie_slv0_reg(0x4, 0x7).\n12) If DM1_RC: mem_base_program_dm1_x4(); for i=0..9: rd_wr_data1 = read_pcie_slv1_reg(i*0x4); write_pcie_slv1_reg(0x4, 0x7); write BARs 0xFFFFFFFF at 0x10..0x24 and read back; then write 0x0, 0x4, 0x20000000, 0x40000000, 0x60000000, 0x80000000 at 0x10..0x24 and read back.\n13) wait_on(10). data_rd = read_reg(0xE6004100). While (data_rd != 0x12345678): wait_on(5); optionally print; data_rd = read_reg(0xE6004100). Optionally print exit; finish(0).",
-              "Hidden_Impacted_Registers": "mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF\nmizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF",
-              "Hidden_Validation_Acceptance_Criteria": "Readiness loop: (read_sii0_reg(0xC0) & 0xD1) equals 0xD1 before proceeding; if DM1_RC, the same applies using read_sii1_reg(0xC0). Final synchronization: read_reg(0xE6004100) equals 0x12345678, after which finish(0) is called. Configuration and BAR readbacks return the recently programmed values.",
-              "Hidden_Header_Includes": "#include <stdlib.h>\n#include <stdio.h>\n#include <test_common.h>\n#include \"pcie.h\"",
-              "Hidden_Macro_Defines": "NA",
-              "Hidden_Skip_Array_Definition": "NA"
-            }
-          ]
-JSON
-
-          python .github/scripts/json_to_excel.py \
-            --json-file "$TMP_JSON" \
-            --output-dir "Test_Output/PCIE/TestPlan" \
-            --ip-name "PCIE"
-
+          python scripts/generate_testplan_excel.py
+      - name: Commit Excel
+        env:
+          FILE_PATH: ${{ steps.gen.outputs.output_file }}
+        run: |
+          if [ -z "$FILE_PATH" ]; then
+            echo "No output file path from previous step" >&2
+            exit 1
+          fi
+          echo "Committing $FILE_PATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/PCIE/TestPlan/*.xlsx || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Final formatted Excel generated from JSON input"
-            git push
-          fi
+          git add "$FILE_PATH"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push origin HEAD:main
