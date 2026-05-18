@@ -2,6 +2,13 @@ name: Generate TestPlan Excel
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "data/final_testplan.json"
+      - "tools/generate_testplan.py"
+      - ".github/workflows/generate_testplan.yml"
+      - "ci/triggers/**"
 
 permissions:
   contents: write

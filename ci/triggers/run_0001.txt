@@ -1,0 +1,1 @@
+trigger TestPlan Excel generation via push
