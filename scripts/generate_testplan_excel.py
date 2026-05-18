@@ -1,92 +1,80 @@
-#!/usr/bin/env python3
-import os
 import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+import argparse
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-# ---- Input JSON (embedded, preserve exactly) ----
-JSON_TEXT = r'''[
-  {"Index":"1","SS / Module":"PCIE","Feature":"Value After Reset: 0x0; Testable: writeAsRead","Test Case Name":"pcie1_sii_rc_reg_wr_rd_test","Test Description":"Validate the PCIe1 SII Root-Complex register block by checking default register values after reset and verifying masked write/read behavior across the register set. Non-readable/writable locations are skipped per masks; expected readback uses writable-bit masking and defaults for non-writable bits.","Meta Test Description":"program.c implements test_case() which executes: (1) chk_rst_val(): iterates i=0..CNT-1 over addr_array[i]; if read_mask_array[i]==0x00000000 then skip as not readable; explicitly skips mizar_PCIE1_SII_PHY_RST_CONTROL; otherwise reads data_rd=read_reg(addr_array[i]) and compares to default_value_array[i]; on mismatch increments def_fail_cnt. (2) chk_rd_wr(): defines chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}. For each data pattern j, first write phase: for each i, if skip_array[i]==1 skip; if write_mask_array[i]==0x00000000 skip; else write_reg(addr_array[i], data_wr). Then read/verify phase: for each i, if skip_array[i]==1 skip; if write_mask_array[i]==0x00000000 skip; if read_mask_array[i]==0x00000000 skip; else data_rd=read_reg(addr_array[i]); compute wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); compare data_rd to exp_val; on mismatch increments wr_fail_cnt. test_case() finishes with finish(1) if def_fail_cnt>0 or wr_fail_cnt>0, else finish(0). A soft_reset_chk() helper exists but is not called; it writes SOFT_RST_REG_ADDRESS (0x00000000) with SOFT_RST_REG_DATA (0x00000000) and restores default after waits.","Speed":"NA","Mode":"loops","Memory Start Offset":"0xE68C1000","Memory End Offset":"NA","Remarks":"Addresses with zero read or write masks are skipped. Additional skip control via skip_array. Default-value check excludes the PHY reset control register. Soft reset routine present but not executed. DEBUG_DISPLAY affects only prints.","Test Steps / Procedure":"1. Initialize the PCIe1 SII RC register test environment and counters.\n2. For each register in the SII RC block that is readable, read the value and confirm it matches the documented default value; skip non-readable addresses and the PHY reset control register.\n3. For each write pattern (all-1s, 0xAAAAAAAA, 0x55555555, all-0s, 0xA5A5A5A5, 0xFFFF0000), write the pattern to each writable register while skipping any addresses flagged to skip.\n4. For each written register that is also readable, read back the value and verify that writable bits reflect the pattern and non-writable bits retain their default values per the masks.\n5. Aggregate any mismatches from default checks and write/read verifications.\n6. Declare the test PASS only if no mismatches are found; otherwise, declare FAIL.","Meta Test Steps / Procedure":"- test_case(): call chk_rst_val(); call chk_rd_wr(); if (def_fail_cnt>0 || wr_fail_cnt>0) finish(1) else finish(0).\n- chk_rst_val(): for i in [0..CNT-1]: addr=addr_array[i]; if read_mask_array[i]==0x00000000: continue; if addr==mizar_PCIE1_SII_PHY_RST_CONTROL: continue; data_rd=read_reg(addr); if (data_rd==default_value_array[i]) PASS else {def_fail_cnt++; log}.\n- chk_rd_wr(): chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}; for each data_wr in chk_val:\n  • Write phase: for i in [0..CNT-1]: addr=addr_array[i]; if skip_array[i]==1: continue; if write_mask_array[i]==0x00000000: continue; else write_reg(addr, data_wr).\n  • Read/verify phase: for i in [0..CNT-1]: addr=addr_array[i]; if skip_array[i]==1: continue; if write_mask_array[i]==0x00000000: continue; if read_mask_array[i]==0x00000000: continue; else { data_rd=read_reg(addr); wr_n=(write_mask_array[i]^0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i]^0xffffffff) & read_mask_array[i] & default_value_array[i])); if (data_rd==exp_val) PASS else {wr_fail_cnt++; log} }.\n- soft_reset_chk(): not invoked; would read current value at SOFT_RST_REG_ADDRESS (0x00000000), write SOFT_RST_REG_DATA (0x00000000), wait, then restore and wait.","Impacted Registers":"SII_PHY_RST_CONTROL, SII_SOFT_RESET_CTRL, SII_PCIE1_CONTROLLER_INT_STS, SII_PCIE1_CONTROLLER_INTERRUPT_CONTROL, SII_CFG_BUS_NUM, SII_CFG_BAR0_START1, SII_CFG_BAR0_LIMIT1, SII_CFG_MSI_INT","Meta Impacted Registers":"mizar_PCIE1_SII_CFG_BAR0_START1, mizar_PCIE1_SII_CFG_BAR0_START2, mizar_PCIE1_SII_CFG_BAR0_LIMIT1, mizar_PCIE1_SII_CFG_BAR0_LIMIT2, mizar_PCIE1_SII_CFG_BAR1_START, mizar_PCIE1_SII_CFG_BAR1_LIMIT1, mizar_PCIE1_SII_CFG_BAR2_START1, mizar_PCIE1_SII_CFG_BAR2_START2, mizar_PCIE1_SII_CFG_BAR2_LIMIT1, mizar_PCIE1_SII_CFG_BAR2_LIMIT2, mizar_PCIE1_SII_CFG_BAR3_START, mizar_PCIE1_SII_CFG_BAR3_LIMIT, mizar_PCIE1_SII_CFG_BAR4_START1, mizar_PCIE1_SII_CFG_BAR4_START2, mizar_PCIE1_SII_CFG_BAR4_LIMIT1, mizar_PCIE1_SII_CFG_BAR4_LIMIT2, mizar_PCIE1_SII_CFG_BAR5_START, mizar_PCIE1_SII_CFG_BAR5_LIMIT, mizar_PCIE1_SII_PCIE1_CONFIG_INFO1, mizar_PCIE1_SII_PCIE1_CONFIG_INFO2, mizar_PCIE1_SII_PCIE1_GEN_CONTROL1, mizar_PCIE1_SII_PCIE1_GEN_CONTROL2, mizar_PCIE1_SII_PCIE1_GEN_CONTROL3, mizar_PCIE1_SII_PCIE1_PM_CONTROL, mizar_PCIE1_SII_PCIE1_CONTROL_PM_STS, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER1, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER4, mizar_PCIE1_SII_PCIE1_TRANSMIT_REQ, mizar_PCIE1_SII_PCIE1_RCV_MSG_HDR1, mizar_PCIE1_SII_PCIE1_RCV_MSG_HDR2, mizar_PCIE1_SII_PCIE1_RCV_MSG_HDR3, mizar_PCIE1_SII_PCIE1_RCV_MSG_HDR4, mizar_PCIE1_SII_PCIE1_RCV_MSG_STS, mizar_PCIE1_SII_RCV_INTERRPUT_CTRL, mizar_PCIE1_SII_CFG_EXP_ROM_START, mizar_PCIE1_SII_CFG_EXP_ROM_LIMIT, mizar_PCIE1_SII_CFG_EXP_ROM_INFO, mizar_PCIE1_SII_CXPL_DEBUG_INFO1, mizar_PCIE1_SII_CXPL_DEBUG_INFO2, mizar_PCIE1_SII_CXPL_DEBUG_INFO_EI, mizar_PCIE1_SII_PCIE1_TARGET_INFO1, mizar_PCIE1_SII_PCIE1_TARGET_INFO2, mizar_PCIE1_SII_PCIE1_CONTOLLER_ERROR_STATUS, mizar_PCIE1_SII_PCIE1_CONTROLLER_INT_STS, mizar_PCIE1_SII_PCIE1_CONTROLLER_INTERRUPT_CONTROL, mizar_PCIE1_SII_PHY_RST_CONTROL, mizar_PCIE1_SII_LINK_DEBUG_DATA, mizar_PCIE1_SII_PCIE1_ERR_STS, mizar_PCIE1_SII_PCIE1_ERR_INTERRUPT_CTRL, mizar_PCIE1_SII_CFG_MSI_INT, mizar_PCIE1_SII_LTR_MSG, mizar_PCIE1_SII_LTR_MSG_LATENCY, mizar_PCIE1_SII_APP_LTR_LATENCY, mizar_PCIE1_SII_CFG_LTR_MAX_LATENCY, mizar_PCIE1_SII_OBFF_CNTRL, mizar_PCIE1_SII_SLV_AWMISC_INFO, mizar_PCIE1_SII_SLV_AWMISC_INFO_HDR_34DW_HI, mizar_PCIE1_SII_SLV_AWMISC_INFO_HDR_34DW_LO, mizar_PCIE1_SII_SLV_MISC_INFO, mizar_PCIE1_SII_SLV_MISC_RESP_INFO, mizar_PCIE1_SII_MSTR_AWMISC_INFO_CNTRL, mizar_PCIE1_SII_MSTR_AWMISC_INFO_1, mizar_PCIE1_SII_MSTR_AWMISC_INFO_0, mizar_PCIE1_SII_MSTR_AWMISC_INFO_HDR_34DW_HI, mizar_PCIE1_SII_MSTR_AWMISC_INFO_HDR_34DW_LO, mizar_PCIE1_SII_MSTR_ARMISC_INFO_CNTRL, mizar_PCIE1_SII_MSTR_ARMISC_INFO_1, mizar_PCIE1_SII_MSTR_ARMISC_INFO_0, mizar_PCIE1_SII_MSTR_BMISC_RMISC_CPL_STAT_INFO, mizar_PCIE1_SII_RADM_TIMEOUT_INFO, mizar_PCIE1_SII_CFG_MSI_INFO, mizar_PCIE1_SII_CFG_MSI_DATA, mizar_PCIE1_SII_CFG_MSI_ADDR_HI, mizar_PCIE1_SII_CFG_MSI_ADDR_LO, mizar_PCIE1_SII_CFG_AER_INT_AND_PCIE1_CAP_INT_MSG, mizar_PCIE1_SII_RTLH_RFC_DATA, mizar_PCIE1_SII_APP_HDR_INFO, mizar_PCIE1_SII_APP_HDR_LOG_3, mizar_PCIE1_SII_APP_HDR_LOG_2, mizar_PCIE1_SII_APP_HDR_LOG_1, mizar_PCIE1_SII_APP_HDR_LOG_0, mizar_PCIE1_SII_CFG_BUS_NUM, mizar_PCIE1_SII_CFG_BR_CTRL_SERREN, mizar_PCIE1_SII_APP_DEV_AND_BUS_NUM, mizar_PCIE1_SII_PCIE1_CONTROLLER_INT_STS_1, mizar_PCIE1_SII_PCIE1_CONTROLLER_INTERRUPT_CONTROL_1, mizar_PCIE1_SII_APP_AND_SLOT_CONTROL_REG, mizar_PCIE1_SII_DIAG_CTRL_BUS, mizar_PCIE1_SII_CFG_REG_RO, mizar_PCIE1_SII_CFG_ARI_FWD_EN, mizar_PCIE1_SII_RADM_SLOT_PWR_PAYLOAD, mizar_PCIE1_SII_DIAG_STATUS_BUS_0, mizar_PCIE1_SII_DIAG_STATUS_BUS_1, mizar_PCIE1_SII_DIAG_STATUS_BUS_2, mizar_PCIE1_SII_DIAG_STATUS_BUS_3, mizar_PCIE1_SII_DIAG_STATUS_BUS_4, mizar_PCIE1_SII_DIAG_STATUS_BUS_5, mizar_PCIE1_SII_DIAG_STATUS_BUS_6, mizar_PCIE1_SII_DIAG_STATUS_BUS_7, mizar_PCIE1_SII_DIAG_STATUS_BUS_8, mizar_PCIE1_SII_DIAG_STATUS_BUS_9, mizar_PCIE1_SII_DIAG_STATUS_BUS_10, mizar_PCIE1_SII_DIAG_STATUS_BUS_11, mizar_PCIE1_SII_DIAG_STATUS_BUS_12, mizar_PCIE1_SII_DIAG_STATUS_BUS_13, mizar_PCIE1_SII_DIAG_STATUS_BUS_14, mizar_PCIE1_SII_DIAG_STATUS_BUS_15, mizar_PCIE1_SII_DIAG_STATUS_BUS_16, mizar_PCIE1_SII_DIAG_STATUS_BUS_17, mizar_PCIE1_SII_DIAG_STATUS_BUS_18, mizar_PCIE1_SII_DIAG_STATUS_BUS_19, mizar_PCIE1_SII_RAM_PWR_CNTRL_0, mizar_PCIE1_SII_RAM_PWR_CNTRL_1, mizar_PCIE1_SII_SOFT_RESET_CTRL, mizar_PCIE1_SII_CFG_MSI_PENDING_B, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_1, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_2, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_3, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_4, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_5, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_6, mizar_PCIE1_SII_SMLH_LTSSM_STATE_TRAN_7, mizar_PCIE1_SII_PHY_CONTROL_0, mizar_PCIE1_SII_PHY_CONTROL_1, mizar_PCIE1_SII_PHY_CONTROL_2, mizar_PCIE1_SII_PHY_CONTROL_3, mizar_PCIE1_SII_PHY_CONTROL_4, mizar_PCIE1_SII_PHY_CONTROL_5, mizar_PCIE1_SII_PHY_CONTROL_6, mizar_PCIE1_SII_PHY_CONTROL_7, mizar_PCIE1_SII_PHY_CONTROL_8, mizar_PCIE1_SII_PHY_CONTROL_9, mizar_PCIE1_SII_PHY_CONTROL_10, mizar_PCIE1_SII_PHY_CONTROL_11, mizar_PCIE1_SII_PHY_CONTROL_12, mizar_PCIE1_SII_PHY_CONTROL_13, mizar_PCIE1_SII_PHY_CONTROL_14, mizar_PCIE1_SII_PHY_CONTROL_15, mizar_PCIE1_SII_PHY_CONTROL_16, mizar_PCIE1_SII_PHY_CONTROL_17, mizar_PCIE1_SII_PHY_CONTROL_18, mizar_PCIE1_SII_PHY_CONTROL_19, mizar_PCIE1_SII_PHY_CONTROL_20, mizar_PCIE1_SII_PHY_CONTROL_21, mizar_PCIE1_SII_PHY_CONTROL_22, mizar_PCIE1_SII_PHY_CONTROL_23, mizar_PCIE1_SII_PHY_CONTROL_24, mizar_PCIE1_SII_PHY_CONTROL_25, mizar_PCIE1_SII_MSI_CTRL_IO, mizar_PCIE1_SII_MSI_CTRL_INT_VEC" },
-  {"Index":"2","SS / Module":"PCIE","Feature":"Per-Function PCIe Capabilities and BAR Config / Physical Function 0 (PF0) / BAR Setup For PF0; PF0 PCI Register Configuration (Command MEM/IO/BME); Link training readiness","Test Case Name":"pcie_cfg_wr_rd_test","Test Description":"Exercise PCIe link training readiness, program coherency control fields, probe and program configuration space BAR registers, and enable MEM/IO/Bus Master in the Command register. Wait for a scratch/control register handshake to conclude the test.","Meta Test Description":"program.c defines test_case(): 1) Initialize scratch/control at 0xE6004100 to 0x0 via write_reg. 2) Optionally perform link training using one of: link_training_dm0_x4(4), link_training_dm1_x4(4) for RC or EP instances based on compile-time defines (DM0_RC/DM1_RC/DM0_EP/DM1_EP). 3) CACHE PROGRAMMING: For PCIE0 and PCIE1 DBI_DSP_COHERENCY_CONTROL_3_OFF: read_reg, then set_data to update bitfields [11:14] and [3:6] with 0xF, write back; then update [27:30] and [19:22] with 0xF and write back. After wait_on(20), re-apply combined fields [11:14], [3:6], [27:30], [19:22] and write back for both instances. 4) Poll SII status: data_rd = read_sii0_reg(0xC0); call non_secure_prot_nic(); while ((data_rd & 0xD1) != 0xD1) re-read SII0 status. If DM1_RC, similarly poll SII1 status with read_sii1_reg(0xC0) until (data & 0xD1) == 0xD1. 5) Set scratch/control 0xE6004100 to 0x11111111, then wait_on(15000). 6) If DM0_RC: call mem_base_program_dm0_x4(); wait_on(10); read first 10 DWORDs of PCIe slave0 config space with read_pcie_slv0_reg(i*4). BAR probing: write 0xFFFFFFFF to offsets 0x10,0x14,0x18,0x1C,0x20,0x24; read back each. Program BARs with 0x0, 0x4, 0x20000000, 0x40000000, 0x60000000, 0x80000000; read back each. Enable Command MEM/IO/BME by write_pcie_slv0_reg(0x4, 0x7). 7) If DM1_RC: perform analogous steps on PCIe slave1: read first 10 DWORDs; write 0xFFFFFFFF to 0x10..0x24; read back; program BARs with same values; enable Command by write_pcie_slv1_reg(0x4, 0x7). 8) Final handshake: wait_on(10); poll read_reg(0xE6004100) until it equals 0x12345678 (wait_on(5) between polls). On completion call finish(0).","Speed":"NA","Mode":"loops","Memory Start Offset":"NA","Memory End Offset":"NA","Remarks":"Execution path depends on compile-time defines DM0_RC, DM1_RC, DM0_EP, DM1_EP. Test blocks until SII status (offset 0xC0) signals readiness (mask 0xD1). External helpers used: link_training_*(), mem_base_program_*(), non_secure_prot_nic(), wait_on(). DEBUG_DISPLAY gates prints only. Scratch/control register at 0xE6004100 is used for host handshake.","Test Steps / Procedure":"1. Clear the scratch/control register to start the test flow. 2. Train the PCIe link for the selected instance and role (as compiled). 3. Program coherency control fields for both PCIe instances to required values. 4. Wait until the SII status register indicates link and configuration readiness. 5. Set the scratch/control register to indicate configuration phase entry and wait for stabilization. 6. For each enabled Root Complex instance, read initial configuration space, probe BARs, program BAR addresses, and enable MEM/IO/Bus Master in the Command register. 7. Wait for the final host handshake by polling the scratch/control register until the expected completion value is observed. 8. Declare test PASS when the handshake value is received.","Meta Test Steps / Procedure":"- write_reg(0xE6004100, 0x00000000). - Optional link training per compile-time define: link_training_dm0_x4(4) or link_training_dm1_x4(4) for RC/EP. - For mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF: rd = read_reg(...); rd = set_data(rd,11,14,0xF); rd = set_data(rd,3,6,0xF); write_reg(..., rd); rd = set_data(read_reg(...),27,30,0xF); rd = set_data(rd,19,22,0xF); write_reg(..., rd). Repeat same sequence for mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF. - wait_on(20); then for each instance recompute rd by setting [11:14],[3:6],[27:30],[19:22] to 0xF and write_reg back. - Poll SII0: data_rd = read_sii0_reg(0xC0); non_secure_prot_nic(); while ((data_rd & 0xD1) != 0xD1) { data_rd = read_sii0_reg(0xC0); }. - If DM1_RC: Poll SII1 similarly using read_sii1_reg(0xC0). - write_reg(0xE6004100, 0x11111111); wait_on(15000). - If DM0_RC: mem_base_program_dm0_x4(); wait_on(10); for (i=0..9) read_pcie_slv0_reg(i*4); write_pcie_slv0_reg(0x10..0x24, 0xFFFFFFFF); read back each; write_pcie_slv0_reg(0x10,0x0); (0x14,0x4); (0x18,0x20000000); (0x1C,0x40000000); (0x20,0x60000000); (0x24,0x80000000); read back each; write_pcie_slv0_reg(0x4, 0x7). - If DM1_RC: repeat above sequence using read_pcie_slv1_reg/write_pcie_slv1_reg. - wait_on(10); do { wait_on(5); data_rd = read_reg(0xE6004100); } while (data_rd != 0x12345678); finish(0).","Impacted Registers":"DBI_DSP_COHERENCY_CONTROL_3_OFF; SII status register (offset 0xC0); 0xE6004100 scratch/control register; PCIe Configuration Space BAR registers (offsets 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24); PCIe Command register (offset 0x4, MEM/IO/BME)","Meta Impacted Registers":"mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; read_sii0_reg(0xC0); read_sii1_reg(0xC0); write_reg(0xE6004100); read_reg(0xE6004100); read_pcie_slv0_reg/write_pcie_slv0_reg offsets 0x4, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24; read_pcie_slv1_reg/write_pcie_slv1_reg offsets 0x4, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24","Validation / Acceptance Criteria":"PASS when: (a) SII status indicates readiness (mask 0xD1 set) for required instances, (b) final scratch/control register value reaches 0x12345678 during polling, and (c) configuration steps complete including enabling MEM/IO/Bus Master. Any failure to achieve readiness or the final handshake is a FAIL.","Meta Validation / Acceptance Criteria":"- Link readiness: Require while-poll on read_sii0_reg(0xC0) and read_sii1_reg(0xC0) (if DM1_RC) to exit only when (status & 0xD1) == 0xD1. - Handshake: After configuration, poll read_reg(0xE6004100) until it equals 0x12345678; only then call finish(0). - Command enable: write_pcie_slv{0,1}_reg(0x4, 0x7) to enable MEM/IO/BME (no explicit assertion in code). - BAR probing/programming: perform write/read sequences on offsets 0x10..0x24 (no explicit comparisons enforced by code).","Code Generation (Required / Not)":"Not","Meta Headers":"#include <stdlib.h>, #include <stdio.h>, #include <test_common.h>, #include \"pcie.h\"","Meta Macros":"NA","Meta Arrays":"NA"}
-]'''
-
-# ---- Configuration ----
-OUTPUT_DIR = Path('TestOutput/PCIE/TestPlan')
-IST = timezone(timedelta(hours=5, minutes=30))
-
-# ---- Load JSON ----
-json_data = json.loads(JSON_TEXT)
-if not isinstance(json_data, list) or len(json_data) == 0:
-    raise SystemExit('json_data must be a non-empty array')
-
-# ---- Define columns ----
 TESTPLAN_COLUMNS = [
-    'Index',
-    'SS / Module',
-    'Feature',
-    'Test Case Name',
-    'Test Description',
-    'Speed',
-    'Mode',
-    'Memory Start Offset',
-    'Memory End Offset',
-    'Remarks',
-    'Test Steps / Procedure',
-    'Impacted Registers',
-    'Validation / Acceptance Criteria',
-    'Code Generation (Required / Not)'
+    "Index",
+    "SS / Module",
+    "Feature",
+    "Test Case Name",
+    "Test Description",
+    "Speed",
+    "Mode",
+    "Memory Start Offset",
+    "Memory End Offset",
+    "Remarks",
+    "Test Steps / Procedure",
+    "Impacted Registers",
+    "Validation / Acceptance Criteria",
+    "Code Generation (Required / Not)",
 ]
 
 METADATA_COLUMNS = [
-    'Meta Test Description',
-    'Meta Test Steps / Procedure',
-    'Meta Impacted Registers',
-    'Meta Validation / Acceptance Criteria',
-    'Meta Headers',
-    'Meta Macros',
-    'Meta Arrays'
+    "Meta Test Description",
+    "Meta Test Steps / Procedure",
+    "Meta Impacted Registers",
+    "Meta Validation / Acceptance Criteria",
+    "Meta Headers",
+    "Meta Macros",
+    "Meta Arrays",
 ]
 
-# ---- Create workbook ----
-wb = Workbook()
-ws_plan = wb.active
-ws_plan.title = 'TestPlan'
-ws_meta = wb.create_sheet('MetaData')
+def write_sheet(ws, records, columns):
+    ws.append(columns)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    ws.freeze_panes = "A2"
+    for rec in records:
+        row = [rec.get(col, "") for col in columns]
+        ws.append(row)
 
-# Headers with formatting
-ws_plan.append(TESTPLAN_COLUMNS)
-for cell in ws_plan[1]:
-    cell.font = Font(bold=True)
-ws_plan.freeze_panes = 'A2'
 
-ws_meta.append(METADATA_COLUMNS)
-for cell in ws_meta[1]:
-    cell.font = Font(bold=True)
-ws_meta.freeze_panes = 'A2'
+def main():
+    parser = argparse.ArgumentParser(description="Generate TestPlan Excel from JSON")
+    parser.add_argument("--input", required=True, help="Path to input JSON file")
+    parser.add_argument("--output-dir", required=True, help="Output directory for Excel file")
+    args = parser.parse_args()
 
-# ---- Populate rows, maintaining order ----
-for row in json_data:
-    ws_plan.append([row.get(col, '') for col in TESTPLAN_COLUMNS])
-    ws_meta.append([row.get(col, '') for col in METADATA_COLUMNS])
+    with open(args.input, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-# ---- VeryHide the MetaData sheet ----
-ws_meta.sheet_state = 'veryHidden'
+    if not isinstance(data, list):
+        raise ValueError("json_data must be an array of objects")
 
-# ---- Ensure output directory ----
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Create workbook and sheets
+    wb = Workbook()
+    ws_plan = wb.active
+    ws_plan.title = "TestPlan"
+    write_sheet(ws_plan, data, TESTPLAN_COLUMNS)
 
-# ---- Filename with IST timestamp ----
-ts = datetime.now(IST).strftime('%Y%m%d_%H%M%S')
-filename = f'testplan_{ts}.xlsx'
-output_path = OUTPUT_DIR / filename
+    ws_meta = wb.create_sheet("MetaData")
+    write_sheet(ws_meta, data, METADATA_COLUMNS)
+    ws_meta.sheet_state = "veryHidden"  # MUST be Very Hidden
 
-# ---- Save real .xlsx ----
-wb.save(str(output_path))
+    # Filename with IST timestamp
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
+    filename = f"testplan_{ts}.xlsx"
 
-print(f'Generated Excel: {output_path}')
-# Export for GitHub Actions step outputs
-if 'GITHUB_OUTPUT' in os.environ:
-    with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-        fh.write(f'output_file={output_path.as_posix()}\n')
+    os.makedirs(args.output_dir, exist_ok=True)
+    out_path = os.path.join(args.output_dir, filename)
+    wb.save(out_path)
+    print(out_path)
+
+
+if __name__ == "__main__":
+    main()
