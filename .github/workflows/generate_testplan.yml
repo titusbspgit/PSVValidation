@@ -3,24 +3,20 @@ name: Generate TestPlan Excel
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
     paths:
-      - "data/final_testplan.json"
-      - "tools/generate_testplan.py"
-      - ".github/workflows/generate_testplan.yml"
-      - "ci/triggers/**"
-
-permissions:
-  contents: write
+      - 'TestOutput/PCIE/TestPlan/input/testplan_input.json'
+      - 'scripts/generate_testplan.py'
 
 jobs:
   build-and-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,31 +24,25 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install --no-cache-dir openpyxl
-
-      - name: Generate Excel from JSON
-        env:
-          JSON_PATH: data/final_testplan.json
-          OUTPUT_DIR: TestOutput/PCIE/TestPlan
-          SOURCE_OWNER: titusbspgit
-          SOURCE_REPO: PSVValidation
-          SOURCE_BRANCH: main
-          SOURCE_SUBDIR: TestRepo/pcie
-          IP_NAME: PCIE
-          TOTAL_TESTCASES: '7'
         run: |
-          python tools/generate_testplan.py
+          python -m pip install --upgrade pip
+          pip install openpyxl
 
-      - name: Commit and push generated Excel
+      - name: Generate Excel
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TP_INPUT_JSON: ${{ github.workspace }}/TestOutput/PCIE/TestPlan/input/testplan_input.json
+          TP_OUTPUT_DIR: ${{ github.workspace }}/TestOutput/PCIE/TestPlan
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add TestOutput/PCIE/TestPlan/*.xlsx
+          python scripts/generate_testplan.py | tee excel_path.txt
+
+      - name: Commit Excel
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git add TestOutput/PCIE/TestPlan/testplan_*.xlsx || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "Added generated TestPlan Excel"
-            git push origin HEAD:main
+            git push
           fi

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 import json
 import os
-import sys
 from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-except Exception:
-    ZoneInfo = None
+from zoneinfo import ZoneInfo
+from pathlib import Path
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Font, Alignment
 
+# Columns per requirements
 TESTPLAN_COLUMNS = [
     "Index",
     "SS / Module",
@@ -37,79 +35,75 @@ METADATA_COLUMNS = [
     "Meta Arrays",
 ]
 
-def _cell_value(v):
-    if isinstance(v, (dict, list)):
-        return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-    return v
 
-def json_to_excel(input_path: str, output_dir: str) -> str:
-    with open(input_path, "r", encoding="utf-8") as f:
+def load_json(json_path: str):
+    with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-
     if not isinstance(data, list):
-        raise ValueError("json_data must be a JSON array of objects")
-    for i, row in enumerate(data):
-        if not isinstance(row, dict):
-            raise ValueError(f"Each item must be an object. Offending index: {i}")
+        raise ValueError("json_data must be a JSON array")
+    return data
 
-    wb = Workbook()
-    # Remove default sheet and create explicit ones
-    default_ws = wb.active
-    wb.remove(default_ws)
 
-    ws = wb.create_sheet(title="TestPlan")
-    ws_meta = wb.create_sheet(title="MetaData")
-    ws_meta.sheet_state = "veryHidden"
-
-    # Headers (bold)
-    ws.append(TESTPLAN_COLUMNS)
-    ws_meta.append(METADATA_COLUMNS)
-    bold = Font(bold=True)
-    for cell in ws[1]:
-        cell.font = bold
-    for cell in ws_meta[1]:
-        cell.font = bold
-
-    # Freeze first row
+def build_sheet(ws, columns, rows):
+    # Write header
+    for col_idx, name in enumerate(columns, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=name)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+    # Write rows
+    for r_idx, item in enumerate(rows, start=2):
+        for c_idx, key in enumerate(columns, start=1):
+            val = item.get(key, "")
+            ws.cell(row=r_idx, column=c_idx, value=val)
     ws.freeze_panes = "A2"
-    ws_meta.freeze_panes = "A2"
-
-    # Rows (preserve order, no data loss)
-    for row in data:
-        ws.append([_cell_value(row.get(col, "")) for col in TESTPLAN_COLUMNS])
-        ws_meta.append([_cell_value(row.get(col, "")) for col in METADATA_COLUMNS])
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    if ZoneInfo is not None:
-        ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
-    else:
-        # Fallback: approximate IST by UTC+5:30 if zoneinfo missing
-        from datetime import timezone, timedelta
-        ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
-
-    timestamp = ist_now.strftime("%Y%m%d_%H%M%S")
-    filename = f"testplan_{timestamp}.xlsx"
-    out_path = os.path.join(output_dir, filename)
-    wb.save(out_path)
-
-    # Print the path so workflow can capture it
-    print(out_path)
-    return out_path
 
 
 def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Generate TestPlan Excel from JSON")
-    parser.add_argument("--input", required=True, help="Path to JSON file containing an array of objects")
-    parser.add_argument("--output-dir", default="Test_Output", help="Directory to write the Excel file to")
-    args = parser.parse_args()
+    # Inputs via environment with sane defaults
+    repo_root = Path(os.getenv("GITHUB_WORKSPACE", ".")).resolve()
+    input_path = Path(os.getenv("TP_INPUT_JSON", repo_root / "TestOutput/PCIE/TestPlan/input/testplan_input.json")).resolve()
+    output_dir = Path(os.getenv("TP_OUTPUT_DIR", repo_root / "TestOutput/PCIE/TestPlan")).resolve()
 
-    try:
-        json_to_excel(args.input, args.output_dir)
-    except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+    data = load_json(str(input_path))
+
+    # Prepare rows for each sheet mapping keys exactly
+    testplan_rows = []
+    metadata_rows = []
+    for obj in data:
+        # Ensure dict
+        if not isinstance(obj, dict):
+            raise ValueError("Each item in json_data must be an object")
+        # Build dicts limited to required columns, preserving values
+        t_row = {k: (obj.get(k, "") if obj.get(k) is not None else "") for k in TESTPLAN_COLUMNS}
+        m_row = {k: (obj.get(k, "") if obj.get(k) is not None else "") for k in METADATA_COLUMNS}
+        testplan_rows.append(t_row)
+        metadata_rows.append(m_row)
+
+    # Create workbook
+    wb = Workbook()
+    ws_tp = wb.active
+    ws_tp.title = "TestPlan"
+    build_sheet(ws_tp, TESTPLAN_COLUMNS, testplan_rows)
+
+    ws_meta = wb.create_sheet("MetaData")
+    build_sheet(ws_meta, METADATA_COLUMNS, metadata_rows)
+
+    # VERY HIDDEN metadata sheet
+    ws_meta.sheet_state = "veryHidden"
+
+    # Timestamp in IST
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / f"testplan_{ts}.xlsx"
+
+    # Save real .xlsx
+    wb.save(out_path)
+
+    # Emit the output path for the workflow to pick up (optional)
+    print(f"EXCEL_OUTPUT={out_path}")
+
 
 if __name__ == "__main__":
     main()
