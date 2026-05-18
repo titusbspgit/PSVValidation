@@ -1,0 +1,56 @@
+name: Generate TestPlan Excel (from input file)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Test_Output/testplan_input.json'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate Excel
+        run: |
+          python scripts/generate_testplan_excel.py --input Test_Output/testplan_input.json --output-dir Test_Output | tee gen_output.log
+
+      - name: Capture output file path
+        id: capture
+        run: |
+          file=$(grep -Eo '^OUTPUT_FILE=.+$' gen_output.log | head -n1 | cut -d'=' -f2-)
+          if [ -z "$file" ] || [ ! -f "$file" ]; then
+            echo "Failed to find generated file."
+            ls -la Test_Output || true
+            echo "gen_output.log contents:" && cat gen_output.log || true
+            exit 1
+          fi
+          echo "file=$file" >> $GITHUB_OUTPUT
+
+      - name: Commit Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.capture.outputs.file }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Added generated TestPlan Excel"
+            git push origin HEAD:main
+          fi
