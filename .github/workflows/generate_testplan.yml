@@ -2,72 +2,50 @@ name: Generate TestPlan Excel
 
 on:
   workflow_dispatch:
-    inputs:
-      json_payload:
-        description: 'Test Plan JSON array (string). If too large, leave empty and use json_path.'
-        required: false
-        type: string
-      json_path:
-        description: 'Path to JSON file in repo to use instead (e.g., input/TestPlan.json)'
-        required: false
-        type: string
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
+
       - name: Install dependencies
-        run: pip install --upgrade pip openpyxl
-      - name: Prepare input JSON
-        shell: bash
+        run: pip install --no-cache-dir openpyxl
+
+      - name: Generate Excel from JSON
+        env:
+          JSON_PATH: data/final_testplan.json
+          OUTPUT_DIR: TestOutput/PCIE/TestPlan
+          SOURCE_OWNER: titusbspgit
+          SOURCE_REPO: PSVValidation
+          SOURCE_BRANCH: main
+          SOURCE_SUBDIR: TestRepo/pcie
+          IP_NAME: PCIE
+          TOTAL_TESTCASES: '7'
         run: |
-          set -euo pipefail
-          mkdir -p input
-          if [ -n "${{ github.event.inputs.json_path }}" ]; then
-            if [ ! -f "${{ github.event.inputs.json_path }}" ]; then
-              echo "Provided json_path not found: ${{ github.event.inputs.json_path }}" >&2
-              exit 1
-            fi
-            cp "${{ github.event.inputs.json_path }}" input/TestPlan.json
-          else
-            if [ -z "${{ github.event.inputs.json_payload }}" ]; then
-              echo "Either json_payload or json_path must be provided." >&2
-              exit 1
-            fi
-            cat > input/TestPlan.json <<'JSON_EOF'
-${{ github.event.inputs.json_payload }}
-JSON_EOF
-          fi
-          echo "Using input/TestPlan.json"
-      - name: Generate Excel
-        shell: bash
+          python tools/generate_testplan.py
+
+      - name: Commit and push generated Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/generate_testplan.py --input input/TestPlan.json --output-dir Test_Output > excel_path.txt
-          EXCEL_PATH=$(tail -n1 excel_path.txt)
-          echo "excel_path=$EXCEL_PATH" >> $GITHUB_OUTPUT
-        id: gen
-      - name: Commit Excel
-        if: success()
-        shell: bash
-        run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${{ steps.gen.outputs.excel_path }}"
+          git add TestOutput/PCIE/TestPlan/*.xlsx
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "Added generated TestPlan Excel"
-            git push
+            git push origin HEAD:main
           fi
