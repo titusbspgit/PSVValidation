@@ -3,38 +3,53 @@ name: Generate TestPlan Excel
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
     paths:
-      - 'scripts/generate_testplan_excel.py'
-      - 'scripts/testplan_input.json'
-      - '.github/workflows/generate_testplan_excel.yml'
+      - .github/workflows/generate_testplan_excel.yml
+      - scripts/generate_testplan_excel.py
+      - scripts/testplan_input.json
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel from JSON
+
+      - name: Generate Excel
         run: |
-          python scripts/generate_testplan_excel.py
-      - name: Commit generated Excel
+          python scripts/generate_testplan_excel.py \
+            --input scripts/testplan_input.json \
+            --outdir Test_Output/PCIE/TestPlan \
+            --output-path-file scripts/testplan_output_path.txt
+
+      - name: Commit and push Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          OUT_PATH=$(cat scripts/testplan_output_path.txt)
-          FILE_NAME=$(basename "$OUT_PATH")
+          if [ ! -f scripts/testplan_output_path.txt ]; then
+            echo "No output path file produced; failing." >&2
+            exit 1
+          fi
+          FILEPATH=$(cat scripts/testplan_output_path.txt)
+          FILENAME=$(basename "$FILEPATH")
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$OUT_PATH"
-          git commit -m "chore(testplan): add $FILE_NAME" || echo "No changes to commit"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILEPATH"
+          git commit -m "chore(testplan): add $FILENAME" || echo "Nothing to commit"
           git push

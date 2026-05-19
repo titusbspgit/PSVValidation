@@ -1,98 +1,136 @@
+#!/usr/bin/env python3
+import argparse
 import json
 import os
 from datetime import datetime
-
-try:
-    from zoneinfo import ZoneInfo
-    tz = ZoneInfo("Asia/Kolkata")
-except Exception:
-    tz = None
-
+from zoneinfo import ZoneInfo
+from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-INPUT_JSON = os.path.join('scripts', 'testplan_input.json')
-OUTPUT_DIR = os.path.join('Test_Output', 'PCIE', 'TestPlan')
-OUTPUT_MARKER = os.path.join('scripts', 'testplan_output_path.txt')
-
-TESTPLAN_COLS = [
-    'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description',
-    'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks',
-    'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria',
-    'Code Generation (Required / Not)'
-]
-
-METADATA_COLS = [
-    'Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure',
-    'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria',
-    'Meta Headers', 'Meta Macros', 'Meta Arrays'
-]
-
-def ist_timestamp():
-    if tz is not None:
-        now = datetime.now(tz)
-    else:
-        # Fallback to localtime if zoneinfo not available
-        now = datetime.now()
-    return now.strftime('%Y%m%d_%H%M%S')
-
-def main():
-    with open(INPUT_JSON, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    assert isinstance(data, list) and len(data) > 0, 'json_data must be a non-empty array'
+def build_workbook(data):
+    # Define columns in exact order
+    testplan_cols = [
+        "Index",
+        "SS / Module",
+        "Feature",
+        "Test Case Name",
+        "Test Description",
+        "Speed",
+        "Mode",
+        "Memory Start Offset",
+        "Memory End Offset",
+        "Remarks",
+        "Test Steps / Procedure",
+        "Impacted Registers",
+        "Validation / Acceptance Criteria",
+        "Code Generation (Required / Not)",
+    ]
+    metadata_cols = [
+        "Index",
+        "Test Case Name",
+        "Meta Test Description",
+        "Meta Test Steps / Procedure",
+        "Meta Impacted Registers",
+        "Meta Validation / Acceptance Criteria",
+        "Meta Headers",
+        "Meta Macros",
+        "Meta Arrays",
+    ]
 
     wb = Workbook()
-    ws_plan = wb.active
-    ws_plan.title = 'TestPlan'
-    ws_meta = wb.create_sheet('MetaData')
+    # Create sheets
+    ws_main = wb.active
+    ws_main.title = "TestPlan"
+    ws_meta = wb.create_sheet("MetaData")
 
-    # Headers
-    ws_plan.append(TESTPLAN_COLS)
-    ws_meta.append(METADATA_COLS)
+    # Header formatting
+    header_font = Font(bold=True)
 
-    # Bold headers
-    for cell in ws_plan[1]:
-        cell.font = Font(bold=True)
-    for cell in ws_meta[1]:
-        cell.font = Font(bold=True)
+    # Write headers
+    for col_idx, h in enumerate(testplan_cols, start=1):
+        c = ws_main.cell(row=1, column=col_idx, value=h)
+        c.font = header_font
+    for col_idx, h in enumerate(metadata_cols, start=1):
+        c = ws_meta.cell(row=1, column=col_idx, value=h)
+        c.font = header_font
 
-    # Freeze first row
-    ws_plan.freeze_panes = 'A2'
-    ws_meta.freeze_panes = 'A2'
+    # Freeze top rows
+    ws_main.freeze_panes = "A2"
+    ws_meta.freeze_panes = "A2"
 
-    # Rows
+    # Write rows preserving order
+    r = 2
     for item in data:
-        # Ensure item is dict
-        if not isinstance(item, dict):
-            raise ValueError('Each element in json_data must be an object (dict)')
-        plan_row = [item.get(k, '') for k in TESTPLAN_COLS]
-        meta_row = [item.get(k, '') for k in METADATA_COLS]
-        ws_plan.append(plan_row)
-        ws_meta.append(meta_row)
+        # TestPlan row
+        row_vals = [item.get(k, "") for k in testplan_cols]
+        for col_idx, v in enumerate(row_vals, start=1):
+            ws_main.cell(row=r, column=col_idx, value=v)
+        # MetaData row
+        meta_vals = [item.get(k, "") for k in metadata_cols]
+        for col_idx, v in enumerate(meta_vals, start=1):
+            ws_meta.cell(row=r, column=col_idx, value=v)
+        r += 1
 
-    # Set MetaData to VeryHidden
-    ws_meta.sheet_state = 'veryHidden'
+    # VeryHidden meta sheet
+    ws_meta.sheet_state = "veryHidden"
 
-    # Ensure output dir
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    return wb
 
-    ts = ist_timestamp()
-    base_name = f'testplan_{ts}.xlsx'
-    out_path = os.path.join(OUTPUT_DIR, base_name)
-    # Guarantee uniqueness if needed
-    i = 2
-    while os.path.exists(out_path):
-        out_path = os.path.join(OUTPUT_DIR, f'testplan_{ts}_{i}.xlsx')
+
+def ensure_unique_filename(outdir: Path, base_name: str) -> Path:
+    p = outdir / base_name
+    if not p.exists():
+        return p
+    stem, ext = os.path.splitext(base_name)
+    i = 1
+    while True:
+        candidate = outdir / f"{stem}_{i}{ext}"
+        if not candidate.exists():
+            return candidate
         i += 1
 
-    # Save workbook
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input", required=True, help="Path to JSON file with final aggregated Test Plan")
+    ap.add_argument("--outdir", required=True, help="Output directory inside repo (e.g., Test_Output/PCIE/TestPlan)")
+    ap.add_argument("--output-path-file", default="scripts/testplan_output_path.txt", help="File to write the generated Excel relative path to")
+    args = ap.parse_args()
+
+    # Load and validate JSON
+    with open(args.input, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list) or len(data) == 0:
+        raise SystemExit("json_data must be a non-empty array")
+    for i, obj in enumerate(data):
+        if not isinstance(obj, dict):
+            raise SystemExit(f"Each json_data element must be an object; found {type(obj)} at index {i}")
+
+    # Build workbook
+    wb = build_workbook(data)
+
+    # IST timestamp
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.now(tz=ist).strftime("%Y%m%d_%H%M%S")
+    filename = f"testplan_{ts}.xlsx"
+
+    # Ensure output directory exists
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure unique filename
+    out_path = ensure_unique_filename(outdir, filename)
+
+    # Save workbook (REAL .xlsx)
     wb.save(out_path)
 
-    # Persist output path for the workflow commit step
-    with open(OUTPUT_MARKER, 'w', encoding='utf-8') as mf:
-        mf.write(out_path)
+    # Write relative path for commit step
+    rel_path = str(out_path)
+    Path(args.output_path_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output_path_file, "w", encoding="utf-8") as f:
+        f.write(rel_path)
+    print(rel_path)
 
-    print(f'Generated: {out_path}')
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
