@@ -1,6 +1,9 @@
 // Author - AI Force 1.3.2. Date 19-05-2026
 // (EMBENGG-SYSAPPS)
 
+#include <test_common.h>
+#include <lss_sysreg.h>
+#include "pcie.h"
 #include "test_define.c"
 
 /* ---------------------------------------------------------
