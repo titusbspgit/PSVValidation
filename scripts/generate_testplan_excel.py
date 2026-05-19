@@ -1,129 +1,98 @@
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
+
+try:
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Asia/Kolkata")
+except Exception:
+    tz = None
+
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-# Constants
-INPUT_JSON_PATH = os.path.join('scripts', 'testplan_input.json')
+INPUT_JSON = os.path.join('scripts', 'testplan_input.json')
 OUTPUT_DIR = os.path.join('Test_Output', 'PCIE', 'TestPlan')
-TESTPLAN_HEADERS = [
-    'Index',
-    'SS / Module',
-    'Feature',
-    'Test Case Name',
-    'Test Description',
-    'Speed',
-    'Mode',
-    'Memory Start Offset',
-    'Memory End Offset',
-    'Remarks',
-    'Test Steps / Procedure',
-    'Impacted Registers',
-    'Validation / Acceptance Criteria',
+OUTPUT_MARKER = os.path.join('scripts', 'testplan_output_path.txt')
+
+TESTPLAN_COLS = [
+    'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description',
+    'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks',
+    'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria',
     'Code Generation (Required / Not)'
 ]
-METADATA_HEADERS = [
-    'Index',
-    'Test Case Name',
-    'Meta Test Description',
-    'Meta Test Steps / Procedure',
-    'Meta Impacted Registers',
-    'Meta Validation / Acceptance Criteria',
-    'Meta Headers',
-    'Meta Macros',
-    'Meta Arrays'
+
+METADATA_COLS = [
+    'Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure',
+    'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria',
+    'Meta Headers', 'Meta Macros', 'Meta Arrays'
 ]
 
+def ist_timestamp():
+    if tz is not None:
+        now = datetime.now(tz)
+    else:
+        # Fallback to localtime if zoneinfo not available
+        now = datetime.now()
+    return now.strftime('%Y%m%d_%H%M%S')
 
-def load_json(path):
-    with open(path, 'r', encoding='utf-8') as f:
+def main():
+    with open(INPUT_JSON, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    if not isinstance(data, list) or not all(isinstance(x, dict) for x in data):
-        raise ValueError('json_data must be a list of objects')
-    return data
+    assert isinstance(data, list) and len(data) > 0, 'json_data must be a non-empty array'
 
-
-def build_workbook(rows):
     wb = Workbook()
-
-    # Create sheets
     ws_plan = wb.active
     ws_plan.title = 'TestPlan'
     ws_meta = wb.create_sheet('MetaData')
 
-    # Write headers
-    ws_plan.append(TESTPLAN_HEADERS)
-    ws_meta.append(METADATA_HEADERS)
+    # Headers
+    ws_plan.append(TESTPLAN_COLS)
+    ws_meta.append(METADATA_COLS)
 
-    bold_font = Font(bold=True)
+    # Bold headers
     for cell in ws_plan[1]:
-        cell.font = bold_font
+        cell.font = Font(bold=True)
     for cell in ws_meta[1]:
-        cell.font = bold_font
+        cell.font = Font(bold=True)
 
+    # Freeze first row
     ws_plan.freeze_panes = 'A2'
     ws_meta.freeze_panes = 'A2'
 
-    # Write rows preserving order
-    for row in rows:
-        ws_plan.append([row.get(h, '') for h in TESTPLAN_HEADERS])
-        ws_meta.append([
-            row.get('Index', ''),
-            row.get('Test Case Name', ''),
-            row.get('Meta Test Description', ''),
-            row.get('Meta Test Steps / Procedure', ''),
-            row.get('Meta Impacted Registers', ''),
-            row.get('Meta Validation / Acceptance Criteria', ''),
-            row.get('Meta Headers', ''),
-            row.get('Meta Macros', ''),
-            row.get('Meta Arrays', ''),
-        ])
+    # Rows
+    for item in data:
+        # Ensure item is dict
+        if not isinstance(item, dict):
+            raise ValueError('Each element in json_data must be an object (dict)')
+        plan_row = [item.get(k, '') for k in TESTPLAN_COLS]
+        meta_row = [item.get(k, '') for k in METADATA_COLS]
+        ws_plan.append(plan_row)
+        ws_meta.append(meta_row)
 
-    # Set MetaData sheet to VeryHidden
+    # Set MetaData to VeryHidden
     ws_meta.sheet_state = 'veryHidden'
 
-    return wb
+    # Ensure output dir
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
-def ensure_dir(path):
-    os.makedirs(path, exist_ok=True)
-
-
-def get_ist_timestamp():
-    # IST = UTC + 5:30
-    ist_dt = datetime.utcnow() + timedelta(hours=5, minutes=30)
-    return ist_dt.strftime('%Y%m%d_%H%M%S')
-
-
-def unique_path(base_dir, base_name):
-    path = os.path.join(base_dir, base_name)
-    if not os.path.exists(path):
-        return path
-    stem, ext = os.path.splitext(base_name)
-    i = 1
-    while True:
-        candidate = os.path.join(base_dir, f"{stem}_{i}{ext}")
-        if not os.path.exists(candidate):
-            return candidate
+    ts = ist_timestamp()
+    base_name = f'testplan_{ts}.xlsx'
+    out_path = os.path.join(OUTPUT_DIR, base_name)
+    # Guarantee uniqueness if needed
+    i = 2
+    while os.path.exists(out_path):
+        out_path = os.path.join(OUTPUT_DIR, f'testplan_{ts}_{i}.xlsx')
         i += 1
 
-
-def main():
-    rows = load_json(INPUT_JSON_PATH)
-    wb = build_workbook(rows)
-
-    ensure_dir(OUTPUT_DIR)
-    ts = get_ist_timestamp()
-    filename = f"testplan_{ts}.xlsx"
-    out_path = unique_path(OUTPUT_DIR, filename)
-
+    # Save workbook
     wb.save(out_path)
 
-    # Write the path for the workflow to pick up
-    with open('testplan_output_path.txt', 'w', encoding='utf-8') as f:
-        f.write(out_path)
+    # Persist output path for the workflow commit step
+    with open(OUTPUT_MARKER, 'w', encoding='utf-8') as mf:
+        mf.write(out_path)
 
+    print(f'Generated: {out_path}')
 
 if __name__ == '__main__':
     main()
