@@ -1,12 +1,10 @@
-name: Generate and Commit PCIE TestPlan Excel
+name: Generate TestPlan Excel
 
 on:
   push:
-    branches: [ main ]
     paths:
-      - 'data/testplan_data.json'
-      - 'scripts/generate_testplan_excel.py'
-      - '.github/workflows/generate_testplan_excel.yml'
+      - .github/workflows/generate_testplan_excel.yml
+      - .github/scripts/generate_testplan_excel.py
   workflow_dispatch:
 
 permissions:
@@ -20,26 +18,132 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: true
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install openpyxl
-
-      - name: Generate Excel
         run: |
-          python scripts/generate_testplan_excel.py \
-            --input data/testplan_data.json \
-            --output-dir Test_Output/PCIE/TestPlan
+          python -m pip install --upgrade pip
+          pip install openpyxl
 
-      - name: Commit generated Excel
+      - name: Write input JSON
+        env:
+          JSON_DATA: |-
+            [
+              {
+                "Index": "1",
+                "SS / Module": "PCIE",
+                "Feature": "Testable: writeAsRead",
+                "Test Case Name": "pcie0_dbi_dsp_reg_wr_rd_test",
+                "Test Description": "Verify PCIe0 DBI DSP register reset defaults and masked write/read behavior across all enumerated DBI DSP registers. Registers marked non-readable or non-writable are skipped; a small set of registers is excluded from default-value checks. The test iterates over multiple data patterns and validates readback against mask-based expectations. Test passes only if no mismatches are detected.",
+                "Meta Test Description": "program.c performs two main checks over CNT (775) DBI DSP register addresses provided by addr_array in test_define.c. 1) Default value check (chk_rst_val): For each index i, read the address addr = addr_array[i]. If read_mask_array[i] == 0, skip. Also skip three specific addresses: mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, and mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF. Otherwise, data_rd = read_reg(addr); compare against default_value_array[i]; if mismatch, increment def_fail_cnt and log failure; else log pass (when DEBUG_DISPLAY enabled). 2) Write/read check (chk_rd_wr): Iterate j over 6 patterns: {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. For (j=0..5): data_wr = chk_val[j]; 2a) Write phase: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; write_reg(addr, data_wr); 2b) Read/verify phase: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; if (read_mask_array[i] == 0) continue; data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd == exp_val) log pass; else increment wr_fail_cnt and log failure. soft_reset_chk() exists but is commented out in test_case(); it would write SOFT_RST_REG_DATA to SOFT_RST_REG_ADDRESS, wait, then restore original value and wait again. At end of test_case(), if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).",
+                "Speed": "NA",
+                "Mode": "Polling",
+                "Memory Start Offset": "NA",
+                "Memory End Offset": "NA",
+                "Remarks": "Registers not readable or not writable (per masks) are skipped. Default-value checks exclude: PCIE_CAP_ID_PCIE_NEXT_CAP_PTR_PCIE_CAP_REG, DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, DBI_DSP_PL_DEBUG1_OFF. Write-read validation respects write/read masks; only writable and readable bits are validated; unwritable bits are expected to retain their reset defaults.",
+                "Test Steps / Procedure": "1) Initialize the test context and counters. 2) Perform reset default checks over all DBI DSP registers: read each register that is readable and not in the excluded list and compare against its specified reset default. 3) For each of the six data patterns, write the pattern to every DBI DSP register that is permitted for writes. 4) Read back each written register that is readable and verify the value matches the mask-based expected result (writable bits from the pattern; non-writable bits remain at reset default). 5) Record any mismatches during default and write-read checks. 6) Report PASS if no mismatches are found; otherwise report FAIL.",
+                "Meta Test Steps / Procedure": "1) Call chk_rst_val(): for (i=0; i<CNT; i++): addr = addr_array[i]; if (read_mask_array[i] == 0) continue; if (addr == mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG || addr == mizar_PCIE0_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS || addr == mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF) continue; data_rd = read_reg(addr); if (data_rd == default_value_array[i]) {log pass} else {def_fail_cnt++; log fail}. 2) Call chk_rd_wr(): patterns chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. For (j=0..5): data_wr = chk_val[j]; 2a) Write phase: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; write_reg(addr, data_wr); 2b) Read/verify phase: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; if (read_mask_array[i] == 0) continue; data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd == exp_val) {log pass} else {wr_fail_cnt++; log fail}. 3) soft_reset_chk() present but not invoked: default_value = read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST_REG_ADDRESS, default_value); wait_on(1000). 4) In test_case(): if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1); else finish(0).",
+                "Impacted Registers": "PCIE_CAP_ID_PCIE_NEXT_CAP_PTR_PCIE_CAP_REG; DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS; DBI_DSP_PL_DEBUG1_OFF; DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG; DBI_DSP_TYPE1_STATUS_COMMAND_REG; DBI_DSP_LINK_CONTROL_LINK_STATUS_REG; DBI_DSP_DMA_WRITE_ENGINE_EN_OFF; DBI_DSP_DMA_READ_ENGINE_EN_OFF; DBI_DSP_AER_EXT_CAP_HDR_OFF; DBI_DSP_IATU_REGION_CTRL_1_OFF_OUTBOUND_0; DBI_DSP_IATU_REGION_CTRL_2_OFF_INBOUND_0; MSI_CAP_OFF_10H_REG",
+                "Meta Impacted Registers": "mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG; mizar_PCIE0_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS; mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF; mizar_PCIE0_DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG; mizar_PCIE0_DBI_DSP_TYPE1_STATUS_COMMAND_REG; mizar_PCIE0_DBI_DSP_LINK_CONTROL_LINK_STATUS_REG; mizar_PCIE0_DBI_DSP_DMA_WRITE_ENGINE_EN_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_ENGINE_EN_OFF; mizar_PCIE0_DBI_DSP_AER_EXT_CAP_HDR_OFF; mizar_PCIE0_DBI_DSP_IATU_REGION_CTRL_1_OFF_OUTBOUND_0; mizar_PCIE0_DBI_DSP_IATU_REGION_CTRL_2_OFF_INBOUND_0; mizar_PCIE0_DBI_DSP_PCI_MSI_CAP_ID_NEXT_CTRL_REG",
+                "Validation / Acceptance Criteria": "Pass when: (a) All readable, included DBI DSP registers match their specified reset defaults; (b) For each data pattern, all readable and writable DBI DSP registers read back the mask-based expected value (writable bits reflect the pattern; non-writable bits retain reset defaults); and (c) The test concludes with finish(0). Any mismatch in either default or masked write-read checks results in FAIL.",
+                "Meta Validation / Acceptance Criteria": "Default check: For all i where read_mask_array[i] != 0 and addr_array[i] not in {PCIE_CAP_ID_PCIE_NEXT_CAP_PTR_PCIE_CAP_REG, DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, DBI_DSP_PL_DEBUG1_OFF}, require read_reg(addr_array[i]) == default_value_array[i]. Write-read check: For all i where skip_array[i] == 0 and read_mask_array[i] != 0 and write_mask_array[i] != 0, require read_reg(addr_array[i]) == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])) for each data_wr in {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. Overall: def_fail_cnt == 0 and wr_fail_cnt == 0 leading to finish(0); otherwise finish(1).",
+                "Code Generation (Required / Not)": "Not",
+                "Meta Headers": "#include <stdio.h>; #include <stdlib.h>; #include \"test_common.h\"; #include \"test_define.c\"; (from test_define.c) #include <pcie.h>",
+                "Meta Macros": "#define SOFT_RST_REG_ADDRESS 0x00000000; #define SOFT_RST_REG_DATA 0x00000000; #define CNT 775",
+                "Meta Arrays": "NA"
+              },
+              {
+                "Index": "2",
+                "SS / Module": "PCIE",
+                "Feature": "DBI Register Access Validation",
+                "Test Case Name": "pcie0_dbi_usp_reg_wr_rd_test",
+                "Test Description": "Validate PCIe0 DBI Upstream Port register reset defaults and masked write/read behavior across all enumerated DBI USP registers. Skip registers that are not readable or not writable based on masks, and exclude a small set from default checks. Apply multiple data patterns and verify readbacks against mask-based expectations. Test passes only if no mismatches occur.",
+                "Meta Test Description": "program.c runs two main routines over CNT=775 DBI USP register addresses defined in test_define.c. 1) chk_rst_val(): For each i, addr = addr_array[i]. If read_mask_array[i] == 0, skip. Also skip default-value checks for mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS, and mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF. Otherwise, data_rd = read_reg(addr) and compare to default_value_array[i]; on mismatch def_fail_cnt++. 2) chk_rd_wr(): Iterate j over six patterns chk_val = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. Write phase: for each i, skip if skip_array[i] == 1 or write_mask_array[i] == 0; else write_reg(addr, data_wr). Read/verify phase: for each i, skip if skip_array[i] == 1 or write_mask_array[i] == 0 or read_mask_array[i] == 0; else data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])). If data_rd != exp_val then wr_fail_cnt++. test_case(): calls chk_rst_val(), then chk_rd_wr(), and finishes with finish(0) if both def_fail_cnt and wr_fail_cnt are zero, else finish(1). soft_reset_chk() exists but is commented out; it temporarily writes SOFT_RST_REG_DATA to SOFT_RST_REG_ADDRESS, waits, then restores the default value.",
+                "Speed": "NA",
+                "Mode": "Polling",
+                "Memory Start Offset": "NA",
+                "Memory End Offset": "NA",
+                "Remarks": "Registers that are not readable are excluded from default checks. Registers that are not writable or not readable are excluded from write/read verification. Default-value checks exclude DBI_USP_CAP_ID_NXT_PTR_REG, DBI_USP_DEVICE_CONTROL_DEVICE_STATUS, and DBI_USP_PL_DEBUG1_OFF. Write/read validation uses six data patterns and validates only writable-and-readable bits; non-writable bits must retain their reset defaults.",
+                "Test Steps / Procedure": "1) Initialize the test environment and counters. 2) Read each DBI USP register that is readable and not in the excluded set, and verify it matches its documented reset default. 3) For each of the six data patterns, write the pattern to every DBI USP register that permits writes. 4) Read back each written register that is readable and verify that writable bits reflect the pattern while non-writable bits retain reset defaults. 5) Record any mismatches from default checks and masked write/read checks. 6) Declare PASS only if no mismatches are detected; otherwise declare FAIL.",
+                "Meta Test Steps / Procedure": "1) chk_rst_val(): for (i=0; i<CNT; i++): addr = addr_array[i]; if (read_mask_array[i] == 0) continue; if (addr == mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG || addr == mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS || addr == mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF) continue; data_rd = read_reg(addr); if (data_rd != default_value_array[i]) def_fail_cnt++. 2) chk_rd_wr(): int chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}; for (j=0..5): data_wr = chk_val[j]; 2a) Write loop: for (i=0; i<CNT; i++): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; write_reg(addr, data_wr). 2b) Read/verify loop: for (i=0; i<CNT; i++): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0) continue; if (read_mask_array[i] == 0) continue; data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd != exp_val) wr_fail_cnt++. 3) test_case(): call chk_rst_val(); call chk_rd_wr(); if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1); else finish(0). 4) soft_reset_chk() (not called): default_value = read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST_REG_ADDRESS, default_value); wait_on(1000).",
+                "Impacted Registers": "DBI_USP_CAP_ID_NXT_PTR_REG; DBI_USP_DEVICE_CONTROL_DEVICE_STATUS; DBI_USP_PL_DEBUG1_OFF; DBI_USP_TYPE1_DEV_ID_VEND_ID_REG; DBI_USP_TYPE1_STATUS_COMMAND_REG; DBI_USP_LINK_CONTROL_LINK_STATUS_REG; DBI_USP_PCI_MSI_CAP_ID_NEXT_CTRL_REG; MSI_CAP_OFF_10H_REG; DBI_USP_DMA_WRITE_ENGINE_EN_OFF; DBI_USP_DMA_READ_ENGINE_EN_OFF; DBI_USP_AER_EXT_CAP_HDR_OFF; DBI_USP_IATU_REGION_CTRL_1_OFF_OUTBOUND_0; DBI_USP_IATU_REGION_CTRL_2_OFF_INBOUND_0",
+                "Meta Impacted Registers": "mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG; mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS; mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF; mizar_PCIE0_DBI_USP_TYPE1_DEV_ID_VEND_ID_REG; mizar_PCIE0_DBI_USP_TYPE1_STATUS_COMMAND_REG; mizar_PCIE0_DBI_USP_LINK_CONTROL_LINK_STATUS_REG; mizar_PCIE0_DBI_USP_PCI_MSI_CAP_ID_NEXT_CTRL_REG; mizar_PCIE0_DBI_USP_MSI_CAP_OFF_10H_REG; mizar_PCIE0_DBI_USP_DMA_WRITE_ENGINE_EN_OFF; mizar_PCIE0_DBI_USP_DMA_READ_ENGINE_EN_OFF; mizar_PCIE0_DBI_USP_AER_EXT_CAP_HDR_OFF; mizar_PCIE0_DBI_USP_IATU_REGION_CTRL_1_OFF_OUTBOUND_0; mizar_PCIE0_DBI_USP_IATU_REGION_CTRL_2_OFF_INBOUND_0",
+                "Validation / Acceptance Criteria": "PASS if: (a) All readable, non-excluded DBI USP registers match their reset defaults; and (b) For each data pattern, all registers that are both writable and readable return the expected masked value where writable bits reflect the pattern and non-writable bits retain reset defaults; resulting in a PASS status. Any mismatch results in FAIL.",
+                "Meta Validation / Acceptance Criteria": "Default check: For all i where read_mask_array[i] != 0 and addr_array[i] not in {mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS, mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF}, require read_reg(addr_array[i]) == default_value_array[i]. Write/read check: For all i where skip_array[i] == 0 and write_mask_array[i] != 0 and read_mask_array[i] != 0, require read_reg(addr_array[i]) == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])) for each data_wr in {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. Overall: def_fail_cnt == 0 and wr_fail_cnt == 0 leading to finish(0); otherwise finish(1).",
+                "Code Generation (Required / Not)": "Not",
+                "Meta Headers": "#include <stdio.h>; #include <stdlib.h>; #include \"test_common.h\"; #include \"test_define.c\"; (from test_define.c) #include <pcie.h>",
+                "Meta Macros": "#define SOFT_RST_REG_ADDRESS 0x00000000; #define SOFT_RST_REG_DATA 0x00000000; #define CNT 775",
+                "Meta Arrays": "addr_array[775] = list of DBI USP register addresses; default_value_array[775] = reset defaults for each register; read_mask_array[775] = readable bit masks; write_mask_array[775] = writable bit masks; skip_array[775] = per-register skip flags for write/read checks (1=skip). Default-value check additionally excludes CAP_ID_NXT_PTR_REG, DEVICE_CONTROL_DEVICE_STATUS, PL_DEBUG1_OFF."
+              },
+              {
+                "Index": "3",
+                "SS / Module": "PCIE",
+                "Feature": "Testable: writeAsRead",
+                "Test Case Name": "pcie0_sii_rc_reg_wr_rd_test",
+                "Test Description": "Validate PCIe0 SII RC register block by checking reset defaults and performing masked write/read verification across 153 registers. Skip non-readable and non-writable locations per masks. Exclude SII_PHY_RST_CONTROL from default checks. Apply six data patterns and confirm readbacks match mask-based expectations. Test passes only if no mismatches are detected.",
+                "Meta Test Description": "program.c drives two primary routines on 153 SII RC registers defined in test_define.c. 1) chk_rst_val(): Iterates i=0..CNT-1 over addr_array[i]; if read_mask_array[i]==0, skip. If address equals SII_PHY_RST_CONTROL, skip the default check. Otherwise read_reg(addr) and compare against default_value_array[i]; on mismatch, increment def_fail_cnt and print failure. 2) chk_rd_wr(): For each of six patterns {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}, perform a write loop and then a read/verify loop. Write loop: for each i, skip if skip_array[i]==1 or write_mask_array[i]==0; else write_reg(addr, data_wr). Read/verify loop: skip if skip_array[i]==1 or write_mask_array[i]==0 or read_mask_array[i]==0; else compute wr_n=(write_mask_array[i]^0xffffffff) and exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); read data_rd=read_reg(addr) and compare to exp_val; on mismatch increment wr_fail_cnt and print failure. test_case(): calls chk_rst_val(), then chk_rd_wr(), and returns finish(0) if both counters are zero; otherwise finish(1). A soft_reset_chk() helper exists (read-modify-write to SOFT_RST_REG_ADDRESS with waits) but is not invoked.",
+                "Speed": "NA",
+                "Mode": "Polling",
+                "Memory Start Offset": "0xE68C0000",
+                "Memory End Offset": "NA",
+                "Remarks": "Default-value verification omits SII_PHY_RST_CONTROL. Only registers marked writable are exercised for writes; readback checks apply only to registers marked readable. Expected values use write/read masks so writable bits reflect the test pattern while non-writable bits retain reset defaults.",
+                "Test Steps / Procedure": "1) Initialize the test and counters. 2) For each register in the SII RC block, read only locations flagged as readable and verify the value equals the documented reset default, excluding SII_PHY_RST_CONTROL. 3) For each of the six data patterns, write the pattern to all locations flagged as writable (skipping any registers listed as excluded by the test). 4) Read back each location that is both readable and writable and verify that writable bits equal the pattern while non-writable bits remain at reset defaults. 5) Record any mismatches encountered during default and masked write/read checks. 6) Declare PASS if no mismatches are recorded; otherwise declare FAIL.",
+                "Meta Test Steps / Procedure": "1) chk_rst_val(): for (i=0; i<CNT; i++): addr=addr_array[i]; if (read_mask_array[i]==0) continue; if (addr==SII_PHY_RST_CONTROL) continue; data_rd=read_reg(addr); if (data_rd!=default_value_array[i]) {def_fail_cnt++; log fail} else {optional pass log}. 2) chk_rd_wr(): int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}; for (j=0; j<6; j++): data_wr=chk_val[j]; 2a) Write loop: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0) continue; write_reg(addr, data_wr). 2b) Read/verify loop: for (i=0; i<CNT; i++): addr=addr_array[i]; if (skip_array[i]==1) continue; if (write_mask_array[i]==0) continue; if (read_mask_array[i]==0) continue; data_rd=read_reg(addr); wr_n=(write_mask_array[i]^0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd!=exp_val) {wr_fail_cnt++; log fail} else {optional pass log}. 3) test_case(): call chk_rst_val(); call chk_rd_wr(); if (def_fail_cnt>0 || wr_fail_cnt>0) finish(1); else finish(0). 4) soft_reset_chk() (not called): save=read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS,SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST_REG_ADDRESS,save); wait_on(1000).",
+                "Impacted Registers": "SII_PHY_RST_CONTROL; SII_PCIE0_CONTROLLER_INT_STS; SII_PCIE0_CONTROLLER_INTERRUPT_CONTROL; MSI_CTRL_INT_0_EN_OFF; SII_CFG_MSI_DATA; MSI_CTRL_UPPER_ADDR_OFF; SII_CFG_MSI_ADDR_LO; SII_SOFT_RESET_CTRL; SII_CFG_BAR0_START1; SII_CFG_BAR0_LIMIT1; SII_PCIE0_GEN_CONTROL1",
+                "Meta Impacted Registers": "mizar_PCIE0_SII_PHY_RST_CONTROL; mizar_PCIE0_SII_PCIE0_CONTROLLER_INT_STS; mizar_PCIE0_SII_PCIE0_CONTROLLER_INTERRUPT_CONTROL; mizar_PCIE0_SII_CFG_MSI_INT; mizar_PCIE0_SII_CFG_MSI_DATA; mizar_PCIE0_SII_CFG_MSI_ADDR_HI; mizar_PCIE0_SII_CFG_MSI_ADDR_LO; mizar_PCIE0_SII_SOFT_RESET_CTRL; mizar_PCIE0_SII_CFG_BAR0_START1; mizar_PCIE0_SII_CFG_BAR0_LIMIT1; mizar_PCIE0_SII_PCIE0_GEN_CONTROL1",
+                "Validation / Acceptance Criteria": "Pass when: (a) All readable, non-excluded SII RC registers match their specified reset defaults; and (b) For each test pattern, all registers that are both writable and readable return the expected masked value where writable bits reflect the pattern and non-writable bits remain at reset default; overall test status is PASS.",
+                "Meta Validation / Acceptance Criteria": "Default check: For all i where read_mask_array[i]!=0 and addr_array[i]!=SII_PHY_RST_CONTROL, require read_reg(addr_array[i])==default_value_array[i]. Write/read check: For all i where skip_array[i]==0 and write_mask_array[i]!=0 and read_mask_array[i]!=0, require read_reg(addr_array[i])==((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i]^0xffffffff) & read_mask_array[i] & default_value_array[i])) for each data_wr ∈ {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. Overall: def_fail_cnt==0 and wr_fail_cnt==0 leading to finish(0); otherwise finish(1).",
+                "Code Generation (Required / Not)": "Not",
+                "Meta Headers": "#include <stdio.h>; #include <stdlib.h>; #include \"test_common.h\"; #include \"test_define.c\"; #include <pcie0/pcie_sii_rc_def.h>; #include <pcie0/pcie_sii_rc_offset.h>",
+                "Meta Macros": "#define MIZAR_PCIE0_SII_BASE 0xE68C0000; #define CNT 153; #define SOFT_RST_REG_ADDRESS 0x00000000; #define SOFT_RST_REG_DATA 0x00000000",
+                "Meta Arrays": "addr_array[153] = SII RC register addresses; default_value_array[153] = reset defaults; read_mask_array[153] = readable bit masks; write_mask_array[153] = writable bit masks; skip_array[153] = per-register skip flags for write/read checks (1=skip)."
+              },
+              {
+                "Index": "4",
+                "SS / Module": "PCIE",
+                "Feature": "MEM_FUNC0_BAR4_TARGET_MAP",
+                "Test Case Name": "pcie_cfg_wr_rd_test",
+                "Test Description": "Exercise PCIe configuration-space access after link training: program the DBI_DSP_COHERENCY_CONTROL_3_OFF registers for PCIe0/1, poll the SII status register (offset 0xC0) until ready, then for RC builds program and read back configuration space BAR0–BAR5 and set the Command register to enable Memory/IO/Bus Master. Use a sync register at 0xE6004100 to mark progress and wait for external completion.",
+                "Meta Test Description": "The test initializes a sync MMIO register at 0xE6004100 to 0x0 and performs link training based on build flags: link_training_dm0_x4(4) for DM0_RC, link_training_dm1_x4(4) for DM1_RC, and link_training_dm0_x4(4)/link_training_dm1_x4(4) for EP roles when defined. It programs cache/coherency settings by updating DBI_DSP_COHERENCY_CONTROL_3_OFF for PCIe0 and PCIe1: set bitfields [11:14] and [3:6] to 0xF, write back; then set [27:30] and [19:22] to 0xF, write back. After a short wait_on(20), it consolidates all four bitfields to 0xF again on both PCIe0 and PCIe1 coherency control registers. It polls SII0 status at offset 0xC0 until (status & 0xD1) == 0xD1; when DM1_RC is defined, it also polls SII1 status at offset 0xC0 for the same mask. Upon readiness, it writes 0x11111111 to 0xE6004100 and waits (wait_on(15000)). For DM0_RC: it calls mem_base_program_dm0_x4(), delays, then reads the first 10 config dwords (offsets 0x0..0x24 step 0x4). It writes 0xFFFFFFFF to BAR0..BAR5 (offsets 0x10,0x14,0x18,0x1C,0x20,0x24) and reads back each. Then it writes specific values: BAR0=0x00000000, BAR1=0x00000004, BAR2=0x20000000, BAR3=0x40000000, BAR4=0x60000000, BAR5=0x80000000, and reads them back. Finally, it enables Memory/IO/Bus Master by writing 0x7 to the Command register at offset 0x4. For DM1_RC: it performs analogous steps using the instance-1 config accessors. The test then waits until read_reg(0xE6004100) returns 0x12345678, at which point it calls finish(0). No explicit comparisons on BAR readbacks are enforced by the code; readiness and external completion gating determine pass/fail.",
+                "Speed": "NA",
+                "Mode": "Polling",
+                "Memory Start Offset": "0xE6004100",
+                "Memory End Offset": "NA",
+                "Remarks": "Requires successful PCIe link training prior to configuration access. The procedure sets cache/coherency fields in the DBI coherency control register for both PCIe instances and waits for SII status readiness (mask 0xD1). Configuration-space operations depend on build-time selection of RC instance. Test completion depends on an external agent updating the sync register to 0x12345678.",
+                "Test Steps / Procedure": "1) Initialize the sync register at 0xE6004100 to 0 to mark test start. 2) Perform PCIe link training for the selected role/instance (x4 lane width). 3) Program DBI_DSP_COHERENCY_CONTROL_3_OFF for PCIe0 and PCIe1 to set the required cache/coherency bitfields. 4) Poll the SII status register at offset 0xC0 (and for a second instance if present) until the readiness mask 0xD1 is set. 5) Mark intermediate progress by writing 0x11111111 to 0xE6004100 and allow stabilization time. 6) For RC configurations: read initial configuration dwords; write 0xFFFFFFFF to BAR0–BAR5 (offsets 0x10–0x24), read them back; then program BAR0–BAR5 with target values and read them back; finally, enable Memory/IO/Bus Master by writing 0x7 to the Command register (offset 0x4). 7) Wait for external completion by polling 0xE6004100 until it equals 0x12345678. 8) Declare PASS and end the test.",
+                "Meta Test Steps / Procedure": "1) write_reg(0xE6004100, 0x0). 2) Conditionally call link_training_dm0_x4(4) / link_training_dm1_x4(4) depending on DM0_RC/DM1_RC/DM0_EP/DM1_EP defines. 3) For PCIe0: rd_wr_data1 = set_data(read_reg(DBI_DSP_COHERENCY_CONTROL_3_OFF), 11, 14, 0xF); rd_wr_data1 = set_data(rd_wr_data1, 3, 6, 0xF); write_reg(DBI_DSP_COHERENCY_CONTROL_3_OFF, rd_wr_data1); then set [27:30] and [19:22] to 0xF and write back. Repeat the same sequence for PCIe1. 4) wait_on(20); then re-apply all four bitfields on both instances and write back. 5) data_rd = read_sii0_reg(0xC0); while ((data_rd & 0xD1) != 0xD1) { data_rd = read_sii0_reg(0xC0); } If DM1_RC, also poll read_sii1_reg(0xC0) until the same mask equals 0xD1. 6) write_reg(0xE6004100, 0x11111111); wait_on(15000). 7) If DM0_RC: mem_base_program_dm0_x4(); wait_on(10); for (i=0;i<10;i++) read_pcie_slv0_reg(i*0x4); write_pcie_slv0_reg(0x10,0xFFFFFFFF); ... write_pcie_slv0_reg(0x24,0xFFFFFFFF); then read_pcie_slv0_reg(0x10..0x24); write_pcie_slv0_reg(0x10,0x00000000); 0x14=0x00000004; 0x18=0x20000000; 0x1C=0x40000000; 0x20=0x60000000; 0x24=0x80000000; read back each; write_pcie_slv0_reg(0x4,0x7). 8) If DM1_RC: perform analogous sequence using read_pcie_slv1_reg/write_pcie_slv1_reg and mem_base_program_dm1_x4(). 9) Poll data_rd = read_reg(0xE6004100) until data_rd == 0x12345678, with periodic wait_on(5). 10) finish(0).",
+                "Impacted Registers": "DBI_DSP_COHERENCY_CONTROL_3_OFF; SII0 status offset 0xC0 in SII register block; CFG space offset 0x4 (Command); CFG space offset 0x10 (BAR0); CFG space offset 0x14 (BAR1); CFG space offset 0x18 (BAR2); CFG space offset 0x1C (BAR3); BAR4_MASK_REG; BAR5_MASK_REG; 0xE6004100 test sync flag",
+                "Meta Impacted Registers": "mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF",
+                "Validation / Acceptance Criteria": "PASS when: (a) SII status indicates ready state by meeting mask 0xD1; (b) The test marks progress by writing 0x11111111 to the sync register and subsequently observes 0x12345678 on the sync register 0xE6004100; and (c) The test completes with finish(0). Any failure to meet the SII readiness mask or to observe the final sync value results in the test not completing successfully.",
+                "Meta Validation / Acceptance Criteria": "Poll condition: while ((read_sii0_reg(0xC0) & 0xD1) != 0xD1) continue; if DM1_RC then while ((read_sii1_reg(0xC0) & 0xD1) != 0xD1) continue. Handshake: write_reg(0xE6004100, 0x11111111), later loop while (read_reg(0xE6004100) != 0x12345678) { wait_on(5); re-read }. Terminal condition: finish(0) on success.",
+                "Code Generation (Required / Not)": "Not",
+                "Meta Headers": "#include <stdlib.h>; #include <stdio.h>; #include <test_common.h>; #include \"pcie.h\"",
+                "Meta Macros": "NA",
+                "Meta Arrays": "NA"
+              }
+            ]
         run: |
+          printf '%s' "$JSON_DATA" > input.json
+
+      - name: Generate Excel and commit
+        run: |
+          python .github/scripts/generate_testplan_excel.py \
+            --json-file input.json \
+            --output-dir "Test_Output/PCIE/TestPlan" \
+            --source-owner "titusbspgit" \
+            --source-repo "PSVValidation" \
+            --source-branch "main" \
+            --source-subdir "TestRepo/pcie" \
+            --ip-name "PCIE"
+
+          ls -l Test_Output/PCIE/TestPlan || true
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/PCIE/TestPlan/testplan_*.xlsx
-          git commit -m "Automated: PCIE Test Plan Excel generation" || echo "No changes to commit"
-          git push
+          git add Test_Output/PCIE/TestPlan/*.xlsx || true
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push || true
