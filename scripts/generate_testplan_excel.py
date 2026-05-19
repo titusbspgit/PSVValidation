@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
-import argparse
 import json
+import os
 import sys
-from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
@@ -37,91 +34,107 @@ METADATA_COLS = [
     "Meta Arrays",
 ]
 
-def load_json(path: Path):
-    try:
-        with path.open('r', encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception as e:
-        print(f"ERROR: Failed to load JSON from {path}: {e}", file=sys.stderr)
-        sys.exit(2)
-    if not isinstance(data, list) or len(data) == 0:
-        print("ERROR: json_data must be a non-empty array", file=sys.stderr)
-        sys.exit(2)
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            print(f"ERROR: Element at index {i} is not an object", file=sys.stderr)
-            sys.exit(2)
+REPO_ROOT = os.getcwd()
+INPUT_PATH = os.path.join(REPO_ROOT, "scripts", "testplan_input.json")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join("Test_Output", "PCIE", "TestPlan"))
+OUTPUT_TRACK_FILE = os.path.join(REPO_ROOT, "scripts", ".testplan_output_path")
+
+
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("json_data must be a JSON array")
+    for i, row in enumerate(data):
+        if not isinstance(row, dict):
+            raise ValueError(f"Each element must be an object; element {i} is {type(row)}")
     return data
+
+
+def ist_timestamp():
+    # IST = UTC + 05:30
+    now_utc = datetime.utcnow()
+    ist = now_utc + timedelta(hours=5, minutes=30)
+    return ist.strftime("%Y%m%d_%H%M%S")
 
 
 def write_sheet(ws, columns, rows):
     # Header
-    ws.append(columns)
-    # Bold header and freeze
-    for cell in ws[1]:
+    for c_idx, header in enumerate(columns, start=1):
+        cell = ws.cell(row=1, column=c_idx, value=header)
         cell.font = Font(bold=True)
     ws.freeze_panes = "A2"
+
     # Rows
-    for obj in rows:
-        row = [obj.get(col, "") for col in columns]
-        ws.append(row)
+    for r_idx, obj in enumerate(rows, start=2):
+        for c_idx, key in enumerate(columns, start=1):
+            val = obj.get(key, "")
+            # Ensure we write plain text for non-None values
+            ws.cell(row=r_idx, column=c_idx, value=val if val is not None else "")
 
 
-def make_workbook(json_rows):
+def build_workbook(data):
     wb = Workbook()
-    # Default sheet becomes TestPlan
-    ws_plan = wb.active
-    ws_plan.title = "TestPlan"
-    write_sheet(ws_plan, TESTPLAN_COLS, json_rows)
-    # MetaData sheet
-    ws_meta = wb.create_sheet("MetaData")
-    write_sheet(ws_meta, METADATA_COLS, json_rows)
+    # Default sheet
+    ws_testplan = wb.active
+    ws_testplan.title = "TestPlan"
+    ws_metadata = wb.create_sheet(title="MetaData")
+
+    # Prepare row dicts (preserve order of input list)
+    test_rows = data  # columns pick will handle missing keys
+    meta_rows = data
+
+    write_sheet(ws_testplan, TESTPLAN_COLS, test_rows)
+    write_sheet(ws_metadata, METADATA_COLS, meta_rows)
+
     # VeryHidden MetaData
-    ws_meta.sheet_state = 'veryHidden'
+    ws_metadata.sheet_state = "veryHidden"
+
     return wb
 
 
-def ensure_unique_path(base_dir: Path, base_name: str) -> Path:
-    p = base_dir / base_name
-    if not p.exists():
-        return p
-    stem, ext = base_name.rsplit('.', 1)
-    n = 2
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
+
+
+def unique_output_path(base_dir):
+    ts = ist_timestamp()
+    base_name = f"testplan_{ts}.xlsx"
+    path = os.path.join(base_dir, base_name)
+
+    if not os.path.exists(path):
+        return path
+
+    # Collision guard (rare). Append incrementing suffix
+    n = 1
     while True:
-        cand = base_dir / f"{stem}__{n}.{ext}"
-        if not cand.exists():
-            return cand
+        alt = os.path.join(base_dir, f"testplan_{ts}_{n}.xlsx")
+        if not os.path.exists(alt):
+            return alt
         n += 1
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--json', required=True, help='Path to input JSON file')
-    ap.add_argument('--output-dir', required=True, help='Directory to place Excel file (repo-relative)')
-    ap.add_argument('--ip-name', required=False, help='IP name (unused in structure, kept for traceability)')
-    ap.add_argument('--out-flag-file', default='testplan_output_path.txt', help='Where to write the relative output path')
-    args = ap.parse_args()
+    data = load_json(INPUT_PATH)
+    wb = build_workbook(data)
 
-    json_path = Path(args.json)
-    out_dir = Path(args.output_dir)
+    out_dir = os.path.join(REPO_ROOT, OUTPUT_DIR) if not os.path.isabs(OUTPUT_DIR) else OUTPUT_DIR
+    ensure_dir(out_dir)
 
-    rows = load_json(json_path)
-
-    # Construct filename with IST timestamp
-    ist = ZoneInfo('Asia/Kolkata')
-    ts = datetime.now(ist).strftime('%Y%m%d_%H%M%S')
-    filename = f"testplan_{ts}.xlsx"
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = ensure_unique_path(out_dir, filename)
-
-    wb = make_workbook(rows)
+    out_path = unique_output_path(out_dir)
     wb.save(out_path)
 
-    # Write relative path for the workflow commit step
-    flag_path = Path(args.out_flag_file)
-    flag_path.write_text(str(out_path), encoding='utf-8')
-    print(f"Wrote Excel to {out_path}")
+    # Record relative path for the workflow commit step
+    rel_path = os.path.relpath(out_path, REPO_ROOT)
+    with open(OUTPUT_TRACK_FILE, "w", encoding="utf-8") as f:
+        f.write(rel_path)
 
-if __name__ == '__main__':
-    main()
+    print(f"Generated Excel: {rel_path}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)

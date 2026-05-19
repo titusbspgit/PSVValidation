@@ -1,8 +1,9 @@
-name: generate_testplan_excel
+name: Generate TestPlan Excel
 
 on:
   workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
       - 'scripts/generate_testplan_excel.py'
       - 'scripts/testplan_input.json'
@@ -13,34 +14,35 @@ permissions:
 
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, 'chore(testplan): add')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-      - name: Setup Python
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install deps
-        run: pip install --no-cache-dir openpyxl
-      - name: Generate Excel
+          python-version: '3.x'
+
+      - name: Install dependencies
         run: |
-          python scripts/generate_testplan_excel.py \
-            --json scripts/testplan_input.json \
-            --output-dir "Test_Output/PCIE/TestPlan" \
-            --ip-name "PCIE" \
-            --out-flag-file testplan_output_path.txt
-      - name: Commit and push Excel
+          python -m pip install --upgrade pip
+          pip install --no-input --upgrade openpyxl
+
+      - name: Generate Excel from JSON
+        env:
+          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+        run: |
+          python scripts/generate_testplan_excel.py
+
+      - name: Commit generated Excel
         run: |
           set -e
-          FILE_PATH=$(cat testplan_output_path.txt)
-          echo "Generated: $FILE_PATH"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          path="$(cat scripts/.testplan_output_path)"
+          filename="$(basename "$path")"
+          echo "Committing $path"
           git config user.name "github-actions[bot]"
-          git add "$FILE_PATH"
-          BASENAME=$(basename "$FILE_PATH")
-          git commit -m "chore(testplan): add $BASENAME" || echo "No changes to commit"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$path"
+          git commit -m "chore(testplan): add ${filename}" || echo "No changes to commit"
           git push
