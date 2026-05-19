@@ -1,12 +1,12 @@
-name: Generate Test Plan Excel
+name: Generate TestPlan Excel
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/generate_testplan_excel.yml'
-      - 'scripts/generate_testplan_excel.py'
-      - 'scripts/testplan_input.json'
+      - scripts/generate_testplan_excel.py
+      - scripts/testplan_input.json
+      - .github/workflows/generate_testplan_excel.yml
 
 permissions:
   contents: write
@@ -18,25 +18,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
-
-      - name: Set up Python
+          fetch-depth: 0
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: pip install --no-input openpyxl
-
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl tzdata
       - name: Generate Excel
-        run: python scripts/generate_testplan_excel.py
-
+        run: |
+          python scripts/generate_testplan_excel.py
       - name: Commit Excel
         run: |
           set -e
+          FILE_PATH=$(cat scripts/testplan_output_path.txt)
+          echo "Generated: $FILE_PATH"
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          OUT_PATH=$(cat testplan_output_path.txt)
-          git add "$OUT_PATH"
-          git commit -m "chore(testplan): add $(basename "$OUT_PATH")" || echo "No changes to commit"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE_PATH"
+          git commit -m "chore(testplan): add $(basename "$FILE_PATH")" || echo "No changes to commit"
           git push
