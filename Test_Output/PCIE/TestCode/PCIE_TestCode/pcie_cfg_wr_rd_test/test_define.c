@@ -1,6 +1,6 @@
-#include <stdlib.h>;
-#include <stdio.h>;
-#include <test_common.h>;
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
 #include "pcie.h"
 
 /* Impacted Registers Array (from Meta + RAG mapping) */
