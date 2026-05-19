@@ -1,12 +1,12 @@
-name: Generate TestPlan Excel
+name: Generate Test Plan Excel
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - .github/workflows/generate_testplan_excel.yml
-      - scripts/generate_testplan_excel.py
-      - scripts/testplan_input.json
+      - '.github/workflows/generate_testplan_excel.yml'
+      - 'scripts/generate_testplan_excel.py'
+      - 'scripts/testplan_input.json'
 
 permissions:
   contents: write
@@ -18,38 +18,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
+        run: pip install --no-input openpyxl
 
       - name: Generate Excel
-        run: |
-          python scripts/generate_testplan_excel.py \
-            --input scripts/testplan_input.json \
-            --outdir Test_Output/PCIE/TestPlan \
-            --output-path-file scripts/testplan_output_path.txt
+        run: python scripts/generate_testplan_excel.py
 
-      - name: Commit and push Excel
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit Excel
         run: |
           set -e
-          if [ ! -f scripts/testplan_output_path.txt ]; then
-            echo "No output path file produced; failing." >&2
-            exit 1
-          fi
-          FILEPATH=$(cat scripts/testplan_output_path.txt)
-          FILENAME=$(basename "$FILEPATH")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$FILEPATH"
-          git commit -m "chore(testplan): add $FILENAME" || echo "Nothing to commit"
+          OUT_PATH=$(cat testplan_output_path.txt)
+          git add "$OUT_PATH"
+          git commit -m "chore(testplan): add $(basename "$OUT_PATH")" || echo "No changes to commit"
           git push
