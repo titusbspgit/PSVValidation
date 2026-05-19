@@ -1,13 +1,13 @@
 name: Generate TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'scripts/generate_testplan_excel.py'
       - 'scripts/testplan_input.json'
       - '.github/workflows/generate_testplan_excel.yml'
+      - 'scripts/generate_testplan_excel.py'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,31 +18,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --no-input --upgrade openpyxl
-
-      - name: Generate Excel from JSON
-        env:
-          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+          pip install --no-input openpyxl
+      - name: Generate Excel
         run: |
           python scripts/generate_testplan_excel.py
-
-      - name: Commit generated Excel
+      - name: Read output path
+        id: out
+        run: echo "OUTPUT_PATH=$(cat testplan_output_path.txt)" >> $GITHUB_ENV
+      - name: Commit and push Excel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          path="$(cat scripts/.testplan_output_path)"
-          filename="$(basename "$path")"
-          echo "Committing $path"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$path"
-          git commit -m "chore(testplan): add ${filename}" || echo "No changes to commit"
+          git add "$OUTPUT_PATH"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(testplan): add $(basename \"$OUTPUT_PATH\")"
           git push
