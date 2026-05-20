@@ -29,13 +29,8 @@ jobs:
           pip install openpyxl
 
       - name: Generate Excel
-        id: gen
         run: |
-          python scripts/ggenerate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan" 2>&1 | tee gen.log || true
-          # Fallback if script name typo or failure; try correct path
-          if ! grep -q 'testplan_' gen.log; then
-            python scripts/generate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan" | tee gen2.log
-          fi
+          python scripts/generate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan"
 
       - name: Commit and push Excel
         run: |

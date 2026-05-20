@@ -39,6 +39,7 @@ METADATA_COLUMNS = [
     "Meta Headers",
     "Meta Macros",
     "Meta Arrays",
+    "Raw JSON",
 ]
 
 def load_json(path: str) -> List[Dict[str, Any]]:
@@ -100,7 +101,11 @@ def main():
 
     # MetaData sheet (VERY HIDDEN)
     ws_md = wb.create_sheet("MetaData")
-    md_rows = [build_row(METADATA_COLUMNS, r) for r in data]
+    md_rows = []
+    for r in data:
+        md_row = build_row(METADATA_COLUMNS, r)
+        md_row["Raw JSON"] = json.dumps(r, ensure_ascii=False)
+        md_rows.append(md_row)
     write_sheet(ws_md, METADATA_COLUMNS, md_rows)
     ws_md.sheet_state = 'veryHidden'
 
