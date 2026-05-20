@@ -3,10 +3,10 @@ name: Generate TestPlan Excel
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: [ main ]
     paths:
-      - "Test_Output/GPIO/TestPlan/final_testplan.json"
-      - ".github/scripts/generate_testplan_xlsx.py"
+      - 'Test_Output/GPIO/TestPlan/final_testplan.json'
+      - '.github/scripts/generate_testplan_xlsx.py'
 
 jobs:
   build:
@@ -15,31 +15,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl
+          pip install openpyxl pytz
 
       - name: Generate Excel
         run: |
-          python .github/scripts/generate_testplan_xlsx.py \
-            --input Test_Output/GPIO/TestPlan/final_testplan.json \
-            --output-dir Test_Output/GPIO/TestPlan \
-            --owner titusbspgit --repo PSVValidation --branch main
+          python .github/scripts/generate_testplan_xlsx.py
 
       - name: Commit Excel
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
-          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
-          git push
+          git add Test_Output/GPIO/TestPlan/*.xlsx
+          if git diff --cached --quiet; then
+            echo "No Excel changes to commit."
+          else
+            git commit -m "Re-push: Generated TestPlan Excel"
+            git push origin main
+          fi
