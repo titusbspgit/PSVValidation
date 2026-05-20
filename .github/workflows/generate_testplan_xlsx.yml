@@ -29,24 +29,26 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl pytz
+          pip install openpyxl
 
-      - name: Generate Excel
+      - name: Generate Excel (REAL .xlsx)
+        env:
+          JSON_URL: https://raw.githubusercontent.com/titusbspgit/PSVValidation/main/Test_Output/GPIO/TestPlan/final_testplan.json
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
         run: |
           python .github/scripts/generate_testplan_xlsx.py
 
-      - name: Show git status (debug)
+      - name: Commit Excel to main
+        env:
+          COMMIT_MESSAGE: Re-push: Generated TestPlan Excel
         run: |
-          git status --porcelain
-
-      - name: Commit Excel
-        run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/*.xlsx
+          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
           if git diff --cached --quiet; then
             echo "No Excel changes to commit."
           else
-            git commit -m "Re-push: Generated TestPlan Excel"
+            git commit -m "$COMMIT_MESSAGE"
             git push origin HEAD:main
           fi
