@@ -1,144 +1,134 @@
 import json
 import os
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from datetime import datetime
-
-try:
-    # Python 3.9+ with zoneinfo
-    from zoneinfo import ZoneInfo
-    tz = ZoneInfo('Asia/Kolkata')
-except Exception:
-    tz = None
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
+
+def ist_now_string():
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%YMMDD_%H%M%S").replace("YMM", datetime.now(ist).strftime("%Y%m"))
+
+
+def ist_timestamp():
+    # Corrected formatter: YYYYMMDD_HHMMSS in IST
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%Y%m%d_%H%M%S")
+
+
 TESTPLAN_COLUMNS = [
-    'Index',
-    'SS / Module',
-    'Feature',
-    'Test Case Name',
-    'Test Description',
-    'Speed',
-    'Mode',
-    'Memory Start Offset',
-    'Memory End Offset',
-    'Remarks',
-    'Test Steps / Procedure',
-    'Impacted Registers',
-    'Validation / Acceptance Criteria',
-    'Code Generation (Required / Not)'
+    "Index",
+    "SS / Module",
+    "Feature",
+    "Test Case Name",
+    "Test Description",
+    "Speed",
+    "Mode",
+    "Memory Start Offset",
+    "Memory End Offset",
+    "Remarks",
+    "Test Steps / Procedure",
+    "Impacted Registers",
+    "Validation / Acceptance Criteria",
+    "Code Generation (Required / Not)",
 ]
 
 METADATA_COLUMNS = [
-    'Index',
-    'Test Case Name',
-    'Meta Test Description',
-    'Meta Test Steps / Procedure',
-    'Meta Impacted Registers',
-    'Meta Validation / Acceptance Criteria',
-    'Meta Headers',
-    'Meta Macros',
-    'Meta Arrays'
+    "Index",
+    "Test Case Name",
+    "Meta Test Description",
+    "Meta Test Steps / Procedure",
+    "Meta Impacted Registers",
+    "Meta Validation / Acceptance Criteria",
+    "Meta Headers",
+    "Meta Macros",
+    "Meta Arrays",
 ]
 
-def now_ist_str():
-    dt = datetime.now(tz) if tz else datetime.utcnow()
-    if tz is None:
-        # Fallback: manually add 5:30 offset to approximate IST if zoneinfo unavailable
-        from datetime import timedelta
-        dt += timedelta(hours=5, minutes=30)
-    return dt.strftime('%Y%m%d_%H%M%S')
 
-def to_cell(value):
-    # Preserve exact strings; convert non-str scalars; join lists as JSON-like strings
-    if value is None:
-        return ''
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, list) or isinstance(value, dict):
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except Exception:
-            return str(value)
-    return str(value)
+def flatten_value(v):
+    if v is None:
+        return ""
+    if isinstance(v, list):
+        return "; ".join(str(x) for x in v)
+    if isinstance(v, dict):
+        # Preserve deterministically
+        return json.dumps(v, ensure_ascii=False, sort_keys=True)
+    return str(v)
+
 
 def build_rows(data, columns):
     rows = []
     for obj in data:
-        row = [to_cell(obj.get(col, '')) for col in columns]
+        row = [flatten_value(obj.get(col, "")) for col in columns]
         rows.append(row)
     return rows
 
-def main():
-    output_dir = os.environ.get('OUTPUT_DIR', 'Test_Output/GPIO/TestPlan')
-    data_path = os.environ.get('DATA_PATH', 'data/testplan.json')
 
-    # Load JSON
-    with open(data_path, 'r', encoding='utf-8') as f:
+def main():
+    repo_root = Path(__file__).resolve().parents[1]
+    data_path = repo_root / "data" / "testplan.json"
+
+    if not data_path.exists():
+        raise FileNotFoundError(f"Input JSON not found: {data_path}")
+
+    with data_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Validate
     if not isinstance(data, list) or len(data) == 0:
-        raise SystemExit('json_data must be a non-empty JSON array')
+        raise ValueError("json_data must be a non-empty array of objects")
 
     # Prepare workbook
     wb = Workbook()
     ws_plan = wb.active
-    ws_plan.title = 'TestPlan'
-    ws_meta = wb.create_sheet('MetaData')
+    ws_plan.title = "TestPlan"
+    ws_meta = wb.create_sheet("MetaData")
 
-    # Headers
+    # Headers (bold)
     ws_plan.append(TESTPLAN_COLUMNS)
     ws_meta.append(METADATA_COLUMNS)
-
-    bold = Font(bold=True)
     for cell in ws_plan[1]:
-        cell.font = bold
+        cell.font = Font(bold=True)
     for cell in ws_meta[1]:
-        cell.font = bold
+        cell.font = Font(bold=True)
 
-    # Freeze first row
-    ws_plan.freeze_panes = 'A2'
-    ws_meta.freeze_panes = 'A2'
+    # Freeze top row
+    ws_plan.freeze_panes = "A2"
+    ws_meta.freeze_panes = "A2"
 
-    # Data rows
+    # Rows
     plan_rows = build_rows(data, TESTPLAN_COLUMNS)
     meta_rows = build_rows(data, METADATA_COLUMNS)
-
     for r in plan_rows:
         ws_plan.append(r)
     for r in meta_rows:
         ws_meta.append(r)
 
-    # Very hidden metadata sheet
-    ws_meta.sheet_state = 'veryHidden'
+    # Very hide metadata sheet
+    ws_meta.sheet_state = "veryHidden"
 
-    # Autosize (basic)
-    for ws in (ws_plan, ws_meta):
-        for col in ws.columns:
-            max_len = 0
-            col_letter = col[0].column_letter
-            for cell in col:
-                try:
-                    v = str(cell.value) if cell.value is not None else ''
-                except Exception:
-                    v = ''
-                max_len = max(max_len, len(v))
-            ws.column_dimensions[col_letter].width = min(max(12, max_len + 2), 80)
+    # Output location
+    output_dir = os.environ.get("OUTPUT_DIR", "Test_Output/GPIO/TestPlan")
+    out_path = repo_root / output_dir
+    out_path.mkdir(parents=True, exist_ok=True)
 
-    # Save
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    ts = now_ist_str()
-    filename = f'testplan_{ts}.xlsx'
-    out_path = Path(output_dir) / filename
-    wb.save(out_path)
+    # Filename with IST timestamp
+    ts = ist_timestamp()
+    filename = f"testplan_{ts}.xlsx"
+    fullpath = out_path / filename
 
-    # Optionally record last file name
-    with open(Path(output_dir) / 'latest_excel_filename.txt', 'w', encoding='utf-8') as f:
-        f.write(filename + '\n')
+    # Save actual XLSX (openpyxl writes real binary .xlsx)
+    wb.save(str(fullpath))
 
-    print(str(out_path))
+    # Write marker file with latest filename
+    marker = out_path / "latest_excel_filename.txt"
+    with marker.open("w", encoding="utf-8") as mf:
+        mf.write(filename + "\n")
 
-if __name__ == '__main__':
+    print(f"Generated: {fullpath}")
+
+
+if __name__ == "__main__":
     main()
