@@ -5,7 +5,6 @@ on:
   push:
     paths:
       - 'Test_Output/GPIO/TestPlan/final_testplan.json'
-      - '.github/scripts/generate_testplan_xlsx.py'
 
 permissions:
   contents: write
@@ -16,36 +15,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: pip install --upgrade pip && pip install openpyxl
-
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
       - name: Generate Excel
         env:
           JSON_URL: https://raw.githubusercontent.com/titusbspgit/PSVValidation/main/Test_Output/GPIO/TestPlan/final_testplan.json
           OUTPUT_DIR: Test_Output/GPIO/TestPlan
         run: |
           python .github/scripts/generate_testplan_xlsx.py
-
       - name: Commit Excel
-        shell: bash
         run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if ls Test_Output/GPIO/TestPlan/testplan_*.xlsx >/dev/null 2>&1; then
+          if [ -n "$(git status --porcelain)" ]; then
             git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
-            if git diff --cached --quiet; then
-              echo "No changes to commit."
-            else
-              git commit -m "Re-push: Generated TestPlan Excel"
-              git push
-            fi
+            git commit -m "Re-push: Generated TestPlan Excel"
+            git push
           else
-            echo "No Excel generated. Failing the job."
-            exit 1
+            echo "No changes to commit."
+          fi

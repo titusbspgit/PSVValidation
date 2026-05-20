@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-import os
-import sys
 import json
-import urllib.request
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import os
+from urllib.request import urlopen, Request
+from datetime import datetime, timezone, timedelta
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-TESTPLAN_HEADERS = [
+TESTPLAN_COLS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -25,7 +23,7 @@ TESTPLAN_HEADERS = [
     "Code Generation (Required / Not)",
 ]
 
-METADATA_HEADERS = [
+METADATA_COLS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -38,96 +36,79 @@ METADATA_HEADERS = [
 ]
 
 
-def fetch_json(url: str):
-    with urllib.request.urlopen(url) as resp:
-        data = resp.read()
-    payload = json.loads(data.decode("utf-8"))
-    if not isinstance(payload, list):
-        raise ValueError("json_data must be a JSON array")
-    # Ensure each element is an object
-    for i, row in enumerate(payload):
-        if not isinstance(row, dict):
-            raise ValueError(f"json_data element at index {i} is not an object")
-    return payload
+def ist_timestamp():
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%Y%m%d_%H%M%S")
 
 
-def bold_headers(ws, headers):
-    ws.append(headers)
+def fetch_json(json_url: str):
+    req = Request(json_url, headers={"User-Agent": "xlsx-generator/1.0"})
+    with urlopen(req, timeout=60) as resp:
+        data = resp.read().decode("utf-8")
+        return json.loads(data)
+
+
+def write_sheet(ws, headers, rows):
+    # headers
     bold = Font(bold=True)
-    for col in range(1, len(headers) + 1):
-        ws.cell(row=1, column=col).font = bold
+    for c, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = bold
     ws.freeze_panes = "A2"
 
+    # rows
+    r = 2
+    for row in rows:
+        for c, key in enumerate(headers, start=1):
+            val = row.get(key, "")
+            ws.cell(row=r, column=c, value=val)
+        r += 1
 
-def build_workbook(rows):
+
+def build_workbook(data):
+    # Ensure list of dicts
+    if not isinstance(data, list):
+        raise ValueError("json_data must be a JSON array")
+
     wb = Workbook()
     ws_plan = wb.active
     ws_plan.title = "TestPlan"
     ws_meta = wb.create_sheet("MetaData")
 
-    # Header rows with formatting
-    bold_headers(ws_plan, TESTPLAN_HEADERS)
-    bold_headers(ws_meta, METADATA_HEADERS)
+    # Prepare two aligned views preserving row order
+    plan_rows = []
+    meta_rows = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("Each JSON array element must be an object (row)")
+        plan_row = {k: item.get(k, "") for k in TESTPLAN_COLS}
+        meta_row = {k: item.get(k, "") for k in METADATA_COLS}
+        plan_rows.append(plan_row)
+        meta_rows.append(meta_row)
 
-    # Populate rows preserving order
-    for row in rows:
-        ws_plan.append([
-            row.get("Index", ""),
-            row.get("SS / Module", ""),
-            row.get("Feature", ""),
-            row.get("Test Case Name", ""),
-            row.get("Test Description", ""),
-            row.get("Speed", ""),
-            row.get("Mode", ""),
-            row.get("Memory Start Offset", ""),
-            row.get("Memory End Offset", ""),
-            row.get("Remarks", ""),
-            row.get("Test Steps / Procedure", ""),
-            row.get("Impacted Registers", ""),
-            row.get("Validation / Acceptance Criteria", ""),
-            row.get("Code Generation (Required / Not)", ""),
-        ])
+    write_sheet(ws_plan, TESTPLAN_COLS, plan_rows)
+    write_sheet(ws_meta, METADATA_COLS, meta_rows)
 
-        ws_meta.append([
-            row.get("Index", ""),
-            row.get("Test Case Name", ""),
-            row.get("Meta Test Description", ""),
-            row.get("Meta Test Steps / Procedure", ""),
-            row.get("Meta Impacted Registers", ""),
-            row.get("Meta Validation / Acceptance Criteria", ""),
-            row.get("Meta Headers", ""),
-            row.get("Meta Macros", ""),
-            row.get("Meta Arrays", ""),
-        ])
-
-    # Make MetaData very hidden
+    # VeryHidden MetaData
     ws_meta.sheet_state = "veryHidden"
 
     return wb
 
 
 def main():
-    json_url = os.environ.get("JSON_URL")
-    output_dir = os.environ.get("OUTPUT_DIR", "Test_Output")
-    if not json_url and len(sys.argv) > 1:
-        json_url = sys.argv[1]
+    json_url = os.environ.get("JSON_URL") or (len(os.sys.argv) > 1 and os.sys.argv[1])
+    output_dir = os.environ.get("OUTPUT_DIR") or (len(os.sys.argv) > 2 and os.sys.argv[2]) or "Test_Output/GPIO/TestPlan"
     if not json_url:
-        print("ERROR: JSON_URL not provided", file=sys.stderr)
-        sys.exit(2)
+        raise SystemExit("JSON_URL must be provided via env or argv[1]")
 
-    rows = fetch_json(json_url)
+    data = fetch_json(json_url)
+    wb = build_workbook(data)
 
-    wb = build_workbook(rows)
-
-    # IST timestamp
-    ist = ZoneInfo("Asia/Kolkata")
-    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
-    filename = f"testplan_{ts}.xlsx"
-
+    ts = ist_timestamp()
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, filename)
+    out_path = os.path.join(output_dir, f"testplan_{ts}.xlsx")
     wb.save(out_path)
-    print(out_path)
+    print(f"Saved Excel: {out_path}")
 
 
 if __name__ == "__main__":
