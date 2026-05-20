@@ -8,6 +8,9 @@ on:
       - 'Test_Output/GPIO/TestPlan/final_testplan.json'
       - '.github/scripts/generate_testplan_xlsx.py'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,6 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,6 +35,10 @@ jobs:
         run: |
           python .github/scripts/generate_testplan_xlsx.py
 
+      - name: Show git status (debug)
+        run: |
+          git status --porcelain
+
       - name: Commit Excel
         run: |
           git config user.name "github-actions[bot]"
@@ -40,5 +48,5 @@ jobs:
             echo "No Excel changes to commit."
           else
             git commit -m "Re-push: Generated TestPlan Excel"
-            git push origin main
+            git push origin HEAD:main
           fi
