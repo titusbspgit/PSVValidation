@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/GPIO/TestPlan/input/**'
       - 'scripts/generate_testplan_excel.py'
       - '.github/workflows/generate_testplan_excel.yml'
 
@@ -21,25 +20,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
+        run: pip install openpyxl
 
       - name: Generate Excel
-        run: |
-          python scripts/generate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan"
+        env:
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+        run: python scripts/generate_testplan_excel.py
 
-      - name: Commit and push Excel
+      - name: Commit generated Excel
         run: |
+          set -e
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Added generated TestPlan Excel"
-            git push
-          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx || true
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push || echo "Push skipped"
