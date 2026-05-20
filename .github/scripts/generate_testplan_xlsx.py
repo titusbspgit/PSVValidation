@@ -1,14 +1,14 @@
-import json
+#!/usr/bin/env python3
 import os
 import sys
-from io import BytesIO
-from urllib.request import urlopen, Request
+import json
+import urllib.request
 from datetime import datetime
-import pytz
+from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-TESTPLAN_COLUMNS = [
+TESTPLAN_HEADERS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -25,7 +25,7 @@ TESTPLAN_COLUMNS = [
     "Code Generation (Required / Not)",
 ]
 
-METADATA_COLUMNS = [
+METADATA_HEADERS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -37,112 +37,98 @@ METADATA_COLUMNS = [
     "Meta Arrays",
 ]
 
-def fetch_json(json_url: str):
-    req = Request(json_url, headers={"User-Agent": "github-actions-bot"})
-    with urlopen(req) as resp:
+
+def fetch_json(url: str):
+    with urllib.request.urlopen(url) as resp:
         data = resp.read()
-    text = data.decode("utf-8")
-    obj = json.loads(text)
-    if not isinstance(obj, list):
-        raise ValueError("json_data must be a list (array) of objects")
-    for i, row in enumerate(obj):
+    payload = json.loads(data.decode("utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError("json_data must be a JSON array")
+    # Ensure each element is an object
+    for i, row in enumerate(payload):
         if not isinstance(row, dict):
-            raise ValueError(f"json_data row {i} is not an object")
-    return obj
+            raise ValueError(f"json_data element at index {i} is not an object")
+    return payload
+
+
+def bold_headers(ws, headers):
+    ws.append(headers)
+    bold = Font(bold=True)
+    for col in range(1, len(headers) + 1):
+        ws.cell(row=1, column=col).font = bold
+    ws.freeze_panes = "A2"
 
 
 def build_workbook(rows):
     wb = Workbook()
-    ws = wb.active
-    ws.title = "TestPlan"
-    ws2 = wb.create_sheet("MetaData")
+    ws_plan = wb.active
+    ws_plan.title = "TestPlan"
+    ws_meta = wb.create_sheet("MetaData")
 
-    # Headers
-    ws.append(TESTPLAN_COLUMNS)
-    ws2.append(METADATA_COLUMNS)
+    # Header rows with formatting
+    bold_headers(ws_plan, TESTPLAN_HEADERS)
+    bold_headers(ws_meta, METADATA_HEADERS)
 
-    # Bold headers
-    bold = Font(bold=True)
-    for cell in ws[1]:
-        cell.font = bold
-    for cell in ws2[1]:
-        cell.font = bold
-
-    # Freeze first row
-    ws.freeze_panes = "A2"
-    ws2.freeze_panes = "A2"
-
-    # Data rows (preserve order)
-    def get(row, key):
-        return row.get(key, "")
-
+    # Populate rows preserving order
     for row in rows:
-        ws.append([
-            get(row, "Index"),
-            get(row, "SS / Module"),
-            get(row, "Feature"),
-            get(row, "Test Case Name"),
-            get(row, "Test Description"),
-            get(row, "Speed"),
-            get(row, "Mode"),
-            get(row, "Memory Start Offset"),
-            get(row, "Memory End Offset"),
-            get(row, "Remarks"),
-            get(row, "Test Steps / Procedure"),
-            get(row, "Impacted Registers"),
-            get(row, "Validation / Acceptance Criteria"),
-            get(row, "Code Generation (Required / Not)"),
-        ])
-        ws2.append([
-            get(row, "Index"),
-            get(row, "Test Case Name"),
-            get(row, "Meta Test Description"),
-            get(row, "Meta Test Steps / Procedure"),
-            get(row, "Meta Impacted Registers"),
-            get(row, "Meta Validation / Acceptance Criteria"),
-            get(row, "Meta Headers"),
-            get(row, "Meta Macros"),
-            get(row, "Meta Arrays"),
+        ws_plan.append([
+            row.get("Index", ""),
+            row.get("SS / Module", ""),
+            row.get("Feature", ""),
+            row.get("Test Case Name", ""),
+            row.get("Test Description", ""),
+            row.get("Speed", ""),
+            row.get("Mode", ""),
+            row.get("Memory Start Offset", ""),
+            row.get("Memory End Offset", ""),
+            row.get("Remarks", ""),
+            row.get("Test Steps / Procedure", ""),
+            row.get("Impacted Registers", ""),
+            row.get("Validation / Acceptance Criteria", ""),
+            row.get("Code Generation (Required / Not)", ""),
         ])
 
-    # VeryHidden metadata sheet
-    ws2.sheet_state = "veryHidden"
+        ws_meta.append([
+            row.get("Index", ""),
+            row.get("Test Case Name", ""),
+            row.get("Meta Test Description", ""),
+            row.get("Meta Test Steps / Procedure", ""),
+            row.get("Meta Impacted Registers", ""),
+            row.get("Meta Validation / Acceptance Criteria", ""),
+            row.get("Meta Headers", ""),
+            row.get("Meta Macros", ""),
+            row.get("Meta Arrays", ""),
+        ])
+
+    # Make MetaData very hidden
+    ws_meta.sheet_state = "veryHidden"
 
     return wb
-
-
-def ensure_dir(path):
-    if not os.path.isdir(path):
-        os.makedirs(path, exist_ok=True)
 
 
 def main():
     json_url = os.environ.get("JSON_URL")
     output_dir = os.environ.get("OUTPUT_DIR", "Test_Output")
-
+    if not json_url and len(sys.argv) > 1:
+        json_url = sys.argv[1]
     if not json_url:
         print("ERROR: JSON_URL not provided", file=sys.stderr)
         sys.exit(2)
 
     rows = fetch_json(json_url)
+
     wb = build_workbook(rows)
 
     # IST timestamp
-    ist = pytz.timezone("Asia/Kolkata")
+    ist = ZoneInfo("Asia/Kolkata")
     ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
     filename = f"testplan_{ts}.xlsx"
 
-    ensure_dir(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, filename)
     wb.save(out_path)
+    print(out_path)
 
-    # Record the relative path for the workflow commit step
-    meta_out = os.path.join(".github", "scripts", "excel_path.txt")
-    ensure_dir(os.path.dirname(meta_out))
-    with open(meta_out, "w", encoding="utf-8") as f:
-        f.write(out_path.replace("\\", "/"))
-
-    print(f"Generated: {out_path}")
 
 if __name__ == "__main__":
     main()

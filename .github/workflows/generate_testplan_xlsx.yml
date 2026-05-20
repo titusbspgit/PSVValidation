@@ -1,10 +1,51 @@
-name: Generate TestPlan Excel\n\non:\n  workflow_dispatch: {}\n  push:\n    paths:\n      - 'Test_Output/GPIO/TestPlan/final_testplan.json'\n\npermissions:\n  contents: write\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Setup Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.11'\n\n      - name: Install dependencies\n        run: pip install --upgrade pip && pip install openpyxl pytz\n\n      - name: Generate Excel from JSON (RAW GitHub URL)\n        env:\n          JSON_URL: https://raw.githubusercontent.com/titusbspgit/PSVValidation/main/Test_Output/GPIO/TestPlan/final_testplan.json\n          OUTPUT_DIR: Test_Output/GPIO/TestPlan\n        run: |
-          python .github/scripts/generate_testplan_xlsx.py\n\n      - name: Commit Excel to main\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: |
+name: Generate TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/GPIO/TestPlan/final_testplan.json'
+      - '.github/scripts/generate_testplan_xlsx.py'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install openpyxl
+
+      - name: Generate Excel
+        env:
+          JSON_URL: https://raw.githubusercontent.com/titusbspgit/PSVValidation/main/Test_Output/GPIO/TestPlan/final_testplan.json
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+        run: |
+          python .github/scripts/generate_testplan_xlsx.py
+
+      - name: Commit Excel
+        shell: bash
+        run: |
           set -e
-          FILEPATH=$(cat .github/scripts/excel_path.txt)
-          echo "Excel path: $FILEPATH"
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILEPATH"
-          git commit -m "Re-push: Generated TestPlan Excel" || echo "No changes to commit"
-          git push\n
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ls Test_Output/GPIO/TestPlan/testplan_*.xlsx >/dev/null 2>&1; then
+            git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+            else
+              git commit -m "Re-push: Generated TestPlan Excel"
+              git push
+            fi
+          else
+            echo "No Excel generated. Failing the job."
+            exit 1

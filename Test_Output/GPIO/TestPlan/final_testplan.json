@@ -41,7 +41,7 @@
     "Validation / Acceptance Criteria": "PASS if for each pad: a) an interrupt is observed within the timeout following a generated falling edge, b) the per-pin control/status read indicates the edge event as expected, c) the group interrupt status sets the corresponding bit for that pad, and d) after clearing, the group status reads as 0. Any timeout or mismatch results in FAIL.",
     "Meta Validation / Acceptance Criteria": "Timeout check: if timeout==0 after while(int_pend && timeout--) wait_on(10) then FAIL. Per-pin register check: if ((rdata & 0x1)!=0) then FAIL; if ((rdata & 0x2)==0) then FAIL. Group status set: rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if ((rdata_grp & (1u<<i))==0) then FAIL. Clear and verify: write_reg(MIZAR_GPIO_GPIO_INTR_RAW_STCLR1, (1u<<i)); rdata_grp=read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1); if (rdata_grp != 0x0) then FAIL. System/GIC clear: write RAW_STCR1 for the GPIO instance and GIC_ClearIRQ(87/88) at end of ISR.",
     "Code Generation (Required / Not)": "Not",
-    "Meta Headers": "#include <stdio.h>\n#include <lss_sysreg.h>\n#include \"test_define.c\"\n#include <test_common.h>\n#include <gpio/gpio_def.h>\n#include <gpio/gpio_offset.h>",
+    "Meta Headers": "#include <stdio.h>\n#include <lss_sysreg.h>\n#include \\"test_define.c\\"\n#include <test_common.h>\n#include <gpio/gpio_def.h>\n#include <gpio/gpio_offset.h>",
     "Meta Macros": "#define CNT 49",
     "Meta Arrays": "skip_array[20] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}"
   },
