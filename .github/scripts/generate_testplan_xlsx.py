@@ -1,16 +1,12 @@
-import json
-import os
-from datetime import datetime
+#!/usr/bin/env python3
+import os, sys, json, datetime
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
+from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font
-from pytz import timezone
 
-# Configuration
-JSON_PATH = os.environ.get("TESTPLAN_JSON_PATH", "Test_Output/GPIO/TestPlan/final_testplan.json")
-OUTPUT_DIR = os.environ.get("TESTPLAN_OUTPUT_DIR", "Test_Output/GPIO/TestPlan")
-TESTPLAN_SHEET = "TestPlan"
-METADATA_SHEET = "MetaData"
-
+# Columns per requirements
 TESTPLAN_COLS = [
     "Index",
     "SS / Module",
@@ -28,7 +24,7 @@ TESTPLAN_COLS = [
     "Code Generation (Required / Not)",
 ]
 
-METADATA_COLS = [
+META_COLS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -40,75 +36,86 @@ METADATA_COLS = [
     "Meta Arrays",
 ]
 
-def validate_and_load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+
+def load_json():
+    # Prefer JSON from GitHub raw URL to avoid local path assumptions
+    json_url = os.environ.get("JSON_URL", "").strip()
+    fallback_path = os.environ.get("JSON_PATH", "Test_Output/GPIO/TestPlan/final_testplan.json")
+    if json_url:
+        try:
+            req = Request(json_url, headers={"User-Agent": "excel-gen-action"})
+            with urlopen(req) as resp:
+                charset = resp.headers.get_content_charset() or "utf-8"
+                raw = resp.read().decode(charset)
+                data = json.loads(raw)
+        except (URLError, HTTPError, json.JSONDecodeError) as e:
+            print(f"ERROR: Failed to fetch/parse JSON from URL: {json_url}: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        try:
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"ERROR: Failed to read/parse JSON from path: {fallback_path}: {e}", file=sys.stderr)
+            sys.exit(1)
+
     if not isinstance(data, list):
-        raise ValueError("json_data must be a JSON array of objects")
+        print("ERROR: json_data is not an array.", file=sys.stderr)
+        sys.exit(1)
     for i, row in enumerate(data):
         if not isinstance(row, dict):
-            raise ValueError(f"json_data element at index {i} is not an object")
+            print(f"ERROR: Element at index {i} is not an object", file=sys.stderr)
+            sys.exit(1)
     return data
+
 
 def build_workbook(rows):
     wb = Workbook()
-    ws = wb.active
-    ws.title = TESTPLAN_SHEET
+    # Remove default sheet to control order
+    if wb.active:
+        wb.remove(wb.active)
 
-    # Create MetaData sheet second
-    meta = wb.create_sheet(METADATA_SHEET)
+    ws = wb.create_sheet("TestPlan")
+    ws_meta = wb.create_sheet("MetaData")
 
-    # Header fonts
     bold = Font(bold=True)
 
-    # Write headers for TestPlan
-    for col_idx, key in enumerate(TESTPLAN_COLS, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=key)
-        cell.font = bold
+    # Headers + freeze first row
+    ws.append(TESTPLAN_COLS)
+    for c in ws[1]:
+        c.font = bold
     ws.freeze_panes = "A2"
 
-    # Write headers for MetaData
-    for col_idx, key in enumerate(METADATA_COLS, start=1):
-        cell = meta.cell(row=1, column=col_idx, value=key)
-        cell.font = bold
-    meta.freeze_panes = "A2"
+    ws_meta.append(META_COLS)
+    for c in ws_meta[1]:
+        c.font = bold
+    ws_meta.freeze_panes = "A2"
 
-    # Fill rows, preserving order
-    for r_idx, obj in enumerate(rows, start=2):
-        # TestPlan sheet data
-        for c_idx, key in enumerate(TESTPLAN_COLS, start=1):
-            ws.cell(row=r_idx, column=c_idx, value=obj.get(key, ""))
-        # MetaData sheet data
-        for c_idx, key in enumerate(METADATA_COLS, start=1):
-            meta.cell(row=r_idx, column=c_idx, value=obj.get(key, ""))
+    # Rows preserving order and exact values
+    for obj in rows:
+        ws.append([obj.get(col, "") for col in TESTPLAN_COLS])
+        ws_meta.append([obj.get(col, "") for col in META_COLS])
 
-    # Very hide MetaData
-    meta.sheet_state = "veryHidden"
-
+    # VeryHidden
+    ws_meta.sheet_state = 'veryHidden'
     return wb
-
-def ensure_dir(path):
-    if not os.path.isdir(path):
-        os.makedirs(path, exist_ok=True)
 
 
 def main():
-    rows = validate_and_load_json(JSON_PATH)
+    rows = load_json()
+    output_dir = os.environ.get("OUTPUT_DIR", "Test_Output/GPIO/TestPlan").rstrip("/")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # IST timestamped filename
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.datetime.now(tz=ist).strftime("%Y%m%d_%H%M%S")
+    out_path = os.path.join(output_dir, f"testplan_{ts}.xlsx")
+
     wb = build_workbook(rows)
-
-    # Build IST timestamped filename
-    ist = timezone("Asia/Kolkata")
-    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
-    fname = f"testplan_{ts}.xlsx"
-
-    ensure_dir(OUTPUT_DIR)
-    out_path = os.path.join(OUTPUT_DIR, fname)
-
-    # Save real .xlsx
     wb.save(out_path)
 
-    # Print output path for logs
-    print(f"Generated Excel: {out_path}")
+    # Emit output path for GitHub Actions
+    print(f"xlsx_path={out_path}")
 
 if __name__ == "__main__":
     main()
