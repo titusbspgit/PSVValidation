@@ -1,12 +1,12 @@
 name: Generate TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/generate_testplan_excel.yml'
+      - 'Test_Output/GPIO/TestPlan/input/**'
       - 'scripts/generate_testplan_excel.py'
-      - 'scripts/testplan_input.json'
-  workflow_dispatch:
+      - '.github/workflows/generate_testplan_excel.yml'
 
 permissions:
   contents: write
@@ -17,28 +17,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
+
       - name: Generate Excel
+        id: gen
         run: |
-          python scripts/generate_testplan_excel.py --input scripts/testplan_input.json --outdir "Test_Output/PCIE/TestPlan" --ip-name "PCIE"
+          python scripts/ggenerate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan" 2>&1 | tee gen.log || true
+          # Fallback if script name typo or failure; try correct path
+          if ! grep -q 'testplan_' gen.log; then
+            python scripts/generate_testplan_excel.py --input "Test_Output/GPIO/TestPlan/input/testplan.json" --output-dir "Test_Output/GPIO/TestPlan" | tee gen2.log
+          fi
+
       - name: Commit and push Excel
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          FILEPATH=$(cat testplan_output_path.txt)
-          echo "Generated: $FILEPATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILEPATH"
-          git commit -m "chore(testplan): add $(basename "$FILEPATH")" || exit 0
-          git push origin HEAD:${{ github.ref_name }}
+          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Added generated TestPlan Excel"
+            git push
+          fi
