@@ -1,11 +1,13 @@
 name: Generate TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
+    branches: [ "main" ]
     paths:
-      - 'scripts/generate_testplan_excel.py'
-      - '.github/workflows/generate_testplan_excel.yml'
+      - "scripts/generate_testplan_excel.py"
+      - "Test_Output/GPIO/TestPlan/testplan_data.json"
+      - ".github/workflows/generate_testplan_excel.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,27 +16,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: "3.x"
       - name: Install dependencies
-        run: pip install openpyxl
-
-      - name: Generate Excel
-        env:
-          OUTPUT_DIR: Test_Output/GPIO/TestPlan
-        run: python scripts/generate_testplan_excel.py
-
-      - name: Commit generated Excel
         run: |
-          set -e
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Excel
+        run: |
+          python scripts/generate_testplan_excel.py
+      - name: Commit Excel
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx || true
-          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
-          git push || echo "Push skipped"
+          git add Test_Output/GPIO/TestPlan/testplan_*.xlsx
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Added generated TestPlan Excel"
+            git push
+          fi
