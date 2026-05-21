@@ -1,8 +1,3 @@
-/* Auto-generated test define file for pcie1_sii_rc_reg_wr_rd_test */
-#ifndef TEST_DEFINE_C_FILE
-#define TEST_DEFINE_C_FILE
-
-/* Headers from Meta Headers (unchanged) */
 #include <stdio.h>
 #include <stdlib.h>
 "test_common.h"
@@ -10,24 +5,11 @@
 #include <pcie1/pcie_sii_rc_def.h>
 #include <pcie1/pcie_sii_rc_offset.h>
 
-/* Macros from Meta Macros (unchanged) */
 #define MIZAR_PCIE1_SII BASE 0xE68C1000
 #define CNT 153
 #define SOFT_RST REG ADDRESS 0x00000000
 #define SOFT_RST REG DATA 0x00000000
 
-/* Impacted Registers RAG mapping (comments only; no behavioral change) */
-/*
-- mizar_PCIE1_SII_CFG_BAR0_START1 -> Spec Not Found
-- mizar_PCIE1_SII_CFG_BAR0_START2 -> Spec Not Found
-- mizar_PCIE1_SII_CFG_BAR0_LIMIT1 -> Spec Not Found
-- mizar_PCIE1_SII_CFG_BAR0_LIMIT2 -> Spec Not Found
-- mizar_PCIE1_SII_CFG_BAR1 START -> Spec Not Found
-- mizar_PCIE1_SII_CFG_BAR1 LIMIT1 -> Spec Not Found
-- mizar_PCIE1_SII_PHY RST CONTROL -> Spec Not Found
-*/
-
-/* Arrays from Meta Arrays (verbatim) */
 const unsigned long int addr_array[20]={mizar_PCIE1_SII_CFG_BAR0_START1,mizar_PCIE1_SII_CFG_BAR0_START2,mizar_PCIE1_SII_CFG_BAR0_LIMIT1,mizar_PCIE1_SII_CFG_BAR0_LIMIT2,mizar_PCIE1_SII_CFG_BAR1 START,mizar_PCIE1_SII_CFG_BAR1 LIMIT1,};
 
 const int default_value_array[20]={PCIE1_SII_CFG_BAR0_START1 DEFAULT VAL,PCIE1_SII_CFG_BAR0_START2 DEFAULT VAL,PCIE1_SII_CFG_BAR0_LIMIT1 DEFAULT VAL,PCIE1_SII_CFG_BAR0_LIMIT2 DEFAULT VAL,PCIE1_SII_CFG_BAR1 START DEFAULT VAL,};
@@ -37,5 +19,3 @@ const int read_mask_array[20]={PCIE1_SII_CFG_BAR0_START1 READ MASK,PCIE1_SII_CFG
 const int write_mask_array[20]={PCIE1_SII_CFG_BAR0_START1 WRITE MASK,PCIE1_SII_CFG_BAR0_START2 WRITE MASK,PCIE1_SII_CFG_BAR0 LIMIT1 WRITE MASK,PCIE1_SII_CFG_BAR0 LIMIT2 WRITE MASK,PCIE1_SII_CFG_BAR1 START WRITE MASK,};
 
 const int skip_array[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};
-
-#endif /* TEST_DEFINE_C_FILE */
