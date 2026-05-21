@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Generate a REAL .xlsx Test Plan workbook from a JSON array.
-- Sheet "TestPlan" (visible)
-- Sheet "MetaData" (VeryHidden)
-- Bold headers, freeze first row
-- File name: testplan_<YYYYMMDD_HHMMSS>.xlsx in IST (Asia/Kolkata)
+import os, sys, json
+from datetime import datetime, timedelta
 
-Usage:
-  python scripts/generate_testplan_excel.py --input path/to/input.json --output-dir Test_Output/GPIO/TestCode --outpath-file tmp/outpath.txt
-
-The script validates that the input JSON is an array of objects and preserves row order across sheets.
-"""
-import argparse
-import json
-import os
-import sys
-from datetime import datetime, timezone, timedelta
-
+# Try to use IANA tz; fall back to fixed +05:30 if unavailable
 try:
     from zoneinfo import ZoneInfo  # Python 3.9+
 except Exception:
@@ -27,125 +12,107 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 
-def ist_now_timestamp():
-    fmt = "%Y%m%d_%H%M%S"
-    # Prefer system zoneinfo for Asia/Kolkata
-    if ZoneInfo is not None:
-        try:
-            return datetime.now(ZoneInfo("Asia/Kolkata")).strftime(fmt)
-        except Exception:
-            pass
-    # Fallback: fixed offset IST (UTC+05:30)
-    ist = timezone(timedelta(hours=5, minutes=30))
-    return datetime.now(ist).strftime(fmt)
+def get_ist_timestamp():
+    try:
+        if ZoneInfo is not None:
+            tz = ZoneInfo("Asia/Kolkata")
+            now = datetime.now(tz)
+        else:
+            raise Exception("ZoneInfo not available")
+    except Exception:
+        # Fallback: UTC + 5:30 without DST
+        now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    return now.strftime("%Y%m%d_%H%M%S")
 
 
-def validate_json_array(data):
+TESTPLAN_HEADERS = [
+    "Index","SS / Module","Feature","Test Case Name","Test Description",
+    "Speed","Mode","Memory Start Offset","Memory End Offset","Remarks",
+    "Test Steps / Procedure","Impacted Registers","Validation / Acceptance Criteria",
+    "Code Generation (Required / Not)"
+]
+
+METADATA_HEADERS = [
+    "Index","Test Case Name","Meta Test Description","Meta Test Steps / Procedure",
+    "Meta Impacted Registers","Meta Validation / Acceptance Criteria","Meta Headers",
+    "Meta Macros","Meta Arrays"
+]
+
+
+def validate_json(data):
     if not isinstance(data, list):
-        raise ValueError("json_data must be a JSON array of objects")
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise ValueError(f"Each element must be an object. Found {type(item).__name__} at index {i}")
+        raise ValueError("json_data must be a JSON array")
+    for i, row in enumerate(data):
+        if not isinstance(row, dict):
+            raise ValueError(f"Element at index {i} is not an object/dict")
 
 
-def build_workbook(rows):
-    # Define exact column schemas
-    testplan_columns = [
-        "Index",
-        "SS / Module",
-        "Feature",
-        "Test Case Name",
-        "Test Description",
-        "Speed",
-        "Mode",
-        "Memory Start Offset",
-        "Memory End Offset",
-        "Remarks",
-        "Test Steps / Procedure",
-        "Impacted Registers",
-        "Validation / Acceptance Criteria",
-        "Code Generation (Required / Not)",
-    ]
+def write_sheet(ws, headers, rows):
+    # Header
+    for c, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = Font(bold=True)
+    ws.freeze_panes = "A2"
+    # Rows
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, h in enumerate(headers, start=1):
+            val = row.get(h, "")
+            if val is None:
+                val = ""
+            ws.cell(row=r_idx, column=c_idx, value=str(val))
 
-    metadata_columns = [
-        "Index",
-        "Test Case Name",
-        "Meta Test Description",
-        "Meta Test Steps / Procedure",
-        "Meta Impacted Registers",
-        "Meta Validation / Acceptance Criteria",
-        "Meta Headers",
-        "Meta Macros",
-        "Meta Arrays",
-    ]
+
+def main():
+    # Read JSON payload from env or file path argument
+    json_payload = os.environ.get("JSON_PAYLOAD", None)
+    # Allow first arg to be a file path if provided (and not the --outdir switch)
+    if not json_payload and len(sys.argv) > 1 and sys.argv[1] != "--outdir":
+        with open(sys.argv[1], 'r', encoding='utf-8') as f:
+            json_payload = f.read()
+
+    # Parse args
+    outdir = "Test_Output/GPIO/TestCode"
+    if "--outdir" in sys.argv:
+        i = sys.argv.index("--outdir")
+        if i + 1 < len(sys.argv):
+            outdir = sys.argv[i + 1]
+
+    if not json_payload:
+        print("ERROR: No JSON payload provided. Set JSON_PAYLOAD env var or pass a file path.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        data = json.loads(json_payload)
+    except Exception as e:
+        print(f"ERROR: Failed to parse JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        validate_json(data)
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
     wb = Workbook()
-
     ws_plan = wb.active
     ws_plan.title = "TestPlan"
     ws_meta = wb.create_sheet("MetaData")
 
-    # Write headers with bold font and freeze first row
-    bold = Font(bold=True)
+    write_sheet(ws_plan, TESTPLAN_HEADERS, data)
+    write_sheet(ws_meta, METADATA_HEADERS, data)
 
-    for col_idx, name in enumerate(testplan_columns, start=1):
-        c = ws_plan.cell(row=1, column=col_idx, value=name)
-        c.font = bold
-    ws_plan.freeze_panes = "A2"
-
-    for col_idx, name in enumerate(metadata_columns, start=1):
-        c = ws_meta.cell(row=1, column=col_idx, value=name)
-        c.font = bold
-    ws_meta.freeze_panes = "A2"
-
-    # VeryHidden MetaData sheet
+    # Very hidden MetaData
     ws_meta.sheet_state = "veryHidden"
 
-    # Write data preserving order
-    for row_idx, row in enumerate(rows, start=2):
-        for col_idx, name in enumerate(testplan_columns, start=1):
-            ws_plan.cell(row=row_idx, column=col_idx, value=row.get(name, ""))
-        for col_idx, name in enumerate(metadata_columns, start=1):
-            ws_meta.cell(row=row_idx, column=col_idx, value=row.get(name, ""))
+    # Ensure output directory exists
+    os.makedirs(outdir, exist_ok=True)
 
-    return wb
+    # Filename with IST timestamp
+    ts = get_ist_timestamp()
+    outfile = os.path.join(outdir, f"testplan_{ts}.xlsx")
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Generate TestPlan Excel from JSON array")
-    parser.add_argument("--input", required=True, help="Path to JSON file (array of objects)")
-    parser.add_argument("--output-dir", required=True, help="Directory to write the .xlsx file into")
-    parser.add_argument("--outpath-file", default="tmp/outpath.txt", help="File to write the absolute output .xlsx path into")
-    args = parser.parse_args()
-
-    with open(args.input, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    try:
-        validate_json_array(data)
-    except Exception as e:
-        print(f"ERROR: {e}")
-        sys.exit(2)
-
-    wb = build_workbook(data)
-
-    ts = ist_now_timestamp()
-    filename = f"testplan_{ts}.xlsx"
-
-    os.makedirs(args.output_dir, exist_ok=True)
-    outpath = os.path.join(args.output_dir, filename)
-
-    # Save REAL .xlsx (openpyxl)
-    wb.save(outpath)
-
-    # Record path for CI to commit
-    outdir = os.path.dirname(args.outpath_file)
-    if outdir:
-        os.makedirs(outdir, exist_ok=True)
-    with open(args.outpath_file, "w", encoding="utf-8") as f:
-        f.write(outpath)
-
-    print(outpath)
+    wb.save(outfile)
+    print(outfile)
 
 
 if __name__ == "__main__":

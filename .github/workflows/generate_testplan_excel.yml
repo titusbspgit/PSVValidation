@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       json_payload:
-        description: "> Paste the Test Plan JSON array (raw JSON). The workflow will validate it and generate a REAL .xlsx."
+        description: 'Paste your Test Plan JSON array (must be a valid JSON array)'
         required: true
-        type: string
 
 permissions:
   contents: write
@@ -17,55 +16,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          ref: main
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl tzdata
-
-      - name: Validate and write JSON to file
+          pip install openpyxl
+      - name: Generate Excel
         env:
-          JSON_PAYLOAD: ${{ inputs.json_payload }}
+          JSON_PAYLOAD: ${{ github.event.inputs.json_payload }}
         run: |
-          python - << 'PY'
-          import os, json, sys
-          payload = os.environ.get('JSON_PAYLOAD', '')
-          try:
-              data = json.loads(payload)
-          except Exception as e:
-              print('ERROR: Invalid JSON provided to input \'json_payload\':', e)
-              sys.exit(1)
-          if not isinstance(data, list):
-              print('ERROR: json_payload must be a JSON array of objects')
-              sys.exit(1)
-          os.makedirs('tmp', exist_ok=True)
-          with open('tmp/testplan.json', 'w', encoding='utf-8') as f:
-              json.dump(data, f, ensure_ascii=False)
-          print('Wrote tmp/testplan.json')
-          PY
-
-      - name: Generate Excel (.xlsx) with VeryHidden MetaData sheet
+          python scripts/generate_testplan_excel.py --outdir "Test_Output/GPIO/TestCode"
+      - name: Commit Excel
         run: |
-          python scripts/generate_testplan_excel.py \
-            --input tmp/testplan.json \
-            --output-dir Test_Output/GPIO/TestCode \
-            --outpath-file tmp/outpath.txt
-
-      - name: Commit generated Excel to main
-        run: |
-          OUTPATH="$(cat tmp/outpath.txt)"
-          echo "Generated file: $OUTPATH"
+          set -e
+          FILE=$(ls -t Test_Output/GPIO/TestCode/testplan_*.xlsx | head -n 1)
+          echo "Generated file: $FILE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$OUTPATH"
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Added generated TestPlan Excel"
-            git push origin main
-          fi
+          git add "$FILE"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push
