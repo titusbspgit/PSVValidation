@@ -1,10 +1,10 @@
-name: Generate and Commit TestPlan Excel
+name: Generate TestPlan Excel
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'automation/testplan/**'
+      - 'Test_Output/PCIE/TestPlan/testplan.json'
 
 permissions:
   contents: write
@@ -15,22 +15,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: pip install openpyxl
-
+        run: pip install --no-cache-dir openpyxl
       - name: Generate Excel
-        run: python automation/testplan/generate_testplan_excel.py
-
+        run: |
+          python scripts/generate_testplan_excel.py --json Test_Output/PCIE/TestPlan/testplan.json --outdir Test_Output/PCIE/TestPlan
       - name: Commit Excel
-        uses: EndBug/add-and-commit@v9
-        with:
-          add: 'Test_Output/GPIO/TestPlan/*.xlsx'
-          message: 'Added generated TestPlan Excel'
+        run: |
+          set -e
+          OUT_PATH=$(cat Test_Output/PCIE/TestPlan/.last_output_path.txt)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$OUT_PATH"
+          git commit -m "Added generated TestPlan Excel: $(basename "$OUT_PATH")" || echo "No changes to commit"
+          git push
