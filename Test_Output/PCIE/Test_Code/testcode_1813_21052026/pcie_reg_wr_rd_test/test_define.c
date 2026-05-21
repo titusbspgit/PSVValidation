@@ -1,16 +1,17 @@
+/* Auto-generated test define file for pcie_reg_wr_rd_test */
+#ifndef TEST_DEFINE_C_FILE
+#define TEST_DEFINE_C_FILE
+
+/* Headers from Meta Headers (unchanged) */
 #include <stdlib.h>
 #include <stdio.h>
 #include <test_common.h>
 #include <pcie.h>
 
-/*
- * NOTE:
- * - Headers and arrays are included exactly as provided by meta_json.
- * - No optimization or modification applied to the arrays/macros as per rules.
- * - RAG mapping was referenced for understanding, but arrays remain verbatim.
- */
+/* Macros from Meta Macros (unchanged) */
+/* NA in Meta: no macros provided */
 
-/* Arrays (verbatim from Meta Arrays) */
+/* Arrays from Meta Arrays (verbatim) */
 unsigned int rc0_ctl_addr[5] = {mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H REG, mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE0_DBI_DSP_UTILITY OFF};
 unsigned int rc1_ctl_addr[5] = {mizar_PCIE1_DBI_DSP_MSI_CAP OFF_08H REG, mizar_PCIE1_DBI_DSP_MSI_CAP OFF_10H REG, mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE1_DBI_DSP_UTILITY OFF};
 unsigned int ctl_default[5] = {0x0, 0x0, 0x0, 0x0, 0x0};
@@ -28,5 +29,4 @@ unsigned int phy1_write_mask[3] = {0x1FFF, 0x1FFF, 0x1FFF};
 int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000};
 int chk_val_phy[3]={0x7baf,0x1,0x003b};
 
-/* Skip Registers array (no skip-related arrays provided in Meta; keeping stub deterministic) */
-static const unsigned int skip_regs[1] = {0u};
+#endif /* TEST_DEFINE_C_FILE */
