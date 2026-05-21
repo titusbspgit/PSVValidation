@@ -1,17 +1,9 @@
-/* Auto-generated test define file for pcie_reg_wr_rd_test */
-#ifndef TEST_DEFINE_C_FILE
-#define TEST_DEFINE_C_FILE
-
-/* Headers from Meta Headers (unchanged) */
 #include <stdlib.h>
 #include <stdio.h>
 #include <test_common.h>
 #include <pcie.h>
 
-/* Macros from Meta Macros (unchanged) */
-/* NA in Meta: no macros provided */
-
-/* Arrays from Meta Arrays (verbatim) */
+/* Arrays defined exactly as provided in Meta Arrays */
 unsigned int rc0_ctl_addr[5] = {mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H REG, mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE0_DBI_DSP_UTILITY OFF};
 unsigned int rc1_ctl_addr[5] = {mizar_PCIE1_DBI_DSP_MSI_CAP OFF_08H REG, mizar_PCIE1_DBI_DSP_MSI_CAP OFF_10H REG, mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE1_DBI_DSP_UTILITY OFF};
 unsigned int ctl_default[5] = {0x0, 0x0, 0x0, 0x0, 0x0};
@@ -26,7 +18,5 @@ unsigned int phy0_default[3] = {0x0, 0x0, 0x0};
 unsigned int phy1_default[3] = {0x0, 0x0, 0x0};
 unsigned int phy0_write_mask[3] = {0x1FFF, 0x1FFF, 0x1FFF};
 unsigned int phy1_write_mask[3] = {0x1FFF, 0x1FFF, 0x1FFF};
-int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000};
-int chk_val_phy[3]={0x7baf,0x1,0x003b};
-
-#endif /* TEST_DEFINE_C_FILE */
+int chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000};
+int chk_val_phy[3] = {0x7baf, 0x1, 0x003b};
