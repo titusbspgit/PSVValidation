@@ -1,0 +1,39 @@
+name: Generate PCIE TestPlan Excel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'data/testplans/pcie_testplan.json'
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate-testplan-excel.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl==3.1.2
+      - name: Generate Excel from JSON
+        run: |
+          python scripts/generate_testplan_excel.py \
+            --json data/testplans/pcie_testplan.json \
+            --outdir "Test_Output/PCIE/TestPlan" \
+            --timestamp-ist
+      - name: Commit Excel
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'Test_Output/PCIE/TestPlan/*.xlsx'
+          message: 'Added generated TestPlan Excel'
+          default_author: github_actions
