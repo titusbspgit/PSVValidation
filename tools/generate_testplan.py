@@ -10,7 +10,7 @@ OUTPUT_DIR = Path("Test_Output/GPIO/TestPlan")
 LAST_NAME_FILE = OUTPUT_DIR / ".last_generated_name"
 LAST_TS_FILE = OUTPUT_DIR / ".last_generated_ts"
 
-# Column definitions
+# Column definitions (must match requested template exactly)
 TESTPLAN_COLS = [
     "Index",
     "SS / Module",
@@ -46,9 +46,10 @@ def main():
     if not isinstance(data, list):
         raise SystemExit("json_data must be an array of objects")
 
-    # Timestamp in IST for filename
+    # Timestamp in IST for filename (YYYYMMDD_HHMMSS)
     ist = timezone(timedelta(hours=5, minutes=30))
-    ts = datetime.now(ist).strftime("%YMMDD_%H%M%S").replace("MM", datetime.now(ist).strftime("%m"))
+    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
+
     # Build output paths
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     fname = f"testplan_{ts}.xlsx"
@@ -65,7 +66,7 @@ def main():
         cell.font = Font(bold=True)
     ws.freeze_panes = "A2"
 
-    # Write TestPlan rows
+    # Write TestPlan rows (preserve order)
     for row in data:
         ws.append([row.get(col, "") for col in TESTPLAN_COLS])
 
@@ -82,7 +83,7 @@ def main():
     # Very hide MetaData sheet
     ws2.sheet_state = "veryHidden"
 
-    # Save workbook
+    # Save workbook (real .xlsx)
     wb.save(fpath)
 
     # Write helper files for workflow commit message
