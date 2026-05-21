@@ -1,177 +1,188 @@
-// Author - AI Force 1.3.2. Date 20-05-2026
+// Author - AI Force 1.3.2. Date 21-05-2026
 // (EMBENGG-SYSAPPS)
 
 #include "test_define.c"
 
-/*
- * Testcase: gpio_reg_wr_rd_test
- *
- * Implements the Meta Test Steps / Procedure exactly as provided:
- * - chk_rst_val(): Validate default values for readable registers not skipped
- *   (applies mask 0xFFFFFFFE to read data before compare).
- * - chk_rd_wr(): For each of 6 patterns, write to writable registers then
- *   validate readback with expected value formula using read/write masks.
- * - test_case(): Run both checks and terminate with finish(0) on success or
- *   finish(1) on failure.
- */
-
-static unsigned int def_fail_cnt = 0U;
-static unsigned int wr_fail_cnt  = 0U;
-
-/* -------------------------------------------------------------------------
- * Function: chk_rst_val
- * Purpose : Check reset/default values per Meta logic
- * ------------------------------------------------------------------------- */
+// ------------------------------------------------------------
+// Function: chk_rst_val
+// Purpose : Verify default/reset values per Meta Test Steps
+// ------------------------------------------------------------
 static void chk_rst_val(void)
 {
-    for (unsigned int i = 0U; i < (unsigned int)(sizeof(addr_array)/sizeof(addr_array[0])); i++) {
+    unsigned int i;
+    // Determine safe iteration count using CNT and actual array size
+    const unsigned int array_cnt = (unsigned int)(sizeof(addr_array)/sizeof(addr_array[0]));
+    const unsigned int cnt = (CNT < array_cnt) ? CNT : array_cnt;
+
+#ifdef DEBUG_DISPLAY
+    printf("[DEBUG] chk_rst_val: cnt=%u\n", cnt);
+#endif
+
+    for (i = 0; i < cnt; i++) {
         if (skip_rst_array[i] == 1U) {
 #ifdef DEBUG_DISPLAY
-            printf("[DBG] RST-SKIP: idx=%u\n", i);
+            printf("[DEBUG] chk_rst_val: Skipping index %u due to skip_rst_array\n", i);
 #endif
-            continue; /* skip reset check for this index */
+            continue;
         }
         if (read_mask_array[i] == 0x00000000U) {
 #ifdef DEBUG_DISPLAY
-            printf("[DBG] RST-MASK0: idx=%u (no readable bits)\n", i);
+            printf("[DEBUG] chk_rst_val: Skipping index %u due to read_mask==0\n", i);
 #endif
-            continue; /* nothing readable to validate */
+            continue;
         }
 
-        uint32_t addr    = addr_array[i];
-        uint32_t data_rd = read_reg(addr);            /* register read */
-        uint32_t data    = (data_rd & 0xFFFFFFFEU);   /* mask off bit0 */
-        uint32_t exp_def = default_value_array[i];
+        unsigned long addr = addr_array[i];
+        unsigned int data_rd = read_reg(addr);
+        unsigned int data = (data_rd & 0xFFFFFFFEU); // Ignore bit[0] per meta
+        unsigned int exp  = default_value_array[i];
 
-#ifdef DEBUG_DISPLAY
-        printf("[DBG] RST-CHK: idx=%u addr=0x%08X rd=0x%08X data=0x%08X exp=0x%08X\n",
-               i, addr, data_rd, data, exp_def);
-#endif
-
-        if (data != exp_def) {
+        if (data != exp) {
+            extern int def_fail_cnt; // defined below
             def_fail_cnt++;
 #ifdef DEBUG_DISPLAY
-            printf("[ERR] RST-MISMATCH: idx=%u addr=0x%08X got=0x%08X exp=0x%08X\n",
-                   i, addr, data, exp_def);
+            printf("[FAIL][RST] idx=%u addr=0x%08lx exp=0x%08x got=0x%08x raw=0x%08x\n",
+                   i, addr, exp, data, data_rd);
+#endif
+        } else {
+#ifdef DEBUG_DISPLAY
+            printf("[PASS][RST] idx=%u addr=0x%08lx val=0x%08x\n", i, addr, data);
 #endif
         }
     }
 }
 
-/* -------------------------------------------------------------------------
- * Function: chk_rd_wr
- * Purpose : Perform read/write validation with specified patterns
- * ------------------------------------------------------------------------- */
+// ------------------------------------------------------------
+// Function: chk_rd_wr
+// Purpose : Write/read integrity checks using fixed patterns
+// ------------------------------------------------------------
 static void chk_rd_wr(void)
 {
-    const uint32_t chk_val[6] = {
-        0xFFFFFFFFU, 0xAAAAAAAAU, 0x55555555U,
-        0xF5F5F5F5U, 0xA5A5A5A5U, 0xFFFF0000U
-    };
+    unsigned int i, j;
+    const unsigned int array_cnt = (unsigned int)(sizeof(addr_array)/sizeof(addr_array[0]));
+    const unsigned int cnt = (CNT < array_cnt) ? CNT : array_cnt;
 
-    for (unsigned int p = 0U; p < 6U; p++) {
-        uint32_t data_wr = chk_val[p];
+    unsigned int chk_val[6] = { 0xFFFFFFFFU, 0xAAAAAAAAU, 0x55555555U, 0xF5F5F5F5U, 0xA5A5A5A5U, 0xFFFF0000U };
 
 #ifdef DEBUG_DISPLAY
-        printf("[DBG] PATTERN: p=%u val=0x%08X\n", p, data_wr);
+    printf("[DEBUG] chk_rd_wr: cnt=%u patterns=%zu\n", cnt, sizeof(chk_val)/sizeof(chk_val[0]));
 #endif
 
-        /* First: perform writes to writable registers (not skipped) */
-        for (unsigned int i = 0U; i < (unsigned int)(sizeof(addr_array)/sizeof(addr_array[0])); i++) {
+    for (j = 0; j < 6U; j++) {
+        unsigned int data_wr = chk_val[j];
+#ifdef DEBUG_DISPLAY
+        printf("[DEBUG] Pattern %u: 0x%08x\n", j, data_wr);
+#endif
+        // Write phase
+        for (i = 0; i < cnt; i++) {
             if (skip_array[i] == 1U) {
 #ifdef DEBUG_DISPLAY
-                printf("[DBG] WR-SKIP: idx=%u\n", i);
+                printf("[DEBUG] Write: skip idx %u\n", i);
 #endif
-                continue; /* skip write */
+                continue;
             }
             if (write_mask_array[i] == 0x00000000U) {
 #ifdef DEBUG_DISPLAY
-                printf("[DBG] WR-MASK0: idx=%u\n", i);
+                printf("[DEBUG] Write: mask==0 at idx %u\n", i);
 #endif
-                continue; /* not writable */
+                continue;
             }
-
-            uint32_t addr   = addr_array[i];
-            uint32_t wr_val = (data_wr & write_mask_array[i]);
+            unsigned long addr = addr_array[i];
+            unsigned int wdata = (data_wr & write_mask_array[i]);
+            write_reg(addr, wdata);
 #ifdef DEBUG_DISPLAY
-            printf("[DBG] WR: idx=%u addr=0x%08X data=0x%08X mask=0x%08X wr=0x%08X\n",
-                   i, addr, data_wr, write_mask_array[i], wr_val);
+            printf("[DEBUG] Write: idx=%u addr=0x%08lx wdata=0x%08x\n", i, addr, wdata);
 #endif
-            write_reg(addr, wr_val);
         }
 
-        /* Second: read back and compare expected values */
-        for (unsigned int i = 0U; i < (unsigned int)(sizeof(addr_array)/sizeof(addr_array[0])); i++) {
+        // Read/verify phase
+        for (i = 0; i < cnt; i++) {
             if (skip_array[i] == 1U) {
 #ifdef DEBUG_DISPLAY
-                printf("[DBG] RD-SKIP: idx=%u\n", i);
+                printf("[DEBUG] Read : skip idx %u\n", i);
 #endif
-                continue; /* skip read/compare */
+                continue;
             }
             if (write_mask_array[i] == 0x00000000U) {
 #ifdef DEBUG_DISPLAY
-                printf("[DBG] RD-WMASK0: idx=%u\n", i);
+                printf("[DEBUG] Read : write_mask==0 at idx %u\n", i);
 #endif
-                continue; /* not writable: no expectation */
+                continue;
             }
             if (read_mask_array[i] == 0x00000000U) {
 #ifdef DEBUG_DISPLAY
-                printf("[DBG] RD-RMASK0: idx=%u\n", i);
+                printf("[DEBUG] Read : read_mask==0 at idx %u\n", i);
 #endif
-                continue; /* nothing readable to compare */
+                continue;
             }
 
-            uint32_t addr    = addr_array[i];
-            uint32_t data_rd = (read_reg(addr) & read_mask_array[i]);
-            uint32_t wr_n    = (write_mask_array[i] ^ 0xFFFFFFFFU);
-            uint32_t exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) |
-                                (wr_n & read_mask_array[i] & default_value_array[i]));
-#ifdef DEBUG_DISPLAY
-            printf("[DBG] RD: idx=%u addr=0x%08X rd=0x%08X exp=0x%08X rm=0x%08X wm=0x%08X def=0x%08X\n",
-                   i, addr, data_rd, exp_val, read_mask_array[i], write_mask_array[i], default_value_array[i]);
-#endif
+            unsigned long addr = addr_array[i];
+            unsigned int data_rd = (read_reg(addr) & read_mask_array[i]);
+            unsigned int wr_n = (write_mask_array[i] ^ 0xFFFFFFFFU);
+            unsigned int exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) |
+                                    (wr_n & read_mask_array[i] & default_value_array[i]));
+
             if (data_rd != exp_val) {
+            	extern int wr_fail_cnt; // defined below
                 wr_fail_cnt++;
 #ifdef DEBUG_DISPLAY
-                printf("[ERR] RD-MISMATCH: idx=%u addr=0x%08X got=0x%08X exp=0x%08X\n",
-                       i, addr, data_rd, exp_val);
+                printf("[FAIL][WR] idx=%u addr=0x%08lx exp=0x%08x got=0x%08x wmask=0x%08x rmask=0x%08x def=0x%08x\n",
+                       i, addr, exp_val, data_rd, write_mask_array[i], read_mask_array[i], default_value_array[i]);
+#endif
+            } else {
+#ifdef DEBUG_DISPLAY
+                printf("[PASS][WR] idx=%u addr=0x%08lx val=0x%08x\n", i, addr, data_rd);
 #endif
             }
         }
     }
 }
 
-/* -------------------------------------------------------------------------
- * Function: test_case
- * Purpose : Execute the test sequence and terminate via finish(status)
- * ------------------------------------------------------------------------- */
-void test_case(void)
+#ifdef 0
+// ------------------------------------------------------------
+// Function: soft_reset_chk (Disabled)
+// Purpose : Example soft reset write/read with waits
+// ------------------------------------------------------------
+static void soft_reset_chk(void)
+{
+    unsigned int save = read_reg(SOFT_RST_REG_ADDRESS);
+    write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA);
+    wait_on(1000);
+    write_reg(SOFT_RST_REG_ADDRESS, save);
+    wait_on(1000);
+}
+#endif
+
+// Failure counters (global scope as per meta description)
+int def_fail_cnt = 0;
+int wr_fail_cnt = 0;
+
+// ------------------------------------------------------------
+// Function: test_case (ENTRY POINT)
+// Purpose : Execute reset check and write/read check, report PASS/FAIL
+// ------------------------------------------------------------
+int test_case(void)
 {
 #ifdef DEBUG_DISPLAY
-    printf("[DBG] TEST START: gpio_reg_wr_rd_test\n");
+    printf("[DEBUG] test_case: START\n");
 #endif
+    def_fail_cnt = 0;
+    wr_fail_cnt = 0;
 
     chk_rst_val();
     chk_rd_wr();
 
+    if ((def_fail_cnt > 0) || (wr_fail_cnt > 0)) {
 #ifdef DEBUG_DISPLAY
-    printf("[DBG] RESULT: def_fail_cnt=%u wr_fail_cnt=%u\n", def_fail_cnt, wr_fail_cnt);
+        printf("[RESULT] FAIL: def_fail_cnt=%d wr_fail_cnt=%d\n", def_fail_cnt, wr_fail_cnt);
 #endif
-
-    if ((def_fail_cnt > 0U) || (wr_fail_cnt > 0U)) {
-        finish(1); /* FAIL */
+        finish(1);
     } else {
-        finish(0); /* PASS */
-    }
-}
-
-/*
- * Optional soft reset check (compiled out as per Meta description)
- */
-#if 0
-static void soft_reset_chk(void)
-{
-    (void)SOFT_RST_REG_ADDRESS; /* placeholder to avoid unused warnings */
-    (void)SOFT_RST_REG_DATA;
-}
+#ifdef DEBUG_DISPLAY
+        printf("[RESULT] PASS\n");
 #endif
+        finish(0);
+    }
+
+    return 0; // Control should not reach here due to finish()
+}
