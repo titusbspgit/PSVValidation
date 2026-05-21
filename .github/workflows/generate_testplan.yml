@@ -1,0 +1,37 @@
+name: Generate TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/**'
+      - '.github/workflows/generate_testplan.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel
+        run: python tools/generate_testplan_excel.py
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git add Test_Output/PCIE/TestPlan/*.xlsx || true
+          git commit -m "Added generated TestPlan Excel" || echo "Nothing to commit"
+          git push
