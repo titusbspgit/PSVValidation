@@ -1,19 +1,21 @@
 name: Generate TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
-      - 'Test_Output/GPIO/TestPlan/testplan_data.json'
-
-permissions:
-  contents: write
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan_excel.yml'
+      - 'data/testplan_data.json'
+  workflow_dispatch:
 
 jobs:
-  generate:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -28,21 +30,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel
+      - name: Generate Excel from JSON
+        env:
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          JSON_PATH: data/testplan_data.json
         run: |
-          python .github/scripts/generate_testplan_excel.py
+          python scripts/generate_testplan_excel.py --json "$JSON_PATH" --outdir "$OUTPUT_DIR"
 
-      - name: Commit Excel
+      - name: Commit generated Excel
         run: |
           set -e
-          FILE=$(ls -1 Test_Output/GPIO/TestPlan/testplan_*.xlsx | tail -n 1 || true)
-          if [ -n "$FILE" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add "$FILE"
-            git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Added generated TestPlan Excel"
             git push
           else
-            echo "No Excel file generated."
-            exit 1
+            echo "No changes to commit."
           fi
