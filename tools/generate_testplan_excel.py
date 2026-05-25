@@ -1,11 +1,193 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Generate a real .xlsx TestPlan from aggregated JSON with two sheets:
+- TestPlan (visible)
+- MetaData (veryHidden)
+
+Rules:
+- Preserve row order and all values exactly as provided.
+- Bold headers, freeze first row.
+- File name: testplan_<YYYYMMDD_HHMMSS_IST>.xlsx
+- Output directory: Test_Output/PCIE/TestPlan
+"""
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-# Constants
-TESTPLAN_COLUMNS = [
+# 1) Load aggregated JSON (embedded, exact)
+json_data = json.loads(r'''[
+  {
+    "Index": "1",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie0_dbi_dsp_reg_wr_rd_test",
+    "Test Description": "Validate PCIe0 DBI/DSP Type1 configuration registers by checking reset default values and performing masked write/read-back verification across readable and writable registers. Non-readable registers are skipped; specific capability/status/debug registers are excluded from default checks.",
+    "Meta Test Description": "This test performs two phases on PCIe0 DBI/DSP registers: (1) Default value verification: iterate over addr_array[0..CNT-1]; if read_mask_array[i] == 0, skip. Additionally skip addresses equal to mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, and mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF. For others, read_reg(addr) and compare against default_value_array[i]; increment def_fail_cnt on mismatch. (2) Write/read-back verification: for each test pattern in {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}, write to each address if skip_array[i] != 1 and write_mask_array[i] != 0. Then read back if write_mask_array[i] != 0 and read_mask_array[i] != 0, compute wr_n = (write_mask_array[i] ^ 0xffffffff) and expected value exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])). Compare data_rd to exp_val; increment wr_fail_cnt if mismatch. At end, finish(0) if def_fail_cnt == 0 and wr_fail_cnt == 0 else finish(1). A soft reset routine exists but is commented out.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "Skip non-readable registers for access. For default value checking, exclude DBI_DSP_CAP_ID_NXT_PTR_REG, DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, and DBI_DSP_PL_DEBUG1_OFF. Preserve read-only and non-writable bits during write/read by expecting default values on masked-off fields.",
+    "Test Steps / Procedure": "1) Read and validate default values of all readable PCIe0 DBI/DSP Type1 configuration registers, excluding Capability ID/Next Pointer, Device Control and Status, and PL Debug1. 2) For each data pattern, write to all writable registers and read back values. 3) Verify read-back values match the expected result considering read/write masks and preserved default bits. 4) Report PASS only if no mismatches occur in both default and write/read checks; otherwise report FAIL.",
+    "Meta Test Steps / Procedure": "- Initialize counters def_fail_cnt = 0 and wr_fail_cnt = 0.\n- Default value check loop for i in 0..CNT-1:\n  - addr = addr_array[i].\n  - If read_mask_array[i] == 0x00000000: continue.\n  - If addr == mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG OR addr == mizar_PCIE0_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS OR addr == mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF: continue (skip default check).\n  - data_rd = read_reg(addr).\n  - If data_rd == default_value_array[i]: PASS; else def_fail_cnt++ and log failure.\n- Write and read-back check for each j in {0..5} with chk_val[j] in {0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}:\n  - data_wr = chk_val[j].\n  - Write phase for i in 0..CNT-1:\n    - addr = addr_array[i].\n    - If skip_array[i] == 1: continue.\n    - If write_mask_array[i] == 0x00000000: continue.\n    - write_reg(addr, data_wr).\n  - Read/verify phase for i in 0..CNT-1:\n    - addr = addr_array[i].\n    - If skip_array[i] == 1: continue.\n    - If write_mask_array[i] == 0x00000000: continue.\n    - If read_mask_array[i] == 0x00000000: continue.\n    - data_rd = read_reg(addr).\n    - wr_n = (write_mask_array[i] ^ 0xffffffff).\n    - exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i]) ).\n    - If data_rd == exp_val: PASS; else wr_fail_cnt++ and log failure.\n- If (def_fail_cnt > 0 || wr_fail_cnt > 0) call finish(1) else finish(0).\n- soft_reset_chk() exists (writes 0x00000000 to SOFT_RST_REG_ADDRESS, waits, restores previous value) but is commented out.",
+    "Impacted Registers": "DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG, DBI_DSP_TYPE1_STATUS_COMMAND REG, DBI_DSP_TYPE1_CLASS CODE REV ID REG, DBI_DSP_TYPE1_BIST_HDR TYPE LAT CACHE LINE SIZE REG, DBI_DSP_BAR0_REG, DBI_DSP_BAR1_REG, DBI_DSP_TYPE1_SEC_LAT TIMER SUB BUS SEC BUS PRI BUS REG, DBI_DSP_TYPE1_SEC_STAT_IO LIMIT IO BASE REG, DBI_DSP_TYPE1_MEM_LIMIT_MEM_BASE REG, DBI_DSP_TYPE1_PREF_MEM_LIMIT_PREF_MEM_BASE REG, DBI_DSP_CAP_ID_NXT_PTR_REG, DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS, DBI_DSP_PL_DEBUG1_OFF",
+    "Meta Impacted Registers": "mizar_PCIE0_DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG, mizar_PCIE0_DBI_DSP_TYPE1_STATUS COMMAND REG, mizar_PCIE0_DBI_DSP_TYPE1_CLASS CODE REV ID REG, mizar_PCIE0_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG, mizar_PCIE0_DBI_DSP_BAR0_REG, mizar_PCIE0_DBI_DSP_BAR1_REG, mizar_PCIE0_DBI_DSP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG, mizar_PCIE0_DBI_DSP_SEC STAT IO LIMIT IO BASE REG, mizar_PCIE0_DBI_DSP_MEM LIMIT MEM BASE REG, mizar_PCIE0_DBI_DSP_PREF MEM LIMIT PREF MEM BASE REG, mizar_PCIE0_DBI_DSP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_DSP_DEVICE CONTROL DEVICE STATUS, mizar_PCIE0_DBI_DSP_PL_DEBUG1_OFF",
+    "Validation / Acceptance Criteria": "Pass if all readable registers match their expected default values and all write/read-back checks match expected masked results across all patterns. Any mismatch in default or write/read-back verification results in FAIL.",
+    "Meta Validation / Acceptance Criteria": "- Default check: data_rd must equal default_value_array[i] for each readable and non-excluded address; else def_fail_cnt++.\n- Write/read-back: For each pattern and each address where write_mask != 0 and read_mask != 0 and skip_array[i] != 1, data_rd must equal exp_val = ((data_wr & read_mask & write_mask) | ((~write_mask) & read_mask & default_value)); else wr_fail_cnt++.\n- Final: finish(0) if (def_fail_cnt == 0 && wr_fail_cnt == 0) else finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include <pcie.h>",
+    "Meta Macros": "#define CNT 775\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE0_DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG,mizar_PCIE0_DBI_DSP_TYPE1_STATUS_COMMAND_REG,mizar_PCIE0_DBI_DSP_TYPE1_CLASS_CODE_REV_ID_REG,mizar_PCIE0_DBI_DSP_TYPE1_BIST_HDR_TYPE_LAT_CACHE_LINE_SIZE_REG,mizar_PCIE0_DBI_DSP_BAR0_REG,mizar_PCIE0_DBI_DSP_BAR1_REG,mizar_PCIE0_DBI_DSP_SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG,mizar_PCIE0_DBI_DSP_SEC_STAT_IO_LIMIT_IO_BASE_REG,mizar_PCIE0_DBI_DSP_MEM_LIMIT_MEM_BASE REG DEFAULT VAL,mizar_PCIE0_DBI_DSP_PREF_MEM_LIMIT_PREF_MEM_BASE_REG_DEFAULT_VAL,};\n\nconst int default_value_array[20]={PCIE0_DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG_DEFAULT_VAL,PCIE0_DBI_DSP_TYPE1_STATUS_COMMAND_REG_DEFAULT_VAL,PCIE0_DBI_DSP_TYPE1_CLASS_CODE_REV_ID_REG_DEFAULT_VAL,PCIE0_DBI_DSP_TYPE1_BIST_HDR_TYPE_LAT CACHE LINE SIZE REG DEFAULT VAL,PCIE0_DBI_DSP_BAR0_REG_DEFAULT_VAL,PCIE0_DBI_DSP_BAR1_REG_DEFAULT_VAL,PCIE0_DBI_DSP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG DEFAULT VAL,PCIE0_DBI_DSP_SEC STAT IO LIMIT IO BASE REG DEFAULT VAL,PCIE0_DBI_DSP_MEM LIMIT MEM BASE REG DEFAULT VAL,PCIE0_DBI_DSP_PREF MEM LIMIT PREF MEM BASE REG DEFAULT VAL,};\n\nconst int read_mask_array[20]={PCIE0_DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG_READ_MASK,PCIE0_DBI_DSP_TYPE1_STATUS_COMMAND_REG_READ_MASK,PCIE0_DBI_DSP_TYPE1_CLASS_CODE_REV_ID_REG_READ_MASK,PCIE0_DBI_DSP_TYPE1_BIST_HDR TYPE LAT CACHE LINE SIZE REG READ MASK,PCIE0_DBI_DSP_BAR0_REG_READ_MASK,PCIE0_DBI_DSP_BAR1_REG_READ_MASK,PCIE0_DBI_DSP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG READ MASK,PCIE0_DBI_DSP_SEC STAT IO LIMIT IO BASE REG READ MASK,PCIE0_DBI_DSP_MEM LIMIT MEM BASE REG READ MASK,PCIE0_DBI_DSP_PREF MEM LIMIT PREF MEM BASE REG READ MASK,};\n\nconst int write_mask_array[20]={PCIE0_DBI_DSP_TYPE1_DEV_ID VEND ID REG WRITE MASK,PCIE0_DBI_DSP_TYPE1_STATUS COMMAND REG WRITE MASK,PCIE0_DBI_DSP_TYPE1_CLASS CODE REV ID REG WRITE MASK,PCIE0_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG WRITE MASK,PCIE0_DBI_DSP_BAR0_REG_WRITE MASK,PCIE0_DBI_DSP_BAR1_REG_WRITE_MASK,PCIE0_DBI_DSP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG WRITE MASK,PCIE0_DBI_DSP_SEC STAT IO LIMIT IO BASE REG WRITE MASK,PCIE0_DBI_DSP_MEM LIMIT MEM BASE REG WRITE MASK,PCIE0_DBI_DSP_PREF MEM LIMIT PREF MEM BASE REG WRITE MASK,};\n\nconst int skip_array[20]={0,0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,0,0,0,0,};"
+  },
+  {
+    "Index": "2",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie0_dbi_usp_reg_wr_rd_test",
+    "Test Description": "Validate PCIe0 DBI/USP Type1 configuration registers by checking reset defaults and performing masked write/read-back across all readable and writable locations. Skip non-readable registers and exclude capability pointer, device control/status, and PL debug registers from default checks. Preserve read-only fields during write/read verification.",
+    "Meta Test Description": "The test runs in two phases. Phase 1 (Default value check): iterate i=0..CNT-1 over addr_array; if read_mask_array[i] is 0, skip; additionally skip when addr is mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG, mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS, or mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF. For others, read_reg(addr) and compare to default_value_array[i]; on mismatch increment def_fail_cnt and print failure. Phase 2 (Write/Read-back check): for j over six patterns {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}, set data_wr = pattern and write_reg(addr, data_wr) for each i where skip_array[i] != 1 and write_mask_array[i] != 0; then for each i where skip_array[i] != 1 and write_mask_array[i] != 0 and read_mask_array[i] != 0, read_reg(addr) into data_rd and compute wr_n = (write_mask_array[i] ^ 0xffffffff) and exp_val = (data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i]); compare data_rd with exp_val; on mismatch increment wr_fail_cnt and print failure. At end of test_case(), call finish(1) if (def_fail_cnt > 0 || wr_fail_cnt > 0), else finish(0). A soft_reset_chk() helper exists (write SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA, wait, restore) but is not invoked.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "Non-readable registers are skipped from access. Default-value verification excludes the Capability ID/Next Pointer, Device Control and Status, and PL Debug1 registers. During write/read-back, only writable and readable bits are checked; read-only bits must retain their default values.",
+    "Test Steps / Procedure": "1) Verify reset defaults: Read all readable DBI/USP Type1 configuration registers and compare against expected defaults, excluding the capability pointer, device control/status, and PL debug registers. 2) Perform masked write/read-back: For each test pattern, write to all writable registers and then read back only from readable and writable locations. 3) Validate results: Confirm read-back values match expected results considering read and write masks while preserving default values for read-only fields. 4) Determine outcome: Pass if no mismatches are detected in both phases; otherwise fail.",
+    "Meta Test Steps / Procedure": "- Initialize def_fail_cnt = 0 and wr_fail_cnt = 0.\n- Default value check (i from 0 to CNT-1):\n  - addr = addr_array[i]. If read_mask_array[i] == 0x00000000: continue.\n  - If addr equals mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR_REG or mizar_PCIE0_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS or mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF: continue.\n  - data_rd = read_reg(addr); if data_rd != default_value_array[i]: def_fail_cnt++ and print failure.\n- Write/Read-back check for each pattern in {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}:\n  - data_wr = pattern.\n  - Write loop (i from 0 to CNT-1): addr = addr_array[i]; if skip_array[i] == 1 or write_mask_array[i] == 0x00000000: continue; else write_reg(addr, data_wr).\n  - Read/verify loop (i from 0 to CNT-1): addr = addr_array[i]; if skip_array[i] == 1 or write_mask_array[i] == 0x00000000 or read_mask_array[i] == 0x00000000: continue; else\n    - data_rd = read_reg(addr);\n    - wr_n = (write_mask_array[i] ^ 0xffffffff);\n    - exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i]));\n    - If data_rd != exp_val: wr_fail_cnt++ and print failure.\n- End: if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).\n- soft_reset_chk() (not invoked): save default_value = read_reg(SOFT_RST_REG_ADDRESS); write SOFT_RST REG ADDRESS with SOFT_RST_REG_DATA; wait_on(1000); restore default_value; wait_on(1000).",
+    "Impacted Registers": "DBI_USP_TYPE1_DEV_ID_VEND_ID_REG, DBI_USP_TYPE1_STATUS_COMMAND REG, DBI_USP_TYPE1_CLASS CODE REV ID REG, DBI_USP_TYPE1_BIST_HDR TYPE LAT CACHE LINE SIZE REG, BAR0_MASK_REG, BAR1_MASK_REG, DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG, DBI_USP_SEC_STAT IO LIMIT IO BASE REG, DBI_USP_MEM LIMIT MEM BASE REG, DBI_USP_PREF MEM LIMIT PREF MEM BASE REG, DBI_USP_PREF BASE UPPER REG, DBI_USP_PREF LIMIT UPPER REG, DBI_USP_IO LIMIT UPPER IO BASE UPPER REG, DBI_USP_CAP_ID_NXT_PTR_REG, DBI_USP_DEVICE CONTROL DEVICE STATUS, DBI_USP_PL_DEBUG1_OFF",
+    "Meta Impacted Registers": "mizar_PCIE0_DBI_USP_TYPE1_DEV_ID_VEND_ID_REG, mizar_PCIE0_DBI_USP_TYPE1_STATUS COMMAND REG, mizar_PCIE0_DBI_USP_TYPE1_CLASS CODE REV ID REG, mizar_PCIE0_DBI_USP_TYPE1_BIST_HDR TYPE LAT CACHE LINE SIZE REG, mizar_PCIE0_DBI_USP_BAR0_REG, mizar_PCIE0_DBI_USP_BAR1_REG, mizar_PCIE0_DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG, mizar_PCIE0_DBI_USP_SEC STAT IO LIMIT IO BASE REG, mizar_PCIE0_DBI_USP_MEM LIMIT MEM BASE REG, mizar_PCIE0_DBI_USP_PREF MEM LIMIT PREF MEM BASE REG, mizar_PCIE0_DBI_USP_PREF BASE UPPER REG, mizar_PCIE0_DBI_USP_PREF LIMIT UPPER REG, mizar_PCIE0_DBI_USP_IO LIMIT UPPER IO BASE UPPER REG, mizar_PCIE0_DBI_USP_CAP_ID_NXT_PTR REG, mizar_PCIE0_DBI_USP_DEVICE CONTROL DEVICE STATUS, mizar_PCIE0_DBI_USP_PL_DEBUG1_OFF",
+    "Validation / Acceptance Criteria": "Pass if all readable, non-excluded registers match their default values, and all masked write/read-back results equal expected values across all test patterns while keeping read-only bits at their defaults. Any mismatch in either phase results in Fail.",
+    "Meta Validation / Acceptance Criteria": "- Default phase: For each readable address not in the exclusion list, data_rd must equal default_value_array[i]; otherwise increment def_fail_cnt.\n- Write/read-back phase: For each address where write and read are permitted and not skipped, data_rd must equal exp_val = ((data_wr & read_mask & write_mask) | ((~write_mask) & read_mask & default_value)); otherwise increment wr_fail_cnt.\n- Final result: finish(0) iff (def_fail_cnt == 0 && wr_fail_cnt == 0); else finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include <pcie.h>",
+    "Meta Macros": "#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000\n#define CNT 775",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE0_DBI_USP_TYPE1_DEV ID VEND ID REG,mizar_PCIE0_DBI_USP_TYPE1_STATUS COMMAND REG,mizar_PCIE0_DBI_USP_TYPE1_CLASS CODE REV ID REG,mizar_PCIE0_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG,mizar_PCIE0_DBI_USP_BAR0_REG,mizar_PCIE0_DBI_USP_BAR1_REG,mizar_PCIE0_DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG,mizar_PCIE0_DBI_USP_SEC STAT IO LIMIT IO BASE REG,mizar_PCIE0_DBI_USP_MEM LIMIT MEM BASE REG,mizar_PCIE0_DBI_USP_PREF MEM LIMIT PREF MEM BASE REG,mizar_PCIE0_DBI_USP_PREF BASE UPPER REG,mizar_PCIE0_DBI_USP_PREF LIMIT UPPER REG,mizar_PCIE0_DBI_USP_IO LIMIT UPPER IO BASE UPPER REG,};\n\nconst int default_value_array[20]={PCIE0_DBI_USP_TYPE1_DEV ID VEND ID REG DEFAULT VAL,PCIE0_DBI_USP_TYPE1_STATUS COMMAND REG DEFAULT VAL,PCIE0_DBI_USP_TYPE1_CLASS CODE REV ID REG DEFAULT VAL,PCIE0_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG DEFAULT VAL,PCIE0_DBI_USP_BAR0_REG DEFAULT VAL,PCIE0_DBI_USP_BAR1_REG DEFAULT VAL,PCIE0_DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG DEFAULT VAL,PCIE0_DBI_USP_SEC STAT IO LIMIT IO BASE REG DEFAULT VAL,PCIE0_DBI_USP_MEM LIMIT MEM BASE REG DEFAULT VAL,PCIE0_DBI_USP_PREF MEM LIMIT PREF MEM BASE REG DEFAULT VAL,};\n\nconst int read_mask_array[20]={PCIE0_DBI_USP_TYPE1_DEV ID VEND ID REG READ MASK,PCIE0_DBI_USP_TYPE1_STATUS COMMAND REG READ MASK,PCIE0_DBI_USP_TYPE1_CLASS CODE REV ID REG READ MASK,PCIE0_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG READ MASK,PCIE0_DBI_USP_BAR0 REG READ MASK,PCIE0_DBI_USP_BAR1 REG READ MASK,PCIE0_DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG READ MASK,PCIE0_DBI_USP_SEC STAT IO LIMIT IO BASE REG READ MASK,PCIE0_DBI_USP_MEM LIMIT MEM BASE REG READ MASK,PCIE0_DBI_USP_PREF MEM LIMIT PREF MEM BASE REG READ MASK,};\n\nconst int write_mask_array[20]={PCIE0_DBI_USP_TYPE1_DEV ID VEND ID REG WRITE MASK,PCIE0_DBI_USP_TYPE1_STATUS COMMAND REG WRITE MASK,PCIE0_DBI_USP_TYPE1_CLASS CODE REV ID REG WRITE MASK,PCIE0_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG WRITE MASK,PCIE0_DBI_USP_BAR0 REG WRITE MASK,PCIE0_DBI_USP_BAR1 REG WRITE MASK,PCIE0_DBI_USP_SEC LAT TIMER SUB BUS SEC BUS PRI BUS REG WRITE MASK,PCIE0_DBI_USP_SEC STAT IO LIMIT IO BASE REG WRITE MASK,PCIE0_DBI_USP_MEM LIMIT MEM BASE REG WRITE MASK,PCIE0_DBI_USP_PREF MEM LIMIT PREF MEM BASE REG WRITE MASK,};\n\nconst int skip_array[20]={0,0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,0,0,0,0,};"
+  },
+  {
+    "Index": "3",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie0_sii_rc_reg_wr_rd_test",
+    "Test Description": "Validate PCIe0 SII RC configuration registers by verifying reset default values and performing masked write/read-back checks. Non-readable or non-writable registers are skipped. The PHY reset control register is excluded from default verification. Pass if all readable defaults match and all masked write/read-back results match expectations across test patterns.",
+    "Meta Test Description": "The test executes two phases over the PCIe0 SII RC configuration window. Phase 1 (Default check): Iterate i=0..CNT-1; for each addr = addr_array[i], skip if read_mask_array[i] == 0, and also skip if addr == mizar_PCIE0_SII_PHY_RST_CONTROL. Otherwise read_reg(addr) into data_rd and compare against default_value_array[i]; increment def_fail_cnt on mismatch and print failure details. Phase 2 (Write/Read-back): For each pattern in chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}, set data_wr to pattern. Write loop: for i=0..CNT-1, get addr; skip if skip_array[i] == 1 or write_mask_array[i] == 0; else write_reg(addr, data_wr). Read/verify loop: for i=0..CNT-1, skip if skip_array[i] == 1 or write_mask_array[i] == 0 or read_mask_array[i] == 0; else read_reg(addr) into data_rd, compute wr_n = (write_mask_array[i] ^ 0xffffffff) and exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd != exp_val) increment wr_fail_cnt and print failure. At end of test_case(), call finish(1) if (def_fail_cnt > 0 || wr_fail_cnt > 0) else finish(0). A soft_reset_chk() helper writes SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA, waits, restores previous value, but is not invoked.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE68C0000",
+    "Memory End Offset": "NA",
+    "Remarks": "Skip non-readable and non-writable registers during access. Exclude the SII PHY reset control register from default value checks. During write/read-back, validate only bits enabled by the read and write masks; read-only fields must retain their default values.",
+    "Test Steps / Procedure": "1) Initialize the test and counters for default and write/read verification. 2) Default verification: For each SII RC configuration register, skip non-readable entries and the PHY reset control register, then read and compare against the expected default value. 3) Write/read-back verification: For each data pattern, write the pattern to all writable and non-skipped registers; then read back from registers that are both readable and writable and validate against the expected masked value that preserves default bits. 4) Determine result: Pass if no default mismatches and no write/read-back mismatches are detected; otherwise fail.",
+    "Meta Test Steps / Procedure": "# Phase selection and finalization\n- def_fail_cnt = 0; wr_fail_cnt = 0.\n- Call chk_rst_val(); then call chk_rd_wr();\n- If (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1); else finish(0).\n\n# chk_rst_val()\n- For (i = 0; i < CNT; i++):\n  - addr = addr_array[i].\n  - If (read_mask_array[i] == 0x00000000): continue.\n  - If (addr_array[i] == mizar_PCIE0_SII_PHY_RST_CONTROL): continue.\n  - data_rd = read_reg(addr).\n  - If (data_rd == default_value_array[i]): PASS (optional debug print); else { def_fail_cnt++; print failure with addr, expected, read_data }.\n\n# chk_rd_wr()\n- int chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}.\n- For (j = 0; j < 6; j++):\n  - data_wr = chk_val[j].\n  - Write loop (i = 0..CNT-1):\n    - addr = addr_array[i].\n    - If (skip_array[i] == 1) continue.\n    - If (write_mask_array[i] == 0x00000000) continue.\n    - write_reg(addr, data_wr) (optional debug print).\n  - Read/verify loop (i = 0..CNT-1):\n    - addr = addr_array[i].\n    - If (skip_array[i] == 1) continue.\n    - If (write_mask_array[i] == 0x00000000) continue.\n    - If (read_mask_array[i] == 0x00000000) continue.\n    - data_rd = read_reg(addr).\n    - wr_n = (write_mask_array[i] ^ 0xffffffff).\n    - exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])).\n    - If (data_rd == exp_val) PASS (optional debug print); else { wr_fail_cnt++; print mismatch with addr, exp_val, data_rd }.\n\n# soft_reset_chk() (not invoked)\n- default_value = read_reg(SOFT_RST_REG_ADDRESS);\n- write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); wait_on(1000);\n- write_reg(SOFT_RST_REG_ADDRESS, default_value); wait_on(1000);",
+    "Impacted Registers": "SII_CFG_BAR0_START1, SII_CFG_BAR0_START2, SII_CFG_BAR0_LIMIT1, SII_CFG_BAR0_LIMIT2, SII_CFG_BAR1_START, SII_CFG_BAR1_LIMIT1, SII_CFG_BAR2_START1, SII_CFG_BAR2_START2, SII_CFG_BAR2_LIMIT1, SII_CFG_BAR2_LIMIT2, SII_PHY_RST_CONTROL",
+    "Meta Impacted Registers": "mizar_PCIE0_SII_CFG_BAR0_START1, mizar_PCIE0_SII_CFG_BAR0_START2, mizar_PCIE0_SII_CFG_BAR0_LIMIT1, mizar_PCIE0_SII_CFG_BAR0_LIMIT2, mizar_PCIE0_SII_CFG_BAR1_START, mizar_PCIE0_SII_CFG_BAR1_LIMIT1, mizar_PCIE0_SII_CFG_BAR2_START1, mizar_PCIE0_SII_CFG_BAR2_START2, mizar_PCIE0_SII_CFG_BAR2_LIMIT1, mizar_PCIE0_SII_CFG_BAR2_LIMIT2, mizar_PCIE0_SII_PHY_RST_CONTROL",
+    "Validation / Acceptance Criteria": "Pass if every readable SII RC configuration register (excluding the PHY reset control) matches its expected default value and, for each data pattern, the read-back from readable and writable registers equals the masked expected value that preserves default bits on non-writable fields. Any mismatch results in Fail.",
+    "Meta Validation / Acceptance Criteria": "- Default check: For each i where read_mask_array[i] != 0 and addr_array[i] != mizar_PCIE0_SII_PHY_RST_CONTROL, require read_reg(addr_array[i]) == default_value_array[i]; else def_fail_cnt++.\n- Write/read-back check: For each pattern and each i where skip_array[i] != 1, write_mask_array[i] != 0, and read_mask_array[i] != 0, require data_rd == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])); else wr_fail_cnt++.\n- Final result: finish(0) iff (def_fail_cnt == 0 && wr_fail_cnt == 0); otherwise finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include <pcie0/pcie_sii_rc_def.h>\n#include <pcie0/pcie_sii_rc_offset.h>",
+    "Meta Macros": "#define MIZAR_PCIE0_SII_BASE 0xE68C0000\n#define CNT 153\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE0_SII_CFG_BAR0_START1,mizar_PCIE0_SII_CFG_BAR0_START2,mizar_PCIE0_SII_CFG_BAR0_LIMIT1,mizar_PCIE0_SII_CFG_BAR0_LIMIT2,mizar_PCIE0_SII_CFG_BAR1_START,mizar_PCIE0_SII_CFG_BAR1_LIMIT1,mizar_PCIE0_SII_CFG_BAR2_START1,mizar_PCIE0_SII_CFG_BAR2_START2,mizar_PCIE0_SII_CFG_BAR2_LIMIT1,mizar_PCIE0_SII_CFG_BAR2_LIMIT2,};\n\nconst int default_value_array[20]={PCIE0_SII_CFG_BAR0_START1_DEFAULT_VAL,PCIE0_SII_CFG_BAR0_START2_DEFAULT_VAL,PCIE0_SII_CFG_BAR0_LIMIT1_DEFAULT_VAL,PCIE0_SII_CFG_BAR0_LIMIT2_DEFAULT_VAL,PCIE0_SII_CFG_BAR1_START_DEFAULT_VAL,PCIE0_SII_CFG_BAR1_LIMIT1_DEFAULT_VAL,PCIE0_SII_CFG_BAR2_START1_DEFAULT_VAL,PCIE0_SII_CFG_BAR2_START2_DEFAULT_VAL,PCIE0_SII_CFG_BAR2_LIMIT1_DEFAULT_VAL,PCIE0_SII_CFG_BAR2_LIMIT2_DEFAULT_VAL,};\n\nconst int read_mask_array[20]={PCIE0_SII_CFG_BAR0_START1_READ_MASK,PCIE0_SII_CFG_BAR0_START2_READ_MASK,PCIE0_SII_CFG_BAR0_LIMIT1_READ_MASK,PCIE0_SII_CFG_BAR0_LIMIT2_READ_MASK,PCIE0_SII_CFG_BAR1_START_READ_MASK,PCIE0_SII_CFG_BAR1_LIMIT1_READ_MASK,PCIE0_SII_CFG_BAR2_START1_READ_MASK,PCIE0_SII_CFG_BAR2_START2_READ_MASK,PCIE0_SII_CFG_BAR2_LIMIT1_READ MASK,PCIE0_SII_CFG_BAR2_LIMIT2_READ_MASK,};\n\nconst int write_mask_array[20]={PCIE0_SII_CFG_BAR0_START1_WRITE_MASK,PCIE0_SII_CFG_BAR0_START2_WRITE_MASK,PCIE0_SII_CFG_BAR0_LIMIT1_WRITE_MASK,PCIE0_SII_CFG_BAR0_LIMIT2_WRITE_MASK,PCIE0_SII_CFG_BAR1_START_WRITE_MASK,PCIE0_SII_CFG_BAR1_LIMIT1_WRITE_MASK,PCIE0_SII_CFG_BAR2_START1_WRITE_MASK,PCIE0_SII_CFG_BAR2_START2_WRITE_MASK,PCIE0_SII_CFG_BAR2_LIMIT1_WRITE_MASK,PCIE0_SII_CFG_BAR2_LIMIT2_WRITE_MASK,};\n\nconst int skip_array[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};"
+  },
+  {
+    "Index": "4",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie1_dbi_dsp_reg_wr_rd_test",
+    "Test Description": "Validate PCIe1 DBI/DSP Type1 configuration registers by first checking reset defaults on all readable registers (excluding the Capability Pointer, Device Control/Status, and PL Debug1), then performing masked write/read-back across writable and readable registers while preserving read-only fields.",
+    "Meta Test Description": "The test defines arrays of PCIe1 DBI/DSP Type1 configuration register addresses, their expected default values, and corresponding read/write masks and skip flags. Execution has two phases. Phase 1 (chk_rst_val): iterate i=0..CNT-1; addr = addr_array[i]; if read_mask_array[i] == 0x00000000, skip as not readable; if addr equals mizar_PCIE1_DBI_DSP_CAP_ID_NXT_PTR_REG or mizar_PCIE1_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS or mizar_PCIE1_DBI_DSP_PL_DEBUG1_OFF, skip default check. Otherwise read data_rd = read_reg(addr) and compare to default_value_array[i]; on mismatch, increment def_fail_cnt and print failure. Phase 2 (chk_rd_wr): for each pattern in chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}, set data_wr to the pattern. Write loop: for i=0..CNT-1, if skip_array[i] == 1 or write_mask_array[i] == 0x00000000, skip; else write_reg(addr_array[i], data_wr). Read/verify loop: for i=0..CNT-1, skip if skip_array[i] == 1 or write_mask_array[i] == 0x00000000 or read_mask_array[i] == 0x00000000; else read data_rd = read_reg(addr); compute wr_n = (write_mask_array[i] ^ 0xffffffff) and exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if data_rd != exp_val, increment wr_fail_cnt and print failure. At the end of test_case(), call finish(1) if (def_fail_cnt > 0 || wr_fail_cnt > 0) else finish(0). A soft_reset_chk() helper writes SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA, waits, restores previous value, and waits again, but is not invoked.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "Exclude the Capability Pointer, Device Control/Status, and PL Debug1 registers from default-value checks. Skip any register marked as non-readable or non-writable. During write/read-back, validate only bits enabled by the read and write masks; preserved bits retain default values.",
+    "Test Steps / Procedure": "1) Verify reset defaults: Read all readable PCIe1 DBI/DSP Type1 configuration registers and compare against expected defaults, excluding the Capability Pointer, Device Control/Status, and PL Debug1. 2) Program patterns: For each test pattern, write it to all writable registers that are not skipped. 3) Read-back and verify: Read from registers that are both readable and writable and confirm values match the expected masked result while preserving default values for read-only fields. 4) Determine result: Pass if no default or write/read-back mismatches are detected; otherwise fail.",
+    "Meta Test Steps / Procedure": "- Initialize def_fail_cnt = 0; wr_fail_cnt = 0.\n- chk_rst_val():\n  - For (i = 0; i < CNT; i++): addr = addr_array[i].\n    - If (read_mask_array[i] == 0x00000000) continue.\n    - If (addr == mizar_PCIE1_DBI_DSP_CAP_ID_NXT_PTR_REG || addr == mizar_PCIE1_DBI_DSP_DEVICE_CONTROL_DEVICE_STATUS || addr == mizar_PCIE1_DBI_DSP_PL_DEBUG1_OFF) continue.\n    - data_rd = read_reg(addr); if (data_rd == default_value_array[i]) PASS else { def_fail_cnt++; print mismatch }.\n- chk_rd_wr():\n  - int chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}.\n  - For (j = 0; j < 6; j++): data_wr = chk_val[j].\n    - Write loop (i = 0..CNT-1): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; write_reg(addr, data_wr).\n    - Read/verify loop (i = 0..CNT-1): addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; if (read_mask_array[i] == 0x00000000) continue; data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd == exp_val) PASS else { wr_fail_cnt++; print mismatch }.\n- Finalize: if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).\n- soft_reset_chk() (not invoked): save default_value = read_reg(SOFT_RST REG ADDRESS); write SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA; wait_on(1000); restore default_value; wait_on(1000).",
+    "Impacted Registers": "DBI_DSP_TYPE1_DEV_ID_VEND_ID_REG, DBI_DSP_TYPE1_STATUS_COMMAND_REG, DBI_DSP_TYPE1_CLASS_CODE_REV_ID_REG, DBI_DSP_TYPE1_BIST_HDR TYPE LAT CACHE LINE SIZE REG, DBI_DSP_BAR0_REG, DBI_DSP_CAP_ID_NXT PTR REG, DBI_DSP_DEVICE CONTROL DEVICE STATUS, DBI_DSP_PL_DEBUG1_OFF",
+    "Meta Impacted Registers": "mizar_PCIE1_DBI_DSP_TYPE1_DEV_ID VEND ID REG, mizar_PCIE1_DBI_DSP_TYPE1_STATUS COMMAND REG, mizar_PCIE1_DBI_DSP_TYPE1_CLASS CODE REV ID REG, mizar_PCIE1_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG, mizar_PCIE1_DBI_DSP_BAR0_REG, mizar_PCIE1_DBI_DSP_CAP ID NXT PTR REG, mizar_PCIE1_DBI_DSP_DEVICE CONTROL DEVICE STATUS, mizar_PCIE1_DBI_DSP_PL_DEBUG1_OFF",
+    "Validation / Acceptance Criteria": "Pass if all readable, non-excluded registers match their default values and all masked write/read-back checks match expected results across the pattern set, with read-only fields retaining defaults. Any mismatch results in Fail.",
+    "Meta Validation / Acceptance Criteria": "- Default phase: For each readable address not in the exclusion list, require data_rd == default_value_array[i]; else def_fail_cnt++.\n- Write/read-back phase: For each address where write_mask != 0, read_mask != 0, and skip_array[i] != 1, require data_rd == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])); else wr_fail_cnt++.\n- Final result: finish(0) iff (def_fail_cnt == 0 && wr_fail_cnt == 0); otherwise finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include <pcie.h>",
+    "Meta Macros": "#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000\n#define CNT 775",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE1_DBI_DSP_TYPE1_DEV ID VEND ID REG,mizar_PCIE1_DBI_DSP_TYPE1_STATUS COMMAND REG,mizar_PCIE1_DBI_DSP_TYPE1_CLASS CODE REV ID REG,mizar_PCIE1_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG,mizar_PCIE1_DBI_DSP_BAR0_REG,};\n\nconst int default_value_array[20]={PCIE1_DBI_DSP_TYPE1_DEV ID VEND ID REG DEFAULT VAL,PCIE1_DBI_DSP_TYPE1_STATUS COMMAND REG DEFAULT VAL,PCIE1_DBI_DSP_TYPE1_CLASS CODE REV ID REG DEFAULT VAL,PCIE1_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG DEFAULT VAL,PCIE1_DBI_DSP_BAR0_REG DEFAULT VAL,};\n\nconst int read_mask_array[20]={PCIE1_DBI_DSP_TYPE1_DEV ID VEND ID REG READ MASK,PCIE1_DBI_DSP_TYPE1_STATUS COMMAND REG READ MASK,PCIE1_DBI_DSP_TYPE1_CLASS CODE REV ID REG READ MASK,PCIE1_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG READ MASK,PCIE1_DBI_DSP_BAR0 REG READ MASK,};\n\nconst int write_mask_array[20]={PCIE1_DBI_DSP_TYPE1_DEV ID VEND ID REG WRITE MASK,PCIE1_DBI_DSP_TYPE1_STATUS COMMAND REG WRITE MASK,PCIE1_DBI_DSP_TYPE1_CLASS CODE REV ID REG WRITE MASK,PCIE1_DBI_DSP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG WRITE MASK,PCIE1_DBI_DSP_BAR0 REG WRITE MASK,};\n\nconst int skip_array[20]={0,0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,0,0,0,0,};"
+  },
+  {
+    "Index": "5",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie1_dbi_usp_reg_wr_rd_test",
+    "Test Description": "Validate PCIe1 DBI/USP Type1 configuration registers by first checking reset defaults on readable registers (excluding CAP_ID_NXT_PTR_REG, DEVICE_CONTROL_DEVICE_STATUS, and DBI_USP_PL_DEBUG1_OFF), then performing masked write/read-back on writable registers and verifying read-only bits retain default values.",
+    "Meta Test Description": "The test defines arrays of PCIe1 DBI/USP Type1 configuration register addresses, expected default values, and read/write masks. Execution has two phases. Phase 1 (chk_rst_val): iterate i=0..CNT-1; addr = addr_array[i]; if read_mask_array[i] == 0x00000000, skip (not readable). If addr equals mizar_PCIE1_DBI_USP_CAP_ID_NXT_PTR_REG or mizar_PCIE1_DBI_USP_DEVICE_CONTROL_DEVICE_STATUS or mizar_PCIE1_DBI_USP_PL_DEBUG1_OFF, skip default check. Otherwise data_rd = read_reg(addr) and compare to default_value_array[i]; on mismatch, def_fail_cnt++. Phase 2 (chk_rd_wr): for each pattern in chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}: set data_wr. Write loop: for i=0..CNT-1, addr = addr_array[i]; if skip_array[i] == 1 or write_mask_array[i] == 0x00000000, continue; else write_reg(addr, data_wr). Read/verify loop: for i=0..CNT-1, if skip_array[i] == 1 or write_mask_array[i] == 0x00000000 or read_mask_array[i] == 0x00000000, continue; else data_rd = read_reg(addr); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if data_rd != exp_val, wr_fail_cnt++. test_case(): run chk_rst_val(); chk_rd_wr(); if(def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0). A soft_reset_chk() helper exists but is not invoked; it writes SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA, waits, restores the previous value, and waits again.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "Skip non-readable and non-writable locations during access. Exclude CAP_ID_NXT_PTR_REG, DEVICE_CONTROL_DEVICE_STATUS, and DBI_USP_PL_DEBUG1_OFF from default value checks. During write/read-back, only bits enabled by read and write masks are validated; preserved bits must retain their default values.",
+    "Test Steps / Procedure": "1) Verify reset defaults for PCIe1 DBI/USP Type1 configuration registers: read all readable registers and compare with expected defaults, excluding CAP_ID_NXT_PTR_REG, DEVICE_CONTROL_DEVICE_STATUS, and DBI_USP_PL_DEBUG1_OFF. 2) For each test pattern, write to all writable registers while skipping locations marked to be skipped. 3) Read back from registers that are both readable and writable. 4) Confirm read-back values match the expected masked result and that read-only fields retain default values. 5) Report PASS only if no mismatches occur in default checks and write/read-back verification; otherwise report FAIL.",
+    "Meta Test Steps / Procedure": "- int def_fail_cnt = 0, wr_fail_cnt = 0.\n- test_case(): call chk_rst_val(); call chk_rd_wr(); if(def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).\n- chk_rst_val(): for(i=0;i<CNT;i++): addr = addr_array[i]; if(read_mask_array[i]==0x00000000) continue; if(addr==mizar_PCIE1_DBI_USP_CAP_ID_NXT_PTR_REG || addr==mizar_PCIE1_DBI_USP_DEVICE CONTROL DEVICE STATUS || addr==mizar_PCIE1_DBI_USP_PL_DEBUG1_OFF) continue; data_rd = read_reg(addr); if(data_rd == default_value_array[i]) PASS else { def_fail_cnt++; log mismatch }.\n- chk_rd_wr(): int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}; for(j=0;j<6;j++): data_wr=chk_val[j];\n  - Write loop: for(i=0;i<CNT;i++): addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0x00000000) continue; write_reg(addr,data_wr).\n  - Read/verify loop: for(i=0;i<CNT;i++): addr=addr_array[i]; if(skip_array[i]==1) continue; if(write_mask_array[i]==0x00000000) continue; if(read_mask_array[i]==0x00000000) continue; data_rd=read_reg(addr); wr_n=(write_mask_array[i]^0xffffffff); exp_val=((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if(data_rd==exp_val) PASS else { wr_fail_cnt++; log mismatch }.\n- soft_reset_chk() (not invoked): default_value=read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS,SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST_REG_ADDRESS,default_value); wait_on(1000).",
+    "Impacted Registers": "DEV ID VEND ID REG, STATUS COMMAND REG, CLASS CODE REV ID REG, BIST HDR TYPE LAT CACHE LINE SIZE REG, BAR0 REG, CAP ID NXT PTR REG, DEVICE CONTROL DEVICE STATUS, DBI_USP_PL_DEBUG1_OFF",
+    "Meta Impacted Registers": "mizar_PCIE1_DBI_USP_TYPE1_DEV ID VEND ID REG, mizar_PCIE1_DBI_USP_TYPE1_STATUS COMMAND REG, mizar_PCIE1_DBI_USP_TYPE1_CLASS CODE REV ID REG, mizar_PCIE1_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG, mizar_PCIE1_DBI_USP_BAR0 REG, mizar_PCIE1_DBI_USP_CAP ID NXT PTR REG, mizar_PCIE1_DBI_USP_DEVICE CONTROL DEVICE STATUS, mizar_PCIE1_DBI_USP_PL_DEBUG1_OFF",
+    "Validation / Acceptance Criteria": "Pass if all readable, non-excluded DBI/USP registers match expected default values and, for each test pattern, the read-back from readable and writable registers equals the masked expected value while preserved bits retain defaults. Any mismatch results in Fail.",
+    "Meta Validation / Acceptance Criteria": "- Default phase: For each i where read_mask_array[i] != 0 and addr_array[i] not in {mizar_PCIE1_DBI_USP_CAP ID NXT PTR REG, mizar_PCIE1_DBI_USP_DEVICE CONTROL DEVICE STATUS, mizar_PCIE1_DBI_USP_PL_DEBUG1_OFF}, require read_reg(addr_array[i]) == default_value_array[i]; else def_fail_cnt++.\n- Write/read-back phase: For each pattern and for each i where skip_array[i] != 1, write_mask_array[i] != 0, and read_mask_array[i] != 0, require data_rd == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])); else wr_fail_cnt++.\n- Final: finish(0) iff (def_fail_cnt == 0 && wr_fail_cnt == 0); otherwise finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include <pcie.h>",
+    "Meta Macros": "#define CNT 775\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE1_DBI_USP_TYPE1_DEV ID VEND ID REG,mizar_PCIE1_DBI_USP_TYPE1_STATUS COMMAND REG,mizar_PCIE1_DBI_USP_TYPE1_CLASS CODE REV ID REG,mizar_PCIE1_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG,mizar_PCIE1_DBI_USP_BAR0 REG,};\n\nconst int default_value_array[20]={PCIE1_DBI_USP_TYPE1_DEV ID VEND ID REG DEFAULT VAL,PCIE1_DBI_USP_TYPE1_STATUS COMMAND REG DEFAULT VAL,PCIE1_DBI_USP_TYPE1_CLASS CODE REV ID REG DEFAULT VAL,PCIE1_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG DEFAULT VAL,PCIE1_DBI_USP_BAR0 REG DEFAULT VAL,};\n\nconst int read_mask_array[20]={PCIE1_DBI_USP_TYPE1_DEV ID VEND ID REG READ MASK,PCIE1_DBI_USP_TYPE1_STATUS COMMAND REG READ MASK,PCIE1_DBI_USP_TYPE1_CLASS CODE REV ID REG READ MASK,PCIE1_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG READ MASK,PCIE1_DBI_USP_BAR0 REG READ MASK,};\n\nconst int write_mask_array[20]={PCIE1_DBI_USP_TYPE1_DEV ID VEND ID REG WRITE MASK,PCIE1_DBI_USP_TYPE1_STATUS COMMAND REG WRITE MASK,PCIE1_DBI_USP_TYPE1_CLASS CODE REV ID REG WRITE MASK,PCIE1_DBI_USP_TYPE1_BIST HDR TYPE LAT CACHE LINE SIZE REG WRITE MASK,PCIE1_DBI_USP_BAR0 REG WRITE MASK,};\n\nconst int skip_array[20]={0,0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,0,0,0,0,};"
+  },
+  {
+    "Index": "6",
+    "SS / Module": "PCIE",
+    "Feature": "writeAsRead",
+    "Test Case Name": "pcie1_sii_rc_reg_wr_rd_test",
+    "Test Description": "Validate PCIe1 SII RC configuration registers by verifying reset defaults and performing masked write/read-back across readable and writable registers. Exclude the SII_PHY_RST_CONTROL register from default checks and preserve read-only fields during write/read verification.",
+    "Meta Test Description": "The test operates on the PCIe1 SII RC configuration window in two phases. Phase 1 (Default check): Iterate i=0..CNT-1 over addr_array; if read_mask_array[i] == 0, skip (not readable); if addr_array[i] == mizar_PCIE1_SII_PHY_RST_CONTROL, skip default check. Otherwise read_reg(addr_array[i]) and compare against default_value_array[i]; increment def_fail_cnt on mismatch and print failure details. Phase 2 (Write/Read-back): For each pattern in chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}, write to each register when skip_array[i] != 1 and write_mask_array[i] != 0. Then read back when read_mask_array[i] != 0 and write_mask_array[i] != 0. Compute wr_n = (write_mask_array[i] ^ 0xffffffff) and expected exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if data_rd != exp_val, increment wr_fail_cnt and log mismatch. test_case() finishes with finish(0) if (def_fail_cnt == 0 && wr_fail_cnt == 0) else finish(1). A soft_reset_chk() helper exists (writes SOFT_RST_REG_ADDRESS with SOFT_RST_REG_DATA, waits, restores previous value) but is not invoked.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE68C1000",
+    "Memory End Offset": "NA",
+    "Remarks": "Exclude the SII_PHY_RST_CONTROL register from default value checks. Validate only bits enabled by the read and write masks; preserved bits must retain their default values.",
+    "Test Steps / Procedure": "1) Read all readable PCIe1 SII RC configuration registers and compare to expected defaults, excluding the PHY reset control register. 2) For each test pattern, program all writable registers and then read back from readable+writable registers. 3) Confirm read-back values match the expected masked results while preserving default values for read-only fields. 4) Declare PASS only if no mismatches are detected in both default and write/read-back phases; otherwise declare FAIL.",
+    "Meta Test Steps / Procedure": "- Initialize def_fail_cnt = 0; wr_fail_cnt = 0.\n- chk_rst_val(): For (i = 0; i < CNT; i++): addr = addr_array[i]; if (read_mask_array[i] == 0x00000000) continue; if (addr == mizar_PCIE1_SII_PHY_RST_CONTROL) continue; data_rd = read_reg(addr); if (data_rd != default_value_array[i]) { def_fail_cnt++; print failure with addr, expected, read }.\n- chk_rd_wr(): int chk_val[6] = {0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000}; For each data_wr in chk_val:\n  - Write loop: For i=0..CNT-1: if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; write_reg(addr_array[i], data_wr).\n  - Read/verify loop: For i=0..CNT-1: if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; if (read_mask_array[i] == 0x00000000) continue; data_rd = read_reg(addr_array[i]); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd != exp_val) { wr_fail_cnt++; print mismatch with addr, exp_val, data_rd }.\n- test_case(): call chk_rst_val(); call chk_rd_wr(); if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1); else finish(0).\n- soft_reset_chk() (not invoked): default_value = read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST REG ADDRESS, default_value); wait_on(1000).",
+    "Impacted Registers": "SII_CFG_BAR0_START1, SII_CFG_BAR0_START2, SII_CFG_BAR0_LIMIT1, SII_CFG_BAR0_LIMIT2, SII_CFG_BAR1_START, SII_CFG_BAR1_LIMIT1, SII_CFG_BAR2_START1, SII_CFG_BAR2_START2, SII_CFG_BAR2_LIMIT1, SII_CFG_BAR2_LIMIT2, SII_PHY_RST_CONTROL",
+    "Meta Impacted Registers": "mizar_PCIE1_SII_CFG_BAR0_START1, mizar_PCIE1_SII_CFG_BAR0_START2, mizar_PCIE1_SII_CFG_BAR0_LIMIT1, mizar_PCIE1_SII_CFG_BAR0_LIMIT2, mizar_PCIE1_SII_CFG_BAR1_START, mizar_PCIE1_SII_CFG_BAR1_LIMIT1, mizar_PCIE1_SII_CFG_BAR2_START1, mizar_PCIE1_SII_CFG_BAR2_START2, mizar_PCIE1_SII_CFG_BAR2_LIMIT1, mizar_PCIE1_SII_CFG_BAR2_LIMIT2, mizar_PCIE1_SII_PHY_RST_CONTROL",
+    "Validation / Acceptance Criteria": "PASS if every readable SII RC configuration register matches its default value (excluding SII_PHY_RST_CONTROL) and, for each data pattern, the read-back from readable and writable registers equals the expected masked value while preserved bits keep their defaults. Any mismatch results in FAIL.",
+    "Meta Validation / Acceptance Criteria": "- Default: For each i where read_mask_array[i] != 0 and addr_array[i] != mizar_PCIE1_SII_PHY_RST_CONTROL, require read_reg(addr_array[i]) == default_value_array[i]; else def_fail_cnt++.\n- Write/read-back: For each pattern and each i where skip_array[i] != 1, write_mask_array[i] != 0, and read_mask_array[i] != 0, require data_rd == ((data_wr & read_mask_array[i] & write_mask_array[i]) | ((write_mask_array[i] ^ 0xffffffff) & read_mask_array[i] & default_value_array[i])); else wr_fail_cnt++.\n- Final: finish(0) iff (def_fail_cnt == 0 && wr_fail_cnt == 0); otherwise finish(1).",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#define MIZAR_PCIE1_SII_BASE 0xE68C1000\n#include <pcie1/pcie_sii_rc_def.h>\n#include <pcie1/pcie_sii_rc_offset.h>\n#include \"test_common.h\"\n#include \"test_define.c\"",
+    "Meta Macros": "#define CNT 153\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST REG DATA 0x00000000",
+    "Meta Arrays": "const unsigned long int addr_array[20]={mizar_PCIE1_SII_CFG_BAR0_START1,mizar_PCIE1_SII_CFG_BAR0_START2,mizar_PCIE1_SII_CFG_BAR0_LIMIT1,mizar_PCIE1_SII_CFG_BAR0_LIMIT2,mizar_PCIE1_SII_CFG_BAR1_START,mizar_PCIE1_SII_CFG_BAR1_LIMIT1,mizar_PCIE1_SII_CFG_BAR2_START1,mizar_PCIE1_SII_CFG_BAR2_START2,mizar_PCIE1_SII_CFG_BAR2_LIMIT1,mizar_PCIE1_SII_CFG_BAR2_LIMIT2,};\n\nconst int default_value_array[20]={PCIE1_SII_CFG_BAR0_START1_DEFAULT VAL,PCIE1_SII_CFG_BAR0_START2_DEFAULT VAL,PCIE1_SII_CFG_BAR0_LIMIT1_DEFAULT VAL,PCIE1_SII_CFG_BAR0_LIMIT2_DEFAULT VAL,PCIE1_SII_CFG_BAR1_START_DEFAULT VAL,PCIE1_SII_CFG_BAR1_LIMIT1_DEFAULT VAL,PCIE1_SII_CFG_BAR2_START1_DEFAULT VAL,PCIE1_SII_CFG_BAR2_START2_DEFAULT VAL,PCIE1_SII_CFG_BAR2_LIMIT1_DEFAULT VAL,PCIE1_SII_CFG_BAR2_LIMIT2_DEFAULT VAL,};\n\nconst int read_mask_array[20]={PCIE1_SII_CFG_BAR0_START1_READ MASK,PCIE1_SII_CFG_BAR0_START2_READ MASK,PCIE1_SII_CFG_BAR0_LIMIT1_READ MASK,PCIE1_SII_CFG_BAR0_LIMIT2_READ MASK,PCIE1_SII_CFG_BAR1_START_READ MASK,PCIE1_SII_CFG_BAR1_LIMIT1_READ MASK,PCIE1_SII_CFG_BAR2_START1_READ MASK,PCIE1_SII_CFG_BAR2_START2_READ MASK,PCIE1_SII_CFG_BAR2_LIMIT1_READ MASK,PCIE1_SII_CFG_BAR2_LIMIT2_READ MASK,};\n\nconst int write_mask_array[20]={PCIE1_SII_CFG_BAR0_START1_WRITE MASK,PCIE1_SII_CFG_BAR0_START2_WRITE MASK,PCIE1_SII_CFG_BAR0_LIMIT1_WRITE MASK,PCIE1_SII_CFG_BAR0_LIMIT2_WRITE MASK,PCIE1_SII_CFG_BAR1_START_WRITE MASK,PCIE1_SII_CFG_BAR1_LIMIT1_WRITE MASK,PCIE1_SII_CFG_BAR2_START1_WRITE MASK,PCIE1_SII_CFG_BAR2_START2_WRITE MASK,PCIE1_SII_CFG_BAR2_LIMIT1_WRITE MASK,PCIE1_SII_CFG_BAR2_LIMIT2_WRITE MASK,};\n\nconst int skip_array[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};"
+  },
+  {
+    "Index": "7",
+    "SS / Module": "PCIE",
+    "Feature": "Testable: writeAsRead",
+    "Test Case Name": "pcie_reg_wr_rd_test",
+    "Test Description": "System-level register validation across PCIe root complex control (DBI/DSP) and SII/PHY interfaces for both PCIe0 and PCIe1. Verify reset defaults, perform masked write/read-back on DBI and SII registers, and validate selected PHY halfword fields at fixed physical addresses with alignment-based extraction.",
+    "Meta Test Description": "The test initializes arrays covering PCIe0/1 DBI-DSP control registers (e.g., MSI capability offsets, filter mask, AXI message address high, utility), SII transmit header/PHY control registers, and fixed PHY physical addresses for both PCIe0 and PCIe1. Phase 1 (Reset/defaults): Read rc0_ctl_addr[0..4] and rc1_ctl_addr[0..4] and compare to ctl_default[i] (0). Read sii0_addr[0..2] and sii1_addr[0..2] and compare to sii_default[i] (0). Assert SII PHY reset on both controllers by writing a reset value to the SII PHY reset control registers. For each PHY address in phy0_addr and phy1_addr, read the 32-bit value and derive a 16-bit field: if (addr % 4 != 0) use upper 16 bits (>>16), else lower 16 bits (&0x0000FFFF), then compare to phy*_default[i] (0). Phase 2 (Write/Read-back): For control and SII registers, iterate patterns chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}; write each pattern to control registers and (pattern & sii*_write_mask[i]) to SII registers; read back and compare to written/masked values. Before PHY programming, again assert SII PHY reset on both controllers; iterate patterns chk_val_phy[3] on PHY registers and write (pattern & phy*_write_mask[i]); read back 16-bit field as above and check that (data_rd & phy*_write_mask[i]) equals (pattern & 0x1FFF). Accumulate errors (err1/err2) across phases and finish with 0 on success, else non-zero.",
+    "Speed": "NA",
+    "Mode": "Polling",
+    "Memory Start Offset": "0xE68860B8",
+    "Memory End Offset": "0xE68A64B8",
+    "Remarks": "Validate only masked bits for SII and PHY checks; read-only or preserved fields must retain default values. Assert the SII PHY reset control on both controllers prior to accessing PHY registers. Use halfword validation (upper or lower 16 bits) at the specified PHY physical addresses based on address alignment.",
+    "Test Steps / Procedure": "1) Read and verify reset defaults for PCIe0/1 DBI-DSP control registers and PCIe0/1 SII transmit/PHY control registers. 2) Assert the PHY reset control on both PCIe controllers. 3) Read selected PHY registers at fixed physical addresses; validate the relevant 16-bit fields against defaults using alignment-based extraction. 4) For each data pattern, program PCIe0/1 DBI-DSP control registers and SII registers (apply register-specific write masks), then read back and confirm masked equality. 5) For each PHY pattern, program masked values to PHY registers, read back 16-bit fields, and confirm masked equality. 6) Declare PASS only if all default checks and all write/read-back verifications across DBI-DSP, SII, and PHY pass without mismatches; otherwise declare FAIL.",
+    "Meta Test Steps / Procedure": "- Initialize err1=0, err2=0.\n- Defaults phase:\n  - For i=0..4: read rc0_ctl_addr[i]; compare to ctl_default[i]; if mismatch err1++.\n  - For i=0..4: read rc1_ctl_addr[i]; compare to ctl_default[i]; if mismatch err2++.\n  - For i=0..2: read sii0_addr[i]; compare to sii_default[i]; if mismatch err2++.\n  - For i=0..2: read sii1_addr[i]; compare to sii_default[i]; if mismatch err2++.\n  - Assert SII PHY reset on both controllers by writing reset value to each SII PHY reset control register.\n  - For i=0..2: read phy0_addr[i]; if (addr % 4 != 0) use upper 16 bits else lower 16 bits; compare to phy0_default[i]; if mismatch err2++.\n  - For i=0..2: read phy1_addr[i]; derive halfword likewise; compare to phy1_default[i]; if mismatch err2++.\n- Write/Read phase (DBI-DSP and SII):\n  - For each pattern in {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}:\n    - Write rc0_ctl_addr[i] and rc1_ctl_addr[i] with pattern.\n    - Write sii0_addr[i] with (pattern & sii0_write_mask[i]); write sii1_addr[i] with (pattern & sii1_write_mask[i]).\n    - Read back rc0/rc1; compare to pattern; if mismatch err1++.\n    - Read back sii0/sii1; compare to masked writes; if mismatch err1++.\n- Write/Read phase (PHY):\n  - Re-assert SII PHY reset on both controllers.\n  - For each PHY pattern in chk_val_phy[3]: write (pattern & phy*_write_mask[i]) to each PHY address; read back 16-bit field as above and check that (data_rd & phy*_write_mask[i]) equals (pattern & 0x00001FFF); on mismatch err1++.\n- Finalize: finish(err2 || err1) with 0 indicating success.",
+    "Impacted Registers": "DBI_DSP_MSI_CAP_OFF_08H_REG, MSI_CAP_OFF_10H_REG, DBI_DSP_FILTER_MASK_2_OFF, DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, DBI_DSP_UTILITY OFF, SII_PCIE0_TRANSMIT_HEADER2, SII_PCIE0_TRANSMIT_HEADER3, SII_PCIE1_TRANSMIT_HEADER2, SII_PCIE1_TRANSMIT_HEADER3, SII_PHY_CONTROL_23, SII_PHY_RST_CONTROL",
+    "Meta Impacted Registers": "mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG, mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE0_DBI_DSP_UTILITY OFF, mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG, mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF, mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF, mizar_PCIE1_DBI_DSP_UTILITY OFF, mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2, mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3, mizar_PCIE0_SII_PHY_CONTROL_23, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3, mizar_PCIE1_SII_PHY_CONTROL_23, mizar_PCIE0_SII_PHY_RST_CONTROL, mizar_PCIE1_SII_PHY_RST_CONTROL",
+    "Validation / Acceptance Criteria": "PASS if all control, SII, and PHY register checks meet their expected default values or mask-based write/read equivalence (including correct halfword extraction for PHY) across all patterns; any mismatch results in FAIL.",
+    "Meta Validation / Acceptance Criteria": "- Default checks: Each control and SII register read must equal its defined default; each selected PHY halfword must equal its defined default.\n- Write/read checks (DBI-DSP and SII): Reads must equal either the raw write (control) or the masked write value (SII).\n- Write/read checks (PHY): The read halfword, masked by phy*_write_mask, must equal (pattern & 0x00001FFF).\n- Final: finish(0) only when err1 == 0 and err2 == 0; otherwise FAIL.",
+    "Code Generation (Required / Not)": "NA",
+    "Meta Headers": "#include <stdlib.h>\n#include <stdio.h>\n#include <test_common.h>\n#include <pcie.h>",
+    "Meta Macros": "NA",
+    "Meta Arrays": "unsigned int rc0_ctl_addr[5] = {mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF,mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF,mizar_PCIE0_DBI_DSP_UTILITY OFF};\nunsigned int rc1_ctl_addr[5] = {mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE1_DBI_DSP_FILTER_MASK_2 OFF,mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH OFF,mizar_PCIE1_DBI_DSP_UTILITY OFF};\nunsigned int ctl_default[5] = {0x0, 0x0, 0x0, 0x0, 0x0};\nunsigned int sii0_addr[3] = {mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2, mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3,mizar_PCIE0_SII_PHY_CONTROL_23};\nunsigned int sii1_addr[3] = {mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3,mizar_PCIE1_SII_PHY_CONTROL_23};\nunsigned int sii_default[3] = {0x0, 0x0,0x0};\n\nunsigned int sii0_write_mask[3] = {0xFFFFFFFF,0xFFFFFFFF,0xF000F};\nunsigned int sii1_write_mask[3] = {0xFFFFFFFF,0xFFFFFFFF,0xF000F};\n\nunsigned int phy0_addr[3] = {0xE68860B8,0xE68862B8,0xE68864B8};\nunsigned int phy1_addr[3] ={0xE68A60B8,0xE68A62B8,0xE68A64B8};\nunsigned int phy0_default[3] = {0x0,0x0,0x0};\nunsigned int phy1_default[3] = {0x0,0x0,0x0};\n\nunsigned int phy0_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};\nunsigned int phy1_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};"
+  }
+]''')
+
+# 2) Validate JSON
+if not isinstance(json_data, list) or len(json_data) == 0:
+    raise SystemExit("json_data must be a non-empty array")
+
+# 3) Define columns
+TESTPLAN_COLS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -22,7 +204,7 @@ TESTPLAN_COLUMNS = [
     "Code Generation (Required / Not)",
 ]
 
-METADATA_COLUMNS = [
+METADATA_COLS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -34,76 +216,45 @@ METADATA_COLUMNS = [
     "Meta Arrays",
 ]
 
-INPUT_JSON = os.path.join("tools", "final_testplan.json")
-OUTPUT_DIR = os.path.join("Test_Output", "PCIE", "TestPlan")
+# 4) Create workbook and sheets
+wb = Workbook()
+ws_plan = wb.active
+ws_plan.title = "TestPlan"
+ws_meta = wb.create_sheet(title="MetaData")
 
+# Header formatting and freeze panes
+header_font = Font(bold=True)
+ws_plan.append(TESTPLAN_COLS)
+for c in range(1, len(TESTPLAN_COLS) + 1):
+    ws_plan.cell(row=1, column=c).font = header_font
+ws_plan.freeze_panes = "A2"
 
-def read_json_array(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, list):
-        raise ValueError("Input JSON must be an array of objects")
-    return data
+ws_meta.append(METADATA_COLS)
+for c in range(1, len(METADATA_COLS) + 1):
+    ws_meta.cell(row=1, column=c).font = header_font
+ws_meta.freeze_panes = "A2"
 
+# 5) Populate rows (preserve order)
+for obj in json_data:
+    # TestPlan row
+    plan_row = [obj.get(col, "") for col in TESTPLAN_COLS]
+    ws_plan.append(plan_row)
+    # MetaData row
+    meta_row = [obj.get(col, "") for col in METADATA_COLS]
+    ws_meta.append(meta_row)
 
-def build_workbook(rows):
-    wb = Workbook()
+# Set MetaData to VERY HIDDEN
+ws_meta.sheet_state = 'veryHidden'
 
-    # TestPlan sheet
-    ws1 = wb.active
-    ws1.title = "TestPlan"
-    ws1.append(TESTPLAN_COLUMNS)
-    for cell in ws1[1]:
-        cell.font = Font(bold=True)
-    ws1.freeze_panes = "A2"
+# 6) File output with IST timestamp
+ist = timezone(timedelta(hours=5, minutes=30))
+ts = datetime.now(ist).strftime('%Y%m%d_%H%M%S')
+file_name = f"testplan_{ts}.xlsx"
+output_dir = os.path.join("Test_Output", "PCIE", "TestPlan")
+os.makedirs(output_dir, exist_ok=True)
+file_path = os.path.join(output_dir, file_name)
 
-    for r in rows:
-        row_vals = [r.get(col, "") for col in TESTPLAN_COLUMNS]
-        ws1.append(row_vals)
+# 7) Save workbook as real .xlsx
+wb.save(file_path)
 
-    # MetaData sheet (very hidden)
-    ws2 = wb.create_sheet("MetaData")
-    ws2.append(METADATA_COLUMNS)
-    for cell in ws2[1]:
-        cell.font = Font(bold=True)
-    ws2.freeze_panes = "A2"
-
-    for r in rows:
-        row_vals = [r.get(col, "") for col in METADATA_COLUMNS]
-        ws2.append(row_vals)
-
-    # VERY HIDDEN MetaData
-    ws2.sheet_state = "veryHidden"
-
-    return wb
-
-
-def ensure_dir(p):
-    os.makedirs(p, exist_ok=True)
-
-
-def ist_timestamp():
-    ist = timezone(timedelta(hours=5, minutes=30))
-    return datetime.now(ist).strftime("%Y%m%d_%H%M%S")
-
-
-def main():
-    rows = read_json_array(INPUT_JSON)
-    wb = build_wb_with_validation(rows=rows)
-
-
-def build_wb_with_validation(rows):
-    # Validate row objects
-    for i, r in enumerate(rows, start=1):
-        if not isinstance(r, dict):
-            raise ValueError(f"Row {i} is not an object")
-    wb = build_workbook(rows)
-    ensure_dir(OUTPUT_DIR)
-    out_path = os.path.join(OUTPUT_DIR, f"testplan_{ist_timestamp()}.xlsx")
-    wb.save(out_path)
-    print(f"Saved: {out_path}")
-    return wb
-
-
-if __name__ == "__main__":
-    main()
+print(file_path)
