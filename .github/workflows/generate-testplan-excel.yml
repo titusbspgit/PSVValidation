@@ -1,0 +1,44 @@
+name: Generate TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/GPIO/TestPlan/testplan_data.json'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install --upgrade pip openpyxl
+
+      - name: Generate Excel from JSON
+        run: |
+          python Test_Output/GPIO/TestPlan/generate_testplan_excel.py \
+            --input Test_Output/GPIO/TestPlan/testplan_data.json \
+            --outdir Test_Output/GPIO/TestPlan
+
+      - name: Commit generated Excel
+        run: |
+          set -e
+          FILE=$(ls -t Test_Output/GPIO/TestPlan/testplan_*.xlsx | head -n 1)
+          echo "Latest generated file: $FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "Added generated TestPlan Excel"
+          git push
