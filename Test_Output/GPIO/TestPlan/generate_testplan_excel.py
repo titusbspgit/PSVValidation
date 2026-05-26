@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-import argparse
 import json
-import os
+from pathlib import Path
 from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    # Fallback for very old Pythons (not expected on GH runners)
-    ZoneInfo = None
-
+from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-TESTPLAN_COLS = [
+# Columns for the visible TestPlan sheet
+TESTPLAN_COLUMNS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -29,7 +24,8 @@ TESTPLAN_COLS = [
     "Code Generation (Required / Not)",
 ]
 
-METADATA_COLS = [
+# Columns for the VeryHidden MetaData sheet
+METADATA_COLUMNS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -41,79 +37,74 @@ METADATA_COLS = [
     "Meta Arrays",
 ]
 
-def load_json(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    if not isinstance(data, list):
-        raise ValueError("json_data must be a JSON array of objects")
-    return data
-
-
-def ist_now_str():
-    if ZoneInfo is not None:
-        tz = ZoneInfo('Asia/Kolkata')
-        return datetime.now(tz).strftime('%Y%m%d_%H%M%S')
-    # Fallback: manual offset +05:30 (approx; DST not applicable in IST)
-    from datetime import timedelta, timezone
-    tz = timezone(timedelta(hours=5, minutes=30))
-    return datetime.now(tz).strftime('%Y%m%d_%H%M%S')
-
-
-def write_sheet(ws, headers, rows):
-    # Header
-    for c, h in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=c, value=h)
-        cell.font = Font(bold=True)
-    ws.freeze_panes = 'A2'
-
-    # Rows
-    for r_idx, row in enumerate(rows, start=2):
-        for c, h in enumerate(headers, start=1):
-            ws.cell(row=r_idx, column=c, value=row.get(h, ""))
-
-
-def build_workbook(records):
-    wb = Workbook()
-    ws_plan = wb.active
-    ws_plan.title = 'TestPlan'
-    ws_meta = wb.create_sheet('MetaData')
-
-    # Prepare rows
-    plan_rows = []
-    meta_rows = []
-
-    for obj in records:
-        # TestPlan
-        plan_row = {h: obj.get(h, "") for h in TESTPLAN_COLS}
-        plan_rows.append(plan_row)
-        # MetaData
-        meta_row = {h: obj.get(h, "") for h in METADATA_COLS}
-        meta_rows.append(meta_row)
-
-    write_sheet(ws_plan, TESTPLAN_COLS, plan_rows)
-    write_sheet(ws_meta, METADATA_COLS, meta_rows)
-
-    # Make MetaData very hidden
-    ws_meta.sheet_state = 'veryHidden'
-
-    return wb
-
 
 def main():
-    ap = argparse.ArgumentParser(description='Generate TestPlan Excel from JSON')
-    ap.add_argument('--input', required=True, help='Path to testplan_data.json')
-    ap.add_argument('--outdir', required=True, help='Output directory for Excel file')
-    args = ap.parse_args()
+    here = Path(__file__).resolve().parent
+    data_path = here / "testplan_data.json"
+    if not data_path.exists():
+        raise SystemExit(f"Missing input JSON: {data_path}")
 
-    records = load_json(args.input)
-    wb = build_workbook(records)
+    # Load and validate JSON
+    try:
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise SystemExit(f"Failed to parse JSON: {e}")
 
-    os.makedirs(args.outdir, exist_ok=True)
-    ts = ist_now_str()
-    fname = f'testplan_{ts}.xlsx'
-    out_path = os.path.join(args.outdir, fname)
+    if not isinstance(data, list):
+        raise SystemExit("json_data must be an array of objects")
+
+    # Create workbook and sheets
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "TestPlan"
+    ws_meta = wb.create_sheet("MetaData")
+    # Set MetaData to VeryHidden
+    ws_meta.sheet_state = "veryHidden"
+
+    # Write headers (bold) and freeze first row
+    bold = Font(bold=True)
+    for col_idx, col_name in enumerate(TESTPLAN_COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = bold
+    ws.freeze_panes = "A2"
+
+    for col_idx, col_name in enumerate(METADATA_COLUMNS, start=1):
+        cell = ws_meta.cell(row=1, column=col_idx, value=col_name)
+        cell.font = bold
+    ws_meta.freeze_panes = "A2"
+
+    # Fill rows preserving order
+    for r, item in enumerate(data, start=2):
+        if not isinstance(item, dict):
+            raise SystemExit(f"Each item must be an object; got {type(item)} at row {r-1}")
+        # TestPlan row
+        for c, key in enumerate(TESTPLAN_COLUMNS, start=1):
+            ws.cell(row=r, column=c, value=str(item.get(key, "")))
+        # MetaData row
+        # Map Index and Test Case Name again to maintain row association
+        meta_values = [
+            item.get("Index", ""),
+            item.get("Test Case Name", ""),
+            item.get("Meta Test Description", ""),
+            item.get("Meta Test Steps / Procedure", ""),
+            item.get("Meta Impacted Registers", ""),
+            item.get("Meta Validation / Acceptance Criteria", ""),
+            item.get("Meta Headers", ""),
+            item.get("Meta Macros", ""),
+            item.get("Meta Arrays", ""),
+        ]
+        for c, val in enumerate(meta_values, start=1):
+            ws_meta.cell(row=r, column=c, value=str(val))
+
+    # Filename with IST timestamp
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.now(ist).strftime("%Y%m%d_%H%M%S")
+    out_name = f"testplan_{ts}.xlsx"
+    out_path = here / out_name
+
     wb.save(out_path)
-    print(out_path)
+    print(f"Generated: {out_path}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
