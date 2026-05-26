@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "test_common.h"
+#include "test_define.c"
 #include <gpio/gpio_def.h>
 #include <gpio/gpio_offset.h>
 
