@@ -64,6 +64,7 @@ int pcie_mem_txn_init(void)
  */
 int pcie_mem_txn_run(void)
 {
+    int i;
     data_rd = read_sii0_reg(0xC0);
 #ifdef DEBUG_DISPLAY
     /* printf("TEST SII0 READ DATA data Before entering D1 while loop  = %x\n",data_rd); */
@@ -180,11 +181,13 @@ int pcie_mem_txn_teardown(void)
     printf(" Entered DM0 EP bar register programming");
     printf(" DONE DM0 EP bar register programming");
 #endif
+#ifdef DM0_RC
     printf("Enumaration Done\n");
 #ifdef DEBUG_DISPLAY
     printf("Memory base Programming Started\n");
 #endif
     printf("Memory base Programming Ended\n");
+#endif
     printf("After mem base programming started reg writes \n");
     printf("Transactions to be started \n");
     printf("2 Transactions Done \n");
