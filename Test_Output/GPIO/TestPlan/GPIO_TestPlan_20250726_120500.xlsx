@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>GPIO Test Plan</Title>
+  <Author>PSVValidation Automation</Author>
+  <Created>2025-07-26T12:05:00Z</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:Bold="1" ss:Size="11" ss:FontName="Calibri" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#4472C4" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Data">
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Font ss:Size="10" ss:FontName="Calibri"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="DataAlt">
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Font ss:Size="10" ss:FontName="Calibri"/>
+   <Interior ss:Color="#D9E2F3" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="GPIO_TestPlan">
+  <Table ss:DefaultColumnWidth="120" ss:DefaultRowHeight="15">
+   <Column ss:Index="1" ss:Width="50"/>
+   <Column ss:Index="2" ss:Width="120"/>
+   <Column ss:Index="3" ss:Width="200"/>
+   <Column ss:Index="4" ss:Width="180"/>
+   <Column ss:Index="5" ss:Width="250"/>
+   <Column ss:Index="6" ss:Width="350"/>
+   <Column ss:Index="7" ss:Width="350"/>
+   <Column ss:Index="8" ss:Width="300"/>
+   <Column ss:Index="9" ss:Width="80"/>
+   <Column ss:Index="10" ss:Width="120"/>
+   <Column ss:Index="11" ss:Width="120"/>
+   <Column ss:Index="12" ss:Width="200"/>
+   <Column ss:Index="13" ss:Width="200"/>
+   <Column ss:Index="14" ss:Width="250"/>
+   <Row ss:Height="30">
+    <Cell ss:StyleID="Header"><Data ss:Type="String">S.No</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">IP_NAME</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Test Case ID</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Test Case Name</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Description</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Preconditions</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Test Steps</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Expected Results</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Priority</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Category</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Test Type</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Registers Tested</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Source Folder</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Source Files</Data></Cell>
+   </Row>
+   <Row ss:Height="120">
+    <Cell ss:StyleID="Data"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO_TC_001</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">gpio_reg_wr_rd_test</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO Register Write/Read Test - Validates default reset values of all GPIO registers and performs write-read-back verification using multiple data patterns (0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000) across all GPIO pad configuration registers (GPIO_8 through GPIO_27). Verifies read/write masks are correctly applied.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">1. GPIO IP block is accessible and powered on.&#10;2. GPIO registers are at default reset state.&#10;3. test_common.h and gpio header files (gpio_def.h, gpio_offset.h) are available.&#10;4. 20 GPIO registers (GP0_GPIO_8 to GP0_GPIO_27) are defined in test_define.c with corresponding default values, read masks, write masks, and skip arrays.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Step 1: Call chk_rst_val() to iterate over all 20 GPIO registers.&#10;Step 2: For each register, read current value using read_reg(addr).&#10;Step 3: Mask read data with 0xFFFFFFFE and compare against default_value_array[i].&#10;Step 4: If mismatch, increment def_fail_cnt and log error.&#10;Step 5: Call chk_rd_wr() to iterate over 6 data patterns.&#10;Step 6: For each pattern, write (data_wr &amp; write_mask_array[i]) to each register.&#10;Step 7: Read back each register and apply read_mask_array[i].&#10;Step 8: Compute expected value = (data_wr &amp; read_mask &amp; write_mask) | (~write_mask &amp; read_mask &amp; default_value).&#10;Step 9: Compare read value with expected value; if mismatch, increment wr_fail_cnt.&#10;Step 10: If def_fail_cnt &gt; 0 OR wr_fail_cnt &gt; 0, call finish(1) [FAIL]; else finish(0) [PASS].</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">1. All GPIO registers (GP0_GPIO_8 to GP0_GPIO_27) must return their documented default reset values after power-on/reset.&#10;2. Writing any of the 6 test patterns and reading back must yield the expected value after applying read/write masks.&#10;3. Registers marked with skip_array=1 must be correctly skipped.&#10;4. Registers with read_mask=0x00000000 must be skipped for read operations.&#10;5. Registers with write_mask=0x00000000 must be skipped for write operations.&#10;6. Test must PASS (finish(0)) when all checks succeed; FAIL (finish(1)) otherwise.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">P1 - High</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Register Validation</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Functional - Reset Value Check, Write/Read Verification</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GP0_GPIO_8, GP0_GPIO_9, GP0_GPIO_10, GP0_GPIO_11, GP0_GPIO_12, GP0_GPIO_13, GP0_GPIO_14, GP0_GPIO_15, GP0_GPIO_16, GP0_GPIO_17, GP0_GPIO_18, GP0_GPIO_19, GP0_GPIO_20, GP0_GPIO_21, GP0_GPIO_22, GP0_GPIO_23, GP0_GPIO_24, GP0_GPIO_25, GP0_GPIO_26, GP0_GPIO_27</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">TestRepo/gpio/gpio_reg_wr_rd_test</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">program.c, test_define.c</Data></Cell>
+   </Row>
+   <Row ss:Height="120">
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">GPIO</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">GPIO_TC_002</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">test_gpio_negedge_intr_en</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">GPIO Negative Edge Interrupt Enable Test - Validates that each of the 32 GPIO pads (GPIO_8 through GPIO_39) can correctly generate a negative-edge triggered interrupt. Configures each pad for negedge interrupt detection, drives a falling edge signal, and verifies the interrupt is raised, the ISR is invoked, interrupt status is set correctly, and interrupt clearing works properly. Supports both GPIO0 and GPIO1 instances via conditional compilation.</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">1. GPIO IP block is accessible and powered on.&#10;2. GIC (Generic Interrupt Controller) is available and functional.&#10;3. GPIO0 uses IRQ 87; GPIO1 uses IRQ 88.&#10;4. LSS SYSREG interrupt enable register is accessible.&#10;5. External pad stimulus register at 0xA0243ffc is available for driving GPIO input signals.&#10;6. gpio_def.h and gpio_offset.h headers are available.&#10;7. 20 GPIO registers defined in test_define.c with masks and skip arrays.</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Step 1: Enable GIC IRQ (87 for GPIO0 or 88 for GPIO1).&#10;Step 2: Enable sysreg interrupt for GPIO0/GPIO1 via MIZAR_LSS_SYSREG_INTR_EN1.&#10;Step 3: Drive all pads high by writing 0xFFFFFFFF to 0xA0243ffc.&#10;Step 4: Configure all 32 GPIO pads for negedge interrupt: write (1&lt;&lt;20)|(1&lt;&lt;18)|(1&lt;&lt;16) to each pad register.&#10;Step 5: For each pad i (0 to 31):&#10;  a. Clear raw interrupt status by writing (1&lt;&lt;i) to GPIO_INTR_RAW_STCLR1.&#10;  b. Enable interrupt for pad i by writing (1&lt;&lt;i) to GP0_INTR1_INTR_EN1.&#10;  c. Set int_pend = 1.&#10;  d. Drive all pads high (0xFFFFFFFF), wait, then drive falling edge (~(1&lt;&lt;i)).&#10;  e. Wait for ISR (Default_IRQHandler) with timeout of 5000 iterations.&#10;  f. If timeout, log error and increment test_err.&#10;Step 6: In ISR - verify pad din value, check group interrupt status, clear interrupt, verify status cleared, clear sysreg and GIC.&#10;Step 7: Call finish(test_err).</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">1. Each GPIO pad (GPIO_8 to GPIO_39) must generate a negedge interrupt when a falling edge is applied.&#10;2. The ISR (Default_IRQHandler) must be invoked within the timeout period (5000 iterations).&#10;3. In ISR: pad din bit (bit 0) must be 0 (low after falling edge).&#10;4. In ISR: interrupt status bit (bit 1) must be set, and group interrupt status register must reflect the correct pad.&#10;5. After clearing: group interrupt status must read 0x0.&#10;6. Sysreg interrupt and GIC IRQ must be successfully cleared.&#10;7. test_err must be 0 for PASS; any non-zero value indicates FAIL.</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">P1 - High</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Interrupt Validation</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Functional - Negative Edge Interrupt Test</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">GP0_GPIO_8 to GP0_GPIO_39, GPIO_INTR_RAW_STCLR1, GP0_INTR1_INTR_EN1, GP0_INTR1_INTR_STS1, LSS_SYSREG_INTR_EN1, LSS_SYSREG_RAW_STCR1</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">TestRepo/gpio/test_gpio_negedge_intr_en</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">program.c, test_define.c</Data></Cell>
+   </Row>
+   <Row ss:Height="120">
+    <Cell ss:StyleID="Data"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO_TC_003</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO Positive Edge All Pads Interrupt Enable Test - Validates that all 32 GPIO pads (GPIO_8 through GPIO_39) can correctly generate positive-edge triggered interrupts simultaneously. Configures all pads for posedge interrupt detection with IO control groups set for input mode, drives a rising edge on all pads at once, and verifies the group interrupt is raised, the ISR is invoked, all per-pin interrupts are cleared correctly, and sysreg/GIC interrupts are properly serviced. Supports both GPIO0 and GPIO1 instances.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">1. GPIO IP block is accessible and powered on.&#10;2. GIC (Generic Interrupt Controller) is available and functional.&#10;3. GPIO0 uses IRQ 87; GPIO1 uses IRQ 88.&#10;4. LSS SYSREG interrupt enable register is accessible.&#10;5. External pad stimulus register at 0xA0243ffc is available.&#10;6. GPIO IO control group registers (GPIO_IO_CTRL_GROUP1 to GROUP4) are accessible.&#10;7. gpio_def.h and gpio_offset.h headers are available.&#10;8. 20 GPIO registers defined in test_define.c.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Step 1: Enable GIC IRQ (87 for GPIO0 or 88 for GPIO1).&#10;Step 2: Enable sysreg interrupt for GPIO0/GPIO1 via MIZAR_LSS_SYSREG_INTR_EN1.&#10;Step 3: Configure all 32 GPIO pads for posedge interrupt: write 0x00020000 (bit17=1) to each pad register.&#10;Step 4: Set IO control groups for input mode: write 0x000000FF to GPIO_IO_CTRL_GROUP1 through GROUP4.&#10;Step 5: Enable all pad interrupts: write 0xFFFFFFFF to GP0_INTR1_INTR_EN1.&#10;Step 6: For each iteration i (0 to 31):&#10;  a. Drive all pads low: write 0x00000000 to 0xA0243ffc.&#10;  b. Set int_pend = 1 (arm before edge).&#10;  c. Drive rising edge: write 0xFFFFFFFF to 0xA0243ffc.&#10;  d. Wait for ISR with timeout of 2000 iterations.&#10;  e. If timeout, log error, increment test_err, break.&#10;  f. Drive pads low again for next iteration.&#10;Step 7: In ISR - mask group interrupt, verify group status is non-zero, clear all 32 per-pin interrupts (write 0x00010000 iclr to each pad), verify group status = 0x0, clear sysreg and GIC, re-enable group interrupt.&#10;Step 8: Call finish(test_err).</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">1. All 32 GPIO pads must generate a posedge interrupt when a rising edge is applied.&#10;2. The ISR (Default_IRQHandler) must be invoked within the timeout period (2000 iterations).&#10;3. In ISR: group interrupt status (GP0_INTR1_INTR_STS1) must be non-zero (0xFFFFFFFF mask check).&#10;4. After clearing all 32 per-pin interrupts (iclr bit16): group interrupt status must read 0x0.&#10;5. Sysreg interrupt status must be cleared successfully (read-back verification).&#10;6. GIC IRQ must be cleared.&#10;7. Group interrupt must be re-enabled for next iteration.&#10;8. test_err must be 0 for PASS; any non-zero value indicates FAIL.</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">P1 - High</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Interrupt Validation</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Functional - Positive Edge Interrupt Test (All Pads)</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GP0_GPIO_8 to GP0_GPIO_39, GP0_INTR1_INTR_EN1, GP0_INTR1_INTR_STS1, GPIO_IO_CTRL_GROUP1, GPIO_IO_CTRL_GROUP2, GPIO_IO_CTRL_GROUP3, GPIO_IO_CTRL_GROUP4, LSS_SYSREG_INTR_EN1, LSS_SYSREG_RAW_STCR1</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">TestRepo/gpio/test_gpio_pedge_all_pads_en</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">program.c, test_define.c</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+ <Worksheet ss:Name="Summary">
+  <Table ss:DefaultColumnWidth="150">
+   <Column ss:Index="1" ss:Width="200"/>
+   <Column ss:Index="2" ss:Width="400"/>
+   <Row>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Field</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Value</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">IP Name</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">GPIO</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Total Test Cases</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="Number">3</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Source Directory</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">TestRepo/gpio</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Source Repository</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">titusbspgit/PSVValidation</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Branch</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">main</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Generated On (IST)</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">2025-07-26 12:05:00 IST (GMT+05:30)</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Test Folders Analyzed</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">gpio_reg_wr_rd_test, test_gpio_negedge_intr_en, test_gpio_pedge_all_pads_en</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Total Source Files Parsed</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="Number">6</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Categories Covered</Data></Cell>
+    <Cell ss:StyleID="Data"><Data ss:Type="String">Register Validation, Interrupt Validation</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Test Types</Data></Cell>
+    <Cell ss:StyleID="DataAlt"><Data ss:Type="String">Reset Value Check, Write/Read Verification, Negative Edge Interrupt, Positive Edge Interrupt</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>
