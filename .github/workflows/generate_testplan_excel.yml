@@ -2,7 +2,7 @@
 # GitHub Actions Workflow: Generate GPIO TestPlan Excel
 # ============================================================
 # Triggers:
-#   - On push when the generator script changes
+#   - On push when the generator script or JSON data changes
 #   - Manual dispatch (workflow_dispatch)
 #
 # What it does:
@@ -18,6 +18,7 @@ on:
   push:
     paths:
       - 'Test_Output/GPIO/TestPlan/generate_testplan_excel.py'
+      - 'Test_Output/GPIO/TestPlan/testplan_data.json'
   workflow_dispatch:
 
 permissions:
