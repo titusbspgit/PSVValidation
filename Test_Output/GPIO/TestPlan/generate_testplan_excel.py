@@ -3,8 +3,8 @@
 GPIO TestPlan Excel Generator
 =============================
 Reads testplan_data.json and produces a real .xlsx workbook with:
-  - Sheet 1: "TestPlan"  (visible)   – user-facing test plan columns
-  - Sheet 2: "MetaData"  (VeryHidden) – machine-readable metadata columns
+  - Sheet 1: "TestPlan"  (visible)   - user-facing test plan columns
+  - Sheet 2: "MetaData"  (VeryHidden) - machine-readable metadata columns
 
 Formatting:
   - Header row: bold, blue background (#4472C4), white font
@@ -13,6 +13,7 @@ Formatting:
   - First row frozen in both sheets
 
 Requires: openpyxl >= 3.0
+Generation timestamp: 2026-06-08T19:37:03+05:30
 """
 
 import json
