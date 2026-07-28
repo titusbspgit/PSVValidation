@@ -26,15 +26,9 @@ jobs:
           python-version: '3.x'
       - name: Install dependencies
         run: pip install openpyxl
-      - name: Generate Excel
+      - name: Generate Excel (no CLI args)
         run: |
-          python scripts/generate_testplan_xlsx.py \
-            --input scripts/data/usb_testplan.json \
-            --ip-name "USB" \
-            --source-repo "titusbspgit/PSVValidation" \
-            --source-path "TestRepo/usb" \
-            --output-dir "Test_Output/USB/TestPlan" \
-            --branch "main"
+          python scripts/generate_testplan_xlsx.py
       - name: Commit Excel
         run: |
           set -e
