@@ -1,0 +1,44 @@
+name: Generate USB TestPlan Excel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/generate_usb_testplan_excel.py'
+      - '.github/workflows/generate_usb_testplan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Excel
+        run: |
+          python scripts/generate_usb_testplan_excel.py
+      - name: Commit Excel artifact
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git status --porcelain | grep -qE '^( M|\?\?)'; then
+            git add Test_Output/USB/TestPlan/*.xlsx
+            git commit -m "Add generated USB Test Plan Excel"
+            git push
+          else
+            echo "No changes to commit."
+          fi
