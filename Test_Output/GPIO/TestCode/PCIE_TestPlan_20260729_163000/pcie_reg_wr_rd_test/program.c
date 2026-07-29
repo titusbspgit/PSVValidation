@@ -126,7 +126,7 @@ int test_case(void)
 
     /* Step 9: Patterned write/read-back verification */
     {
-        unsigned int chk_val[3] = {0xFFFFFFFFU, 0xAAAAAAA AU, 0x55555555U};
+        unsigned int chk_val[3] = {0xFFFFFFFFU, 0xAAAAAAAAU, 0x55555555U};
         unsigned int chk_val_phy[3] = {0x7BAFU, 0x0001U, 0x003BU};
         for (j = 0U; j < 3U; j++) {
 #ifdef DEBUG_DISPLAY
