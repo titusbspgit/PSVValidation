@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import os
+import argparse
 import json
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
-TESTPLAN_COLUMNS = [
+TESTPLAN_COLS = [
     "Index",
     "SS / Module",
     "Feature",
@@ -18,12 +20,12 @@ TESTPLAN_COLUMNS = [
     "Memory End Offset",
     "Remarks",
     "Test Steps / Procedure",
-    "Imparted Registers" if False else "Impacted Registers",
+    "Impacted Registers",
     "Validation / Acceptance Criteria",
     "Code Generation (Required / Not)",
 ]
 
-METADATA_COLUMNS = [
+METADATA_COLS = [
     "Index",
     "Test Case Name",
     "Meta Test Description",
@@ -35,130 +37,131 @@ METADATA_COLUMNS = [
     "Meta Arrays",
 ]
 
-HEADER_FILL = PatternFill(fill_type="solid", fgColor="4472C4")
-HEADER_FONT = Font(bold=True, color="FFFFFF")
-WRAP_TOP = Alignment(wrap_text=True, vertical="top")
+HEADER_FILL = PatternFill(fill_type="solid", fgColor="4472C4")  # Blue
+HEADER_FONT = Font(bold=True, color="FFFFFF")  # White text
+CELL_ALIGN = Alignment(wrap_text=True, vertical="top")
 
 
-def write_headers(ws, headers):
-    ws.append(headers)
-    for col_idx, _ in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx)
-        cell.font = HEADER_FONT
+def build_workbook(rows, ip_name: str, owner: str, repo: str, branch: str, output_dir: str):
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "TestPlan"
+    ws2 = wb.create_sheet("MetaData")
+
+    # Write headers
+    ws1.append(TESTPLAN_COLS)
+    ws2.append(METADATA_COLS)
+
+    for cell in ws1[1]:
         cell.fill = HEADER_FILL
-        cell.alignment = WRAP_TOP
-    ws.freeze_panes = "A2"
+        cell.font = HEADER_FONT
+        cell.alignment = CELL_ALIGN
+    for cell in ws2[1]:
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.alignment = CELL_ALIGN
 
+    # IST timestamp for filename and metadata row
+    ist = ZoneInfo("Asia/Kolkata")
+    ts = datetime.now(tz=ist)
+    ts_str = ts.strftime("%Y%m%d_%H%M%S")
 
-def set_column_widths(ws, widths):
-    for col_letter, width in widths.items():
-        ws.column_dimensions[col_letter].width = width
+    # Optional top metadata row in MetaData sheet capturing workbook info
+    meta_info = {
+        "generated_ist": ts.isoformat(),
+        "ip_name": ip_name,
+        "source_repo": f"https://github.com/{owner}/{repo}",
+        "branch": branch,
+        "output_directory": output_dir,
+        "row_count": len(rows),
+    }
+    meta_row = {
+        "Index": "META",
+        "Test Case Name": "WORKBOOK_INFO",
+        "Meta Test Description": "",
+        "Meta Test Steps / Procedure": "",
+        "Meta Impacted Registers": "",
+        "Meta Validation / Acceptance Criteria": "",
+        "Meta Headers": json.dumps(meta_info, separators=(",", ":")),
+        "Meta Macros": "",
+        "Meta Arrays": "",
+    }
 
+    # Append the meta info row first
+    ws2.append([meta_row.get(col, "") for col in METADATA_COLS])
 
-def ensure_array(json_text):
-    try:
-        data = json.loads(json_text)
-    except Exception as e:
-        raise SystemExit(f"Invalid JSON input: {e}")
-    if not isinstance(data, list):
-        raise SystemExit("json_data must be a JSON array")
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise SystemExit(f"Each item must be an object; item {i} is {type(item)}")
-    return data
+    # Data rows preserving input order
+    for obj in rows:
+        # TestPlan sheet values
+        ws1.append([obj.get(col, "") for col in TESTPLAN_COLS])
+        # MetaData sheet values
+        ws2.append([obj.get(col, "") for col in METADATA_COLS])
+
+    # Freeze first row
+    ws1.freeze_panes = "A2"
+    ws2.freeze_panes = "A2"
+
+    # Wrap text for all cells and compute column widths
+    def autosize(ws):
+        maxlen = {}
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.alignment = CELL_ALIGN
+                v = cell.value
+                if v is None:
+                    l = 0
+                else:
+                    s = str(v)
+                    l = max(len(line) for line in s.splitlines()) if s else 0
+                col = cell.column_letter
+                maxlen[col] = max(maxlen.get(col, 0), l)
+        for col, l in maxlen.items():
+            width = min(max(10, l + 2), 60)
+            ws.column_dimensions[col].width = width
+
+    autosize(ws1)
+    autosize(ws2)
+
+    # Very hide the MetaData sheet
+    ws2.sheet_state = 'veryHidden'
+
+    return wb, ts_str
 
 
 def main():
-    json_text = os.environ.get("JSON_DATA", "[]")
-    data = ensure_array(json_text)
+    p = argparse.ArgumentParser()
+    p.add_argument('--input', required=True, help='Path to JSON file (array of test cases)')
+    p.add_argument('--ip-name', required=True)
+    p.add_argument('--owner', required=True)
+    p.add_argument('--repo', required=True)
+    p.add_argument('--branch', required=True)
+    p.add_argument('--output-dir', required=True)
+    args = p.parse_args()
 
-    ip_name = os.environ.get("IP_NAME", "IP")
-    output_dir = os.environ.get("OUTPUT_DIR", "Test_Output")
+    # Load and validate JSON
+    with open(args.input, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise SystemExit('json_data must be a JSON array')
 
-    # Build workbook
-    wb = Workbook()
-    ws_plan = wb.active
-    ws_plan.title = "TestPlan"
-    ws_meta = wb.create_sheet("MetaData")
+    wb, ts_str = build_workbook(
+        data,
+        ip_name=args.ip_name,
+        owner=args.owner,
+        repo=args.repo,
+        branch=args.branch,
+        output_dir=args.output_dir,
+    )
 
-    write_headers(ws_plan, TESTPLAN_COLUMNS)
-    write_headers(ws_meta, METADATA_COLUMNS)
+    # File naming rule: <IP_NAME>_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx
+    filename = f"{args.ip_name}_TestPlan_{ts_str}.xlsx"
 
-    # Fill rows preserving order
-    for item in data:
-        plan_row = [
-            item.get("Index", ""),
-            item.get("SS / Module", ""),
-            item.get("Feature", ""),
-            item.get("Test Case Name", ""),
-            item.get("Test Description", ""),
-            item.get("Speed", ""),
-            item.get("Mode", ""),
-            item.get("Memory Start Offset", ""),
-            item.get("Memory End Offset", ""),
-            item.get("Remarks", ""),
-            item.get("Test Steps / Procedure", ""),
-            item.get("Impacted Registers", ""),
-            item.get("Validation / Acceptance Criteria", ""),
-            item.get("Code Generation (Required / Not)", ""),
-        ]
-        ws_plan.append(plan_row)
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / filename
 
-        meta_row = [
-            item.get("Index", ""),
-            item.get("Test Case Name", ""),
-            item.get("Meta Test Description", ""),
-            item.get("Meta Test Steps / Procedure", ""),
-            item.get("Meta Impacted Registers", ""),
-            item.get("Meta Validation / Acceptance Criteria", ""),
-            item.get("Meta Headers", ""),
-            item.get("Meta Macros", ""),
-            item.get("Meta Arrays", ""),
-        ]
-        ws_meta.append(meta_row)
-
-    # Add meta info rows after the aligned rows
-    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
-    ws_meta.append([""] * len(METADATA_COLUMNS))
-    ws_meta.append([
-        "",  # Index
-        "Meta-Info",  # Test Case Name
-        f"Generated IST: {now_ist.strftime('%Y-%m-%d %H:%M:%S %Z')}",  # Meta Test Description
-        f"IP_NAME={ip_name}; Source=repo:titusbspgit/PSVValidation branch:main",  # Meta Test Steps / Procedure
-        "",  # Meta Impacted Registers
-        "",  # Meta Validation / Acceptance Criteria
-        "",  # Meta Headers
-        "",  # Meta Macros
-        "",  # Meta Arrays
-    ])
-
-    # Wrap text for all used cells
-    for ws in (ws_plan, ws_meta):
-        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
-            for cell in row:
-                cell.alignment = WRAP_TOP
-
-    # Reasonable widths for readability
-    set_column_widths(ws_plan, {
-        'A': 8, 'B': 16, 'C': 30, 'D': 28, 'E': 70, 'F': 10, 'G': 12,
-        'H': 22, 'I': 22, 'J': 40, 'K': 90, 'L': 40, 'M': 60, 'N': 26
-    })
-    set_column_widths(ws_meta, {
-        'A': 8, 'B': 30, 'C': 90, 'D': 90, 'E': 50, 'F': 60, 'G': 40, 'H': 30, 'I': 60
-    })
-
-    # Very hide the MetaData sheet
-    ws_meta.sheet_state = 'veryHidden'
-
-    # Filename with IST timestamp following <IP_NAME>_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx
-    ts = now_ist.strftime('%Y%m%d_%H%M%S')
-    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
-
-    os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, filename)
     wb.save(out_path)
+    print(f"Saved Excel: {out_path}")
 
-    print(f"Generated Excel: {out_path}")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

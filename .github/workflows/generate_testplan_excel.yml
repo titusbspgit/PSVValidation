@@ -1,24 +1,27 @@
 name: Generate TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
     paths:
-      - '.github/workflows/generate_testplan_excel.yml'
+      - 'input/testplan.json'
       - 'tools/generate_testplan_excel.py'
-  workflow_dispatch: {}
+      - '.github/workflows/generate_testplan_excel.yml'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -28,56 +31,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel from JSON
+      - name: Generate Excel
         env:
-          JSON_DATA: |
-            [
-              {
-                "Index": "1",
-                "SS / Module": "PCIE",
-                "Feature": "cfg_bus_master_en"
-              },
-              {
-                "Index": "2",
-                "SS / Module": "PCIE",
-                "Feature": "sii_cfg_bus_master_en"
-              },
-              {
-                "Index": "2",
-                "SS / Module": "PCIE",
-                "Feature": "PCIe DBI/SII/PHY Register Read/Write and Reset Verification",
-                "Test Case Name": "pcie_reg_wr_rd_test",
-                "Test Description": "Verifies reset defaults and read/write integrity for DBI control, SII, and PHY control registers across PCIe0 and PCIe1. Applies masked writes and 16-bit PHY accesses, reads back, and checks for mismatches. Test passes when no mismatches are detected.",
-                "Meta Test Description": "The test prints entry messages, then executes two phases: (1) Reset value check (chk_rst_val): For rc0_ctl_addr[5] and rc1_ctl_addr[5] (DBI control registers), reads each and compares to ctl_default[5] (all 0x0). For sii0_addr[3] and sii1_addr[3] (SII registers), reads and compares to sii_default[3] (all 0x0). Writes 0x01203000 to mizar_PCIE0_SII_PHY_RST_CONTROL and mizar_PCIE1_SII_PHY_RST_CONTROL. For PHY addresses phy0_addr[3] = {0xE68860B8,0xE68862B8,0xE68864B8} and phy1_addr[3] = {0xE68A60B8,0xE68A62B8,0xE68A64B8}, reads each 32-bit value, extracts upper 16 bits if (addr % 4) != 0 else lower 16 bits, and compares to respective defaults (phy0_default[3]/phy1_default[3], all 0x0). Any mismatch increments err1 or err2 and logs. (2) Read/Write check (chk_rd_wr): Iterates j over 3 patterns (from chk_val[6], first three used in loops): for each DBI control addr in rc0_ctl_addr and rc1_ctl_addr, writes chk_val[j]; for each SII addr in sii0_addr and sii1_addr, writes (chk_val[j] & respective write_mask); writes SII PHY reset control 0x01203000 for both instances; writes to PHY addresses phy0_addr[i]/phy1_addr[i] with (chk_val_phy[j] & phy*_write_mask[i]). Then reads back and compares: DBI control values must equal chk_val[j]; SII values must equal (chk_val[j] & mask). For PHY reads, again extract upper or lower 16 bits depending on address alignment; comparison checks (data_rd & phy*_write_mask[i]) == (chk_val_phy[j] & 0x1FFF). Any mismatch increments err1. Finally, finish(err2 || err1) is called; a pass corresponds to both counters being zero.",
-                "Speed": "NA",
-                "Mode": "Polling",
-                "Memory Start Offset": "0xE68860B8",
-                "Memory End Offset": "0xE68A64B8",
-                "Remarks": "Requires access to DBI, SII, and PHY control spaces for both PCIe instances. SII writes must respect field masks. PHY checks use 16-bit fields selected by address alignment. Test passes only if defaults and read-backs match expected values with no errors.",
-                "Test Steps / Procedure": "1. Read DBI control registers for PCIe0 and PCIe1 and verify they match reset defaults (0x0).\n2. Read SII registers for PCIe0 and PCIe1 and verify they match reset defaults (0x0).\n3. Assert the PCIe SII PHY reset control for both instances.\n4. Read PCIe PHY control locations for both instances; evaluate the appropriate 16-bit half and confirm they match defaults (0x0).\n5. For multiple data patterns, write DBI control, SII (with masks), and PHY registers (masked 16-bit), then read back and compare against expected masked values.\n6. Record any mismatches; declare pass only if no errors are detected.",
-                "Meta Test Steps / Procedure": "1) printf entry; call chk_rst_val(); call chk_rd_wr(); finish(err2 || err1).\n2) chk_rst_val(): For i=0..4: data_rd = read_reg(rc0_ctl_addr[i]); if (data_rd != ctl_default[i]) { err1++; printf(\"Data mismatch => Default value : 0x%x, Read data : 0x%x : FAILED\\n\", ctl_default[i], data_rd); }\n3) For i=0..4: data_rd = read_reg(rc1_ctl_addr[i]); if (data_rd != ctl_default[i]) { err2++; printf(\"Data mismatch => Default value : 0x%x, Read data : 0x%x : FAILED\\n\", ctl_default[i], data_rd); }\n4) For i=0..2: data_rd = read_reg(sii0_addr[i]); if (data_rd != sii_default[i]) { err2++; printf(\"Data mismatch => Default value : 0x%x, Read data : 0x%x : FAILED\\n\", sii_default[i], data_rd); }\n5) For i=0..2: data_rd = read_reg(sii1_addr[i]); if (data_rd != sii_default[i]) { err2++; printf(\"Data mismatch => Default value : 0x%x, Read data : 0x%x : FAILED\\n\", sii_default[i], data_rd); }\n6) write_reg(mizar_PCIE0_SII_PHY_RST_CONTROL, 0x01203000); write_reg(mizar_PCIE1_SII_PHY_RST_CONTROL, 0x01203000).\n7) For i=0..2: data_rd = read_reg(phy0_addr[i]); if (phy0_addr[i] % 4) data_rd >>= 16; else data_rd &= 0x0000FFFF; if (data_rd != phy0_default[i]) { err2++; printf(\"Reset value mismatch => Reg address : 0x%x, Default value : 0x%x, Read data : 0x%x : FAILED\\n\", phy0_addr[i], phy0_default[i], data_rd); }\n8) For i=0..2: data_rd = read_reg(phy1_addr[i]); if (phy1_addr[i] % 4) data_rd >>= 16; else data_rd &= 0x0000FFFF; if (data_rd != phy1_default[i]) { err2++; printf(\"Reset value mismatch => Reg address : 0x%x, Default value : 0x%x, Read data : 0x%x : FAILED\\n\", phy1_addr[i], phy1_default[i], data_rd); }\n9) chk_rd_wr(): For j=0..2: For i=0..4: write_reg(rc0_ctl_addr[i], chk_val[j]); For i=0..4: write_reg(rc1_ctl_addr[i], chk_val[j]);\n10) For i=0..2: write_reg(sii0_addr[i], (chk_val[j] & sii0_write_mask[i])); For i=0..2: write_reg(sii1_addr[i], (chk_val[j] & sii1_write_mask[i]));\n11) write_reg(mizar_PCIE0_SII_PHY_RST_CONTROL, 0x01203000); write_reg(mizar_PCIE1_SII_PHY_RST_CONTROL, 0x01203000).\n12) For i=0..2: write_reg(phy0_addr[i], (chk_val_phy[j] & phy0_write_mask[i])); For i=0..2: write_reg(phy1_addr[i], (chk_val_phy[j] & phy1_write_mask[i]));\n13) For i=0..4: data_rd=read_reg(rc0_ctl_addr[i]); if (data_rd != chk_val[j]) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", chk_val[j], data_rd); }\n14) For i=0..4: data_rd=read_reg(rc1_ctl_addr[i]); if (data_rd != chk_val[j]) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", chk_val[j], data_rd); }\n15) For i=0..2: data_rd=read_reg(sii0_addr[i]); if (data_rd != (chk_val[j] & sii0_write_mask[i])) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", (chk_val[j] & sii0_write_mask[i]), data_rd); }\n16) For i=0..2: data_rd=read_reg(sii1_addr[i]); if (data_rd != (chk_val[j] & sii1_write_mask[i])) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", (chk_val[j] & sii1_write_mask[i]), data_rd); }\n17) For i=0..2: data_rd=read_reg(phy0_addr[i]); if (phy0_addr[i] % 4) data_rd >>= 16; else data_rd &= 0x0000FFFF; if ((data_rd & phy0_write_mask[i]) != (chk_val_phy[j] & 0x00001FFF)) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", (chk_val_phy[j] & phy0_write_mask[i]), data_rd); }\n18) For i=0..2: data_rd=read_reg(phy1_addr[i]); if (phy1_addr[i] % 4) data_rd >>= 16; else data_rd &= 0x0000FFFF; if ((data_rd & phy1_write_mask[i]) != (chk_val_phy[j] & 0x00001FFF)) { err1++; printf(\"Data mismatch => Write data : 0x%x, Read data : 0x%x : FAILED\\n\", (chk_val_phy[j] & phy1_write_mask[i]), data_rd); }",
-                "Meta Headers": "#include <stdlib.h>\n#include <stdio.h>\n#include <test_common.h>\n#include <pcie.h>",
-                "Meta Macros": "NA",
-                "Meta Arrays": "unsigned int rc0_ctl_addr[5] = {mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF,mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,mizar_PCIE0_DBI_DSP_UTILITY_OFF};\nunsigned int rc1_ctl_addr[5] = {mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF,mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,mizar_PCIE1_DBI_DSP_UTILITY_OFF};\nunsigned int ctl_default[5] = {0x0, 0x0, 0x0, 0x0, 0x0};\nunsigned int sii0_addr[3] = {mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2, mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3,mizar_PCIE0_SII_PHY_CONTROL_23};\nunsigned int sii1_addr[3] = {mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2, mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3,mizar_PCIE1_SII_PHY_CONTROL_23};\nunsigned int sii_default[3] = {0x0, 0x0,0x0};\nunsigned int sii0_write_mask[3] = {0xFFFFFFFF,0xFFFFFFFF,0xF000F};\nunsigned int sii1_write_mask[3] = {0xFFFFFFFF,0xFFFFFFFF,0xF000F};\nunsigned int phy0_addr[3] = {0xE68860B8,0xE68862B8,0xE68864B8};\nunsigned int phy1_addr[3] ={0xE68A60B8,0xE68A62B8,0xE68A64B8};\nunsigned int phy0_default[3] = {0x0,0x0,0x0};\nunsigned int phy1_default[3] = {0x0,0x0,0x0};\nunsigned int phy0_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};\nunsigned int phy1_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};\nint chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0x00000000,0xA5A5A5A5,0xffff0000};\nint chk_val_phy[3]={0x7baf,0x1,0x003b};",
-                "Code Generation (Required / Not)": "Not"
-              }
-            ]
           IP_NAME: PCIE
+          OWNER: titusbspgit
+          REPO: PSVValidation
+          BRANCH: main
           OUTPUT_DIR: Test_Output/PCIE/TestPlan
         run: |
-          python tools/generate_testplan_excel.py
+          python tools/generate_testplan_excel.py \
+            --input input/testplan.json \
+            --ip-name "$IP_NAME" \
+            --owner "$OWNER" \
+            --repo "$REPO" \
+            --branch "$BRANCH" \
+            --output-dir "$OUTPUT_DIR"
 
-      - name: Commit generated Excel
-        env:
-          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+      - name: Commit Excel to main
         run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$OUTPUT_DIR"/*.xlsx || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
             git commit -m "Added generated TestPlan Excel"
-            git push origin main
+            git push origin HEAD:main
+          else
+            echo "No changes to commit."
           fi
