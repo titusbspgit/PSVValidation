@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -61,12 +60,17 @@ def build_workbook(rows, ip_name: str, owner: str, repo: str, branch: str, outpu
         cell.font = HEADER_FONT
         cell.alignment = CELL_ALIGN
 
-    # IST timestamp for filename and metadata row
+    # IST timestamp for filename
     ist = ZoneInfo("Asia/Kolkata")
     ts = datetime.now(tz=ist)
     ts_str = ts.strftime("%Y%m%d_%H%M%S")
 
-    # Optional top metadata row in MetaData sheet capturing workbook info
+    # Data rows preserving input order (row i in TestPlan corresponds to row i in MetaData)
+    for obj in rows:
+        ws1.append([obj.get(col, "") for col in TESTPLAN_COLS])
+        ws2.append([obj.get(col, "") for col in METADATA_COLS])
+
+    # Append a trailing workbook metadata row in MetaData (does not disturb alignment of test rows)
     meta_info = {
         "generated_ist": ts.isoformat(),
         "ip_name": ip_name,
@@ -75,27 +79,17 @@ def build_workbook(rows, ip_name: str, owner: str, repo: str, branch: str, outpu
         "output_directory": output_dir,
         "row_count": len(rows),
     }
-    meta_row = {
-        "Index": "META",
-        "Test Case Name": "WORKBOOK_INFO",
-        "Meta Test Description": "",
-        "Meta Test Steps / Procedure": "",
-        "Meta Impacted Registers": "",
-        "Meta Validation / Acceptance Criteria": "",
-        "Meta Headers": json.dumps(meta_info, separators=(",", ":")),
-        "Meta Macros": "",
-        "Meta Arrays": "",
-    }
-
-    # Append the meta info row first
-    ws2.append([meta_row.get(col, "") for col in METADATA_COLS])
-
-    # Data rows preserving input order
-    for obj in rows:
-        # TestPlan sheet values
-        ws1.append([obj.get(col, "") for col in TESTPLAN_COLS])
-        # MetaData sheet values
-        ws2.append([obj.get(col, "") for col in METADATA_COLS])
+    ws2.append([
+        "INFO",
+        "WORKBOOK_INFO",
+        "",
+        "",
+        "",
+        "",
+        json.dumps(meta_info, separators=(",", ":")),
+        "",
+        "",
+    ])
 
     # Freeze first row
     ws1.freeze_panes = "A2"
@@ -108,11 +102,8 @@ def build_workbook(rows, ip_name: str, owner: str, repo: str, branch: str, outpu
             for cell in row:
                 cell.alignment = CELL_ALIGN
                 v = cell.value
-                if v is None:
-                    l = 0
-                else:
-                    s = str(v)
-                    l = max(len(line) for line in s.splitlines()) if s else 0
+                s = str(v) if v is not None else ""
+                l = max((len(line) for line in s.splitlines()), default=0)
                 col = cell.column_letter
                 maxlen[col] = max(maxlen.get(col, 0), l)
         for col, l in maxlen.items():
@@ -127,6 +118,10 @@ def build_workbook(rows, ip_name: str, owner: str, repo: str, branch: str, outpu
 
     return wb, ts_str
 
+
+essential_args = [
+    '--input', '--ip-name', '--owner', '--repo', '--branch', '--output-dir'
+]
 
 def main():
     p = argparse.ArgumentParser()
