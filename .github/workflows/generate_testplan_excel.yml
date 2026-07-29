@@ -1,0 +1,49 @@
+name: Generate TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'data/final_json.json'
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan_excel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Excel
+        run: |
+          python scripts/generate_testplan_excel.py
+      - name: Commit Excel artifact
+        run: |
+          set -e
+          if [ -f generated_excel_path.txt ]; then
+            OUT_FILE=$(cat generated_excel_path.txt)
+          else
+            # Default expected folder if path file missing
+            OUT_FILE=$(ls -1 Test_Output/GPIO/TestPlan/*.xlsx | sort | tail -n1 || true)
+          fi
+          if [ -n "$OUT_FILE" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$OUT_FILE"
+            git commit -m "Added generated TestPlan Excel [skip ci]" || echo "No changes to commit"
+            git push
+          else
+            echo "No Excel file found to commit" >&2
+            exit 1
+          fi
