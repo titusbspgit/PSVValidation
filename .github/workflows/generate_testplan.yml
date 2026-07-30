@@ -1,0 +1,50 @@
+name: Generate TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/data/testplan_PCIE.json
+      - .github/scripts/generate_testplan.py
+      - .github/workflows/generate_testplan.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel
+        id: gen
+        run: |
+          python .github/scripts/generate_testplan.py --json-file ".github/data/testplan_PCIE.json" --output-dir "Test_Output/PCIE/TestPlan" --ip-name "PCIE" > excel_path.txt
+          echo "OUTPUT_FILE=$(tail -n 1 excel_path.txt)" >> $GITHUB_ENV
+          echo "Generated file: $(tail -n 1 excel_path.txt)"
+
+      - name: Commit Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p "$(dirname "$OUTPUT_FILE")"
+          git add "$OUTPUT_FILE"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Added generated TestPlan Excel"
+            git push origin main
+          fi
