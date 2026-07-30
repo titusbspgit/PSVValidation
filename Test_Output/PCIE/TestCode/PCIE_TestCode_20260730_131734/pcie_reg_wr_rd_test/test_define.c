@@ -3,14 +3,7 @@
 #include <test_common.h>
 #include <pcie.h>
 
-/* Global error counters and working variables */
-int err1 = 0;  /* Error bucket 1 */
-int err2 = 0;  /* Error bucket 2 */
-int i = 0;     /* Loop index i */
-int j = 0;     /* Loop index j */
-volatile unsigned int data_rd = 0; /* Read data scratch */
-
-/* Arrays from Meta Arrays (UNCHANGED) */
+/* Arrays from Meta JSON (unchanged) */
 unsigned int rc0_ctl_addr[5] = {mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF,mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,mizar_PCIE0_DBI_DSP_UTILITY_OFF};
 unsigned int rc1_ctl_addr[5] = {mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG, mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG,mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF,mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,mizar_PCIE1_DBI_DSP_UTILITY_OFF};
 unsigned int ctl_default[5] = {0x0, 0x0, 0x0, 0x0, 0x0};
@@ -25,8 +18,3 @@ unsigned int phy0_default[3] = {0x0,0x0,0x0};
 unsigned int phy1_default[3] = {0x0,0x0,0x0};
 unsigned int phy0_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};
 unsigned int phy1_write_mask[3] = {0x1FFF,0x1FFF,0x1FFF};
-
-/* Forward declarations per template structure */
-int test_case(void);
-static void chk_rst_val(void);
-static void chk_rd_wr(void);
