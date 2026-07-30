@@ -1,25 +1,26 @@
-name: Generate and Commit TestPlan Excel
+name: Generate TestPlan Excel (PCIE)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
     paths:
-      - 'scripts/generate_testplan_excel.py'
+      - 'tools/testplan_input.json'
+      - 'tools/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan_excel.yml'
 
 permissions:
   contents: write
 
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -29,16 +30,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install openpyxl
 
-      - name: Generate Excel
+      - name: Generate Excel from JSON
         env:
-          OUTPUT_DIR: Test_Output/PCIE/TestPlan/
+          IP_NAME: PCIE
+          OUTPUT_DIR: Test_Output/PCIE/TestPlan
+          INPUT_JSON: tools/testplan_input.json
         run: |
-          python scripts/generate_testplan_excel.py
+          python tools/generate_testplan_excel.py --ip-name "$IP_NAME" --input "$INPUT_JSON" --output-dir "$OUTPUT_DIR"
 
-      - name: Commit and push Excel
+      - name: Commit and push generated Excel
+        id: commit_excel
         run: |
+          set -e
+          FILE_PATH="$(cat tools/generated_file_path.txt)"
+          FILE_NAME="$(cat tools/generated_filename.txt)"
+          echo "Generated: $FILE_PATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/PCIE/TestPlan/*.xlsx
-          git commit -m "Added generated TestPlan Excel" || echo "Nothing to commit"
-          git push
+          git add "$FILE_PATH"
+          git commit -m "Add $FILE_NAME (IST)" || echo "No changes to commit"
+          git push origin HEAD:main
+          echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
+          echo "file_name=$FILE_NAME" >> $GITHUB_OUTPUT
