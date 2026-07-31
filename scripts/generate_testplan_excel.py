@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import argparse
 import json
 import os
-from pathlib import Path
-from datetime import datetime
+import sys
+from datetime import datetime, timezone
 try:
     from zoneinfo import ZoneInfo
 except Exception:
@@ -11,6 +10,7 @@ except Exception:
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+
 
 TESTPLAN_COLUMNS = [
     "Index",
@@ -41,144 +41,123 @@ METADATA_COLUMNS = [
     "Meta Arrays",
 ]
 
-BLUE_FILL = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-WHITE_BOLD = Font(bold=True, color="FFFFFF")
-WRAP_TOP = Alignment(wrap_text=True, vertical="top")
 
-
-def compute_ist_timestamp():
+def ist_now_str():
+    tz = None
     if ZoneInfo is not None:
-        tz = ZoneInfo("Asia/Kolkata")
-        now = datetime.now(tz)
-    else:
-        # Fallback to naive localtime offset of IST (+05:30)
-        from datetime import timezone, timedelta
-        tz = timezone(timedelta(hours=5, minutes=30))
-        now = datetime.now(tz)
+        try:
+            tz = ZoneInfo("Asia/Kolkata")
+        except Exception:
+            tz = None
+    if tz is None:
+        # Fallback: fixed offset +05:30
+        class FixedIST(timezone.__class__):
+            pass
+        tz = timezone(offset=timedelta(hours=5, minutes=30))
+    now = datetime.now(tz)
     return now.strftime("%Y%m%d_%H%M%S")
 
 
-def auto_size_columns(ws):
-    # Determine max length per column and set width (bounded)
-    for col_idx, col in enumerate(ws.iter_cols(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column), start=1):
-        max_len = 0
-        for cell in col:
-            val = cell.value
-            if val is None:
-                continue
-            l = len(str(val))
-            if l > max_len:
-                max_len = l
-        # Heuristic: broader for text-heavy columns
-        width = min(max(12, max_len + 2), 90)
-        ws.column_dimensions[col[0].column_letter].width = width
-
-
 def apply_header_style(ws):
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(fill_type="solid", fgColor="1F4E78")  # dark blue
+    align = Alignment(wrap_text=True, vertical="center")
     for cell in ws[1]:
-        cell.font = WHITE_BOLD
-        cell.fill = BLUE_FILL
-        cell.alignment = WRAP_TOP
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = align
 
 
-def apply_wrap_all(ws):
-    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+def enable_wrap_all(ws):
+    align = Alignment(wrap_text=True, vertical="top")
+    for row in ws.iter_rows(min_row=2):
         for cell in row:
-            cell.alignment = WRAP_TOP
+            cell.alignment = align
 
 
-def build_workbook(data, ip_name: str, output_dir: Path) -> Path:
-    ts = compute_ist_timestamp()
-    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
-    out_path = output_dir / filename
+def autosize_columns(ws, max_width=120, min_width=12):
+    for col_cells in ws.columns:
+        max_len = 0
+        column = col_cells[0].column_letter
+        for c in col_cells:
+            try:
+                v = "" if c.value is None else str(c.value)
+                lines = v.splitlines() if isinstance(v, str) else [str(v)]
+                for ln in lines:
+                    if len(ln) > max_len:
+                        max_len = len(ln)
+            except Exception:
+                pass
+        width = max(min_width, min(max_width, int(max_len * 1.1)))
+        ws.column_dimensions[column].width = width
 
-    wb = Workbook()
-    ws_plan = wb.active
-    ws_plan.title = "TestPlan"
-    ws_meta = wb.create_sheet(title="MetaData")
 
-    # Headers
-    ws_plan.append(TESTPLAN_COLUMNS)
-    ws_meta.append(METADATA_COLUMNS)
-
-    # Rows
-    for row in data:
-        ws_plan.append([row.get(col, "") for col in TESTPLAN_COLUMNS])
-        ws_meta.append([
-            row.get("Index", ""),
-            row.get("Test Case Name", ""),
-            row.get("Meta Test Description", ""),
-            row.get("Meta Test Steps / Procedure", ""),
-            row.get("Meta Impacted Registers", ""),
-            row.get("Meta Validation / Acceptance Criteria", ""),
-            row.get("Meta Headers", ""),
-            row.get("Meta Macros", ""),
-            row.get("Meta Arrays", ""),
-        ])
-
-    # Extra generation metadata rows (after data) in MetaData sheet
-    ws_meta.append([])
-    ws_meta.append([
-        "meta",
-        "",
-        "",
-        "",
-        "",
-        "",
-        f"Generation Timestamp (IST): {ts}",
-        f"Source: titusbspgit/PSVValidation@main | Path: Test_Output/USB/TestPlan/ | IP_NAME: {ip_name}",
-        f"Folder Count: 2 | Rows: {len(data)}",
-    ])
-
-    # Formatting
-    apply_header_style(ws_plan)
-    apply_header_style(ws_meta)
-    apply_wrap_all(ws_plan)
-    apply_wrap_all(ws_meta)
-
-    # Freeze top row
-    ws_plan.freeze_panes = "A2"
-    ws_meta.freeze_panes = "A2"
-
-    # Auto column widths
-    auto_size_columns(ws_plan)
-    auto_size_columns(ws_meta)
-
-    # Very hide metadata sheet
-    ws_meta.sheet_state = 'veryHidden'
-
-    # Ensure directory and save
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(out_path)
-
-    return out_path, ts
+def write_rows(ws, columns, rows):
+    # Header
+    ws.append(columns)
+    # Data rows in the same order as provided
+    for obj in rows:
+        ws.append([obj.get(col, "") for col in columns])
+    # Freeze first row
+    ws.freeze_panes = "A2"
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate TestPlan Excel from JSON")
-    parser.add_argument("--json", required=True, help="Path to input JSON array file")
-    parser.add_argument("--ip-name", required=True, help="IP name for filename prefix")
-    parser.add_argument("--output-dir", required=True, help="Output directory for Excel file")
-    args = parser.parse_args()
+    repo_root = os.getcwd()
+    data_path = os.path.join(repo_root, "data", "testplan.json")
+    if not os.path.exists(data_path):
+        print(f"ERROR: JSON not found at {data_path}")
+        sys.exit(1)
 
-    data_path = Path(args.json)
-    output_dir = Path(args.output_dir)
+    with open(data_path, "r", encoding="utf-8") as f:
+        try:
+            data = json.load(f)
+        except Exception as e:
+            print(f"ERROR: Failed to parse JSON: {e}")
+            sys.exit(1)
 
-    with data_path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    # STEP 1 — Validate JSON
     if not isinstance(data, list):
-        raise SystemExit("json_data must be an array of objects")
+        print("ERROR: json_data must be an array of objects")
+        sys.exit(1)
+    for i, row in enumerate(data):
+        if not isinstance(row, dict):
+            print(f"ERROR: Item at index {i} is not an object")
+            sys.exit(1)
 
-    out_path, ts = build_workbook(data, args.ip_name, output_dir)
+    # Prepare workbook
+    wb = Workbook()
+    ws_test = wb.active
+    ws_test.title = "TestPlan"
+    ws_meta = wb.create_sheet("MetaData")
 
-    # Emit outputs for GitHub Actions
-    gh_output = os.environ.get("GITHUB_OUTPUT")
-    if gh_output:
-        with open(gh_output, "a", encoding="utf-8") as f:
-            f.write(f"artifact_path={out_path.as_posix()}\n")
-            f.write(f"timestamp={ts}\n")
+    # STEP 2 — Split & write
+    write_rows(ws_test, TESTPLAN_COLUMNS, data)
+    write_rows(ws_meta, METADATA_COLUMNS, data)
 
-    print(f"Generated: {out_path}")
+    # STEP 3 — Formatting
+    apply_header_style(ws_test)
+    apply_header_style(ws_meta)
+    enable_wrap_all(ws_test)
+    enable_wrap_all(ws_meta)
+    autosize_columns(ws_test)
+    autosize_columns(ws_meta)
+
+    # VERY HIDDEN metadata sheet
+    ws_meta.sheet_state = "veryHidden"
+
+    # STEP 4 — Save file with IST timestamp
+    ip_name = os.environ.get("IP_NAME", "USB").strip() or "USB"
+    out_dir = os.environ.get("OUTPUT_DIR", "Test_Output/USB/TestPlan").strip().rstrip("/")
+    os.makedirs(out_dir, exist_ok=True)
+    ts = ist_now_str()
+    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
+    out_path = os.path.join(out_dir, filename)
+
+    wb.save(out_path)
+
+    # Emit output path for the workflow
+    print(f"OUTPUT_FILE={out_path.replace('\\\\', '/').replace('\\', '/')}")
 
 
 if __name__ == "__main__":
