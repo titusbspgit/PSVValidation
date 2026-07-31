@@ -1,4 +1,53 @@
-name: Generate and Commit USB TestPlan Excel\n\non:\n  workflow_dispatch: {}\n  push:\n    branches: [ main ]\n    paths:\n      - .github/scripts/generate_testplan_excel.py\n      - .github/workflows/generate-testplan-excel.yml\n      - .github/data/usb_testplan.json\n\npermissions:\n  contents: write\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Setup Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.x'\n\n      - name: Install dependencies\n        run: pip install --no-input openpyxl\n\n      - name: Compute IST timestamp\n        id: ts\n        run: |\n          python - <<'PY'\n          from datetime import datetime, timedelta, timezone\n          ist = timezone(timedelta(hours=5, minutes=30))\n          now = datetime.now(ist)\n          compact = now.strftime('%Y%m%d_%H%M%S')\n          human = now.strftime('%Y-%m-%d %H:%M:%S')\n          print(f"TS_COMPACT={compact}")\n          print(f"TS_HUMAN={human}")\n          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:\n              f.write(f"ts_compact={compact}\n")\n              f.write(f"ts_human={human}\n")\n          PY\n\n      - name: Generate Excel\n        run: |\n          python .github/scripts/generate_testplan_excel.py \
+name: Generate and Commit USB TestPlan Excel
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+    paths:
+      - .github/scripts/generate_testplan_excel.py
+      - .github/workflows/generate-testplan-excel.yml
+      - .github/data/usb_testplan.json
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install --no-input openpyxl
+
+      - name: Compute IST timestamp
+        id: ts
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timedelta, timezone
+          ist = timezone(timedelta(hours=5, minutes=30))
+          now = datetime.now(ist)
+          compact = now.strftime('%Y%m%d_%H%M%S')
+          human = now.strftime('%Y-%m-%d %H:%M:%S')
+          # also print for logs
+          print(f"TS_COMPACT={compact}")
+          print(f"TS_HUMAN={human}")
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"ts_compact={compact}\n")
+              f.write(f"ts_human={human}\n")
+          PY
+
+      - name: Generate Excel
+        run: |
+          python .github/scripts/generate_testplan_excel.py \
             --json .github/data/usb_testplan.json \
             --owner titusbspgit \
             --repo PSVValidation \
@@ -7,4 +56,30 @@ name: Generate and Commit USB TestPlan Excel\n\non:\n  workflow_dispatch: {}\n  
             --source_subdir TestRepo/usb \
             --folder_count 2 \
             --output_dir Test_Output/USB/TestPlan/ \
-            --timestamp "${{ steps.ts.outputs.ts_compact }}"\n\n      - name: Commit and push Excel (with retry)\n        shell: bash\n        run: |\n          set -e\n          FILE="Test_Output/USB/TestPlan/USB_TestPlan_${{ steps.ts.outputs.ts_compact }}.xlsx"\n          git config user.name "github-actions[bot]"\n          git config user.email "github-actions[bot]@users.noreply.github.com"\n          git add "$FILE"\n          if git diff --cached --quiet; then\n            echo "No changes to commit."\n            exit 0\n          fi\n          git commit -m "Add USB TestPlan Excel (IST ${{ steps.ts.outputs.ts_human }}) via automation"\n          n=0\n          until [ $n -ge 3 ]\n          do\n            if git pull --rebase origin main && git push origin HEAD:main; then\n              echo "Push succeeded"\n              exit 0\n            fi\n            n=$((n+1))\n            sleep $((5 * 2**(n-1)))\n          done\n          echo "Push failed after retries"\n          exit 1\n
+            --timestamp "${{ steps.ts.outputs.ts_compact }}"
+
+      - name: Commit and push Excel (with retry)
+        shell: bash
+        run: |
+          set -e
+          FILE="Test_Output/USB/TestPlan/USB_TestPlan_${{ steps.ts.outputs.ts_compact }}.xlsx"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Add USB TestPlan Excel (IST ${{ steps.ts.outputs.ts_human }}) via automation"
+          n=0
+          until [ $n -ge 3 ]
+          do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Push succeeded"
+              exit 0
+            fi
+            n=$((n+1))
+            sleep $((5 * 2**(n-1)))
+          done
+          echo "Push failed after retries"
+          exit 1
