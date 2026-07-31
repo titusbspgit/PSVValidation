@@ -1,4 +1,4 @@
-name: Generate and Commit USB TestPlan Excel
+name: Generate and Commit USB TestPlan Excel (v2)
 
 on:
   workflow_dispatch:
@@ -41,3 +41,5 @@ jobs:
           git add "${{ steps.gen.outputs.file }}"
           git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push origin HEAD:main
+
+# trigger
