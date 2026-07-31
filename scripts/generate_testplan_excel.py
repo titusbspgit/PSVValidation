@@ -2,7 +2,7 @@
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 try:
     from zoneinfo import ZoneInfo
 except Exception:
@@ -50,10 +50,7 @@ def ist_now_str():
         except Exception:
             tz = None
     if tz is None:
-        # Fallback: fixed offset +05:30
-        class FixedIST(timezone.__class__):
-            pass
-        tz = timezone(offset=timedelta(hours=5, minutes=30))
+        tz = timezone(timedelta(hours=5, minutes=30))
     now = datetime.now(tz)
     return now.strftime("%Y%m%d_%H%M%S")
 
