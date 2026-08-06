@@ -1,0 +1,38 @@
+name: Generate and Commit TestPlan (GPIO)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/generate_testplan.py"
+      - "scripts/testplan_input.json"
+      - ".github/workflows/generate_testplan.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install dependencies
+        run: pip install --no-input --upgrade pip openpyxl
+      - name: Generate and commit workbook
+        env:
+          JSON_INPUT_PATH: scripts/testplan_input.json
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan/
+          IP_NAME: GPIO
+          TIMEZONE: Asia/Kolkata
+          BRANCH: main
+          COMMIT_MESSAGE: Added generated TestPlan Excel
+        run: |
+          python scripts/generate_testplan.py
