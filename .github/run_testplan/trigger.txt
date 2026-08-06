@@ -1,2 +1,0 @@
-Triggering TestPlan Excel generation workflow via push to .github/run_testplan/ path.
-Second trigger to ensure workflow runs after workflow file update.
