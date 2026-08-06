@@ -1,0 +1,56 @@
+name: Generate GPIO TestPlan Excel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set IST timestamp
+        run: |
+          echo "IST_TS=$(TZ=Asia/Kolkata date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
+          echo "IST timestamp: ${IST_TS}"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate Excel from JSON
+        env:
+          IST_TS: ${{ env.IST_TS }}
+          IP_NAME: GPIO
+          OUTPUT_DIRECTORY: Test_Output/GPIO/TestPlan/
+          OWNER: titusbspgit
+          REPO: PSVValidation
+          BRANCH: main
+          SOURCE_SUBDIR: TestRepo/gpio
+        run: |
+          python .github/scripts/generate_gpio_testplan.py
+
+      - name: Commit and push Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/GPIO/TestPlan/"*.xlsx || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Added generated TestPlan Excel (GPIO) at IST ${IST_TS}"
+          git push origin main
