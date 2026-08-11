@@ -1,143 +1,100 @@
 #!/usr/bin/env python3
-import json
-import os
-import sys
-import argparse
-from collections import OrderedDict
+import json, os
 from datetime import datetime, timezone, timedelta
-
-try:
-    from zoneinfo import ZoneInfo
-    def get_ist_now():
-        return datetime.now(ZoneInfo("Asia/Kolkata"))
-except Exception:
-    # Fallback if zoneinfo isn't available
-    def get_ist_now():
-        return datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=5, minutes=30)
-
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
+AGG_JSON = r'''[
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "gpio_reg_wr_rd_test",
+    "Test Description": "Sequentially read GPIO group 0 registers for pins 8–27 and the soft reset register; record values.",
+    "Meta Test Description": "The test performs read operations in order on the following register macros: MIZAR_GPIO_GP0_GPIO_8 through MIZAR_GPIO_GP0_GPIO_27, followed by SOFT_RST_REG_ADDRESS. Resolved addresses are available for GPIO_8 (0xA001A000) through GPIO_27 (0xA001A04C). SOFT_RST_REG_ADDRESS has no resolved address. No write, comparison, or assertion logic is specified; values are captured.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "0xA001A000",
+    "Memory End Offset": "0xA001A04C",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1. Read GPIO group 0 registers for pins 8–27 and record the values.\n2. Read the soft reset register and record the value.",
+    "Meta Test Steps / Procedure": "1) Read MIZAR_GPIO_GP0_GPIO_8 (0xA001A000) and capture the value.\n2) Read MIZAR_GPIO_GP0_GPIO_9 (0xA001A004) and capture the value.\n3) Read MIZAR_GPIO_GP0_GPIO_10 (0xA001A008) and capture the value.\n4) Read MIZAR_GPIO_GP0_GPIO_11 (0xA001A00C) and capture the value.\n5) Read MIZAR_GPIO_GP0_GPIO_12 (0xA001A010) and capture the value.\n6) Read MIZAR_GPIO_GP0_GPIO_13 (0xA001A014) and capture the value.\n7) Read MIZAR_GPIO_GP0_GPIO_14 (0xA001A018) and capture the value.\n8) Read MIZAR_GPIO_GP0_GPIO_15 (0xA001A01C) and capture the value.\n9) Read MIZAR_GPIO_GP0_GPIO_16 (0xA001A020) and capture the value.\n10) Read MIZAR_GPIO_GP0_GPIO_17 (0xA001A024) and capture the value.\n11) Read MIZAR_GPIO_GP0_GPIO_18 (0xA001A028) and capture the value.\n12) Read MIZAR_GPIO_GP0_GPIO_19 (0xA001A02C) and capture the value.\n13) Read MIZAR_GPIO_GP0_GPIO_20 (0xA001A030) and capture the value.\n14) Read MIZAR_GPIO_GP0_GPIO_21 (0xA001A034) and capture the value.\n15) Read MIZAR_GPIO_GP0_GPIO_22 (0xA001A038) and capture the value.\n16) Read MIZAR_GPIO_GP0_GPIO_23 (0xA001A03C) and capture the value.\n17) Read MIZAR_GPIO_GP0_GPIO_24 (0xA001A040) and capture the value.\n18) Read MIZAR_GPIO_GP0_GPIO_25 (0xA001A044) and capture the value.\n19) Read MIZAR_GPIO_GP0_GPIO_26 (0xA001A048) and capture the value.\n20) Read MIZAR_GPIO_GP0_GPIO_27 (0xA001A04C) and capture the value.\n21) Read SOFT_RST_REG_ADDRESS (address NA) and capture the value.\nNo writes, loops, waits, interrupts, or assertions are specified.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27; SOFT_RST_REG_ADDRESS",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  }
+]'''
 
-def load_aggregated_json(json_path):
-    with open(json_path, 'r', encoding='utf-8') as f:
-        return json.load(f, object_pairs_hook=OrderedDict)
-
-
-essential_meta_keys = [
-    ("IP_NAME", None),
-    ("repo", None),
-    ("branch", None),
-    ("output_directory", None),
-    ("IST timestamp", None),
-    ("computed filename", None),
-    ("item_count", None),
-]
-
-
-def build_workbook(data_list, ip_name, repo, branch, output_dir):
-    if not isinstance(data_list, list) or not data_list:
-        raise ValueError("Aggregated JSON must be a non-empty array")
-
-    # Preserve header order exactly as in the first JSON object
-    first = data_list[0]
-    headers = list(first.keys())
-
+def main():
+    data = json.loads(AGG_JSON)
+    if not isinstance(data, list):
+        raise SystemExit("Aggregated JSON is not a list")
+    output_directory = "Test_Output/GPIO/TestPlan"
+    ip_name = "GPIO"
+    tz = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(tz)
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
+    os.makedirs(output_directory, exist_ok=True)
+    path = os.path.join(output_directory, filename)
+    # Build workbook
     wb = Workbook()
     ws = wb.active
     ws.title = "TestPlan"
-
-    # Styles
+    # columns in order
+    columns = list(data[0].keys()) if data else []
+    ws.append(columns)
+    for row in data:
+        ws.append([row.get(col, "") for col in columns])
+    # styles
     header_font = Font(bold=True)
-    header_fill = PatternFill(fill_type="solid", start_color="FFDCE6F1", end_color="FFDCE6F1")
+    header_fill = PatternFill(start_color="FFDDEBF7", end_color="FFDDEBF7", fill_type="solid")
     wrap = Alignment(wrap_text=True, vertical="top")
-
-    # Write header
-    for col_idx, key in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=key)
+    for cell in ws[1]:
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = wrap
-
-    # Write rows preserving order
-    for row_idx, item in enumerate(data_list, start=2):
-        for col_idx, key in enumerate(headers, start=1):
-            val = item.get(key, "")
-            ws.cell(row=row_idx, column=col_idx, value=val).alignment = wrap
-
-    # Freeze first row
+    for r in ws.iter_rows(min_row=2):
+        for cell in r:
+            cell.alignment = wrap
     ws.freeze_panes = "A2"
-
-    # Reasonable column widths
-    for col_idx, key in enumerate(headers, start=1):
-        max_len = len(str(key))
-        for row_idx in range(2, len(data_list) + 2):
-            v = ws.cell(row=row_idx, column=col_idx).value
-            if v is None:
-                l = 0
-            else:
-                l = len(str(v))
-            if l > max_len:
-                max_len = l
-        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(max(12, max_len + 2), 80)
-
-    # MetaData sheet
-    meta = wb.create_sheet(title="MetaData")
+    # column widths
+    for idx, col in enumerate(columns, start=1):
+        max_len = max([len(str(col))] + [len(str(r.get(col, ""))) for r in data]) if data else len(str(col))
+        width = min(max_len + 2, 100)
+        ws.column_dimensions[get_column_letter(idx)].width = width
+    # MetaData
+    meta = wb.create_sheet("MetaData")
     meta.sheet_state = "veryHidden"
-    meta_headers = ["Key", "Value"]
-    for i, h in enumerate(meta_headers, start=1):
-        c = meta.cell(row=1, column=i, value=h)
-        c.font = header_font
-        c.fill = header_fill
-        c.alignment = wrap
-
-    ist_now = get_ist_now()
-    ts = ist_now.strftime("%Y%m%d_%H%M%S")
-    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
-
-    meta_rows = [
+    meta_cols = ["Key", "Value"]
+    meta.append(meta_cols)
+    meta_pairs = [
+        ("Repo", "titusbspgit/PSVValidation"),
+        ("Branch", "main"),
+        ("Output Directory", output_directory),
         ("IP_NAME", ip_name),
-        ("repo", repo),
-        ("branch", branch),
-        ("output_directory", output_dir if output_dir.endswith('/') else output_dir + '/'),
-        ("IST timestamp", ist_now.strftime("%Y-%m-%d %H:%M:%S %Z")),
-        ("computed filename", filename),
-        ("item_count", str(len(data_list))),
+        ("Generated On IST", now.strftime("%Y-%m-%d %H:%M:%S %z")),
+        ("Source JSON Row Count", str(len(data))),
+        ("Columns Count", str(len(columns))),
     ]
+    for k, v in meta_pairs:
+        meta.append([k, v])
+    for cell in meta[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = wrap
+    for r in meta.iter_rows(min_row=2):
+        for cell in r:
+            cell.alignment = wrap
+    # Save
+    wb.save(path)
+    print(path)
 
-    for r_idx, (k, v) in enumerate(meta_rows, start=2):
-        meta.cell(row=r_idx, column=1, value=k).alignment = wrap
-        meta.cell(row=r_idx, column=2, value=str(v)).alignment = wrap
-
-    return wb, filename
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Generate TestPlan Excel from aggregated JSON")
-    parser.add_argument('--json', required=True, help='Path to aggregated JSON array file')
-    parser.add_argument('--ip', required=True, help='IP name (used in filename and metadata)')
-    parser.add_argument('--repo', required=True, help='owner/repo string')
-    parser.add_argument('--branch', required=True, help='target branch name')
-    parser.add_argument('--output-dir', required=True, help='Output directory (relative to repo root)')
-    args = parser.parse_args()
-
-    data_list = load_aggregated_json(args.json)
-    wb, filename = build_workbook(data_list, args.ip, args.repo, args.branch, args.output_dir)
-
-    out_dir = args.output_dir
-    if not os.path.isdir(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
-
-    out_path = os.path.join(out_dir, filename)
-    wb.save(out_path)
-
-    # Persist the generated path for workflow consumption
-    last_path_file = os.path.join(out_dir, 'last_generated.txt')
-    with open(last_path_file, 'w', encoding='utf-8') as f:
-        f.write(out_path)
-
-    print(f"GENERATED_FILE_PATH={out_path}")
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
