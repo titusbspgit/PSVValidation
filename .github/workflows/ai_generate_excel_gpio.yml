@@ -1,0 +1,33 @@
+name: AI Generate GPIO TestPlan
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/GPIO/TestPlan/ai_aggregated.json'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install openpyxl tzdata
+      - name: Generate Excel
+        run: |
+          python tools/ai_generate_excel_gpio.py
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx
+          git commit -m "Auto-generated TestPlan for GPIO" || echo "No changes to commit"
+          git push
