@@ -1,0 +1,245 @@
+name: Generate GPIO TestPlan Excel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install openpyxl pytz
+
+      - name: Generate and commit Excel
+        env:
+          IP_NAME: GPIO
+          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+          COMMIT_MSG: Add GPIO TestPlan Excel (auto-generated)
+        run: |
+          set -e
+          python - <<'PY'
+          import json, os, datetime
+          try:
+              from zoneinfo import ZoneInfo
+              tz = ZoneInfo("Asia/Kolkata")
+          except Exception:
+              try:
+                  import pytz
+                  tz = pytz.timezone("Asia/Kolkata")
+              except Exception:
+                  tz = None
+          from openpyxl import Workbook
+          from openpyxl.styles import Font, PatternFill, Alignment
+          from openpyxl.utils import get_column_letter
+
+          json_input = r'''[
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "gpio_reg_wr_rd_test",
+    "Test Description": "NA",
+    "Meta Test Description": "NA",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "NA",
+    "Meta Test Steps / Procedure": "NA",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "NA",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  },
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "chk_rst_val",
+    "Test Description": "Read the register value after reset and record the observed default.",
+    "Meta Test Description": "Performs a single register read via read_reg(addr) to capture the reset value into data_rd.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1) Ensure the GPIO block is at its reset/default state; 2) Read the target register once after reset; 3) Record the read value as the observed reset value.",
+    "Meta Test Steps / Procedure": "Initialize context with target address variable addr; execute data_rd = read_reg(addr); store data_rd for later comparison; no explicit compare or assert provided in inputs.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "read_reg",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  },
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "chk_rd_wr",
+    "Test Description": "Write masked data to the target register and read back the masked value.",
+    "Meta Test Description": "Executes a masked register write using write_reg(addr, (data_wr & write_mask_array[i])) followed by a masked read using data_rd = (read_reg(addr) & read_mask_array[i]). No explicit compare or assertion is provided in the inputs.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1) Write masked data to the target register; 2) Read back the target register with the corresponding read mask; 3) Record the observed masked read value.",
+    "Meta Test Steps / Procedure": "1) Compute masked write value: (data_wr & write_mask_array[i]); 2) Call write_reg(addr, (data_wr & write_mask_array[i])); 3) Read register: tmp = read_reg(addr); 4) Apply read mask: data_rd = (tmp & read_mask_array[i]); 5) No explicit comparison or pass/fail checks defined.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "write_reg; read_reg",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  },
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "soft_reset_chk",
+    "Test Description": "Read the soft reset control register, trigger a soft reset, and wait for completion.",
+    "Meta Test Description": "Reads SOFT_RST_REG_ADDRESS using read_reg; writes SOFT_RST_REG_ADDRESS using write_reg with SOFT_RST_REG_DATA to initiate a soft reset; then waits using wait_on(1000). No comparisons or assertions are provided.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1) Read the current value of the soft reset control register; 2) Write the soft reset trigger value to initiate the reset; 3) Wait for the specified delay to allow the reset to take effect.",
+    "Meta Test Steps / Procedure": "1) default_value = read_reg(SOFT_RST_REG_ADDRESS); 2) write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); 3) wait_on(1000); No explicit read-back, compare, or assert logic is defined.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "read_reg; SOFT_RST_REG_ADDRESS; write_reg; SOFT_RST_REG_DATA; wait_on",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  },
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "test_define.c",
+    "Test Description": "NA",
+    "Meta Test Description": "NA",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "NA",
+    "Meta Test Steps / Procedure": "NA",
+    "Impacted Registers": "G8_io_wr_mask; G25_io_wr_mask; G27_io_wr_mask",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27; GPIO_GP0_GPIO_8_DEFAULT_VAL; GPIO_GP0_GPIO_9_DEFAULT_VAL; GPIO_GP0_GPIO_10_DEFAULT_VAL; GPIO_GP0_GPIO_11_DEFAULT_VAL; GPIO_GP0_GPIO_12_DEFAULT_VAL; GPIO_GP0_GPIO_13_DEFAULT_VAL; GPIO_GP0_GPIO_14_DEFAULT_VAL; GPIO_GP0_GPIO_15_DEFAULT_VAL; GPIO_GP0_GPIO_16_DEFAULT_VAL; GPIO_GP0_GPIO_17_DEFAULT_VAL; GPIO_GP0_GPIO_18_DEFAULT_VAL; GPIO_GP0_GPIO_19_DEFAULT_VAL; GPIO_GP0_GPIO_20_DEFAULT_VAL; GPIO_GP0_GPIO_21_DEFAULT_VAL; GPIO_GP0_GPIO_22_DEFAULT_VAL; GPIO_GP0_GPIO_23_DEFAULT_VAL; GPIO_GP0_GPIO_24_DEFAULT_VAL; GPIO_GP0_GPIO_25_DEFAULT_VAL; GPIO_GP0_GPIO_26_DEFAULT_VAL; GPIO_GP0_GPIO_27_DEFAULT_VAL; GPIO_GP0_GPIO_8_READ_MASK; GPIO_GP0_GPIO_9_READ_MASK; GPIO_GP0_GPIO_10_READ_MASK; GPIO_GP0_GPIO_11_READ_MASK; GPIO_GP0_GPIO_12_READ_MASK; GPIO_GP0_GPIO_13_READ_MASK; GPIO_GP0_GPIO_14_READ_MASK; GPIO_GP0_GPIO_15_READ_MASK; GPIO_GP0_GPIO_16_READ_MASK; GPIO_GP0_GPIO_17_READ_MASK; GPIO_GP0_GPIO_18_READ_MASK; GPIO_GP0_GPIO_19_READ_MASK; GPIO_GP0_GPIO_20_READ_MASK; GPIO_GP0_GPIO_21_READ_MASK; GPIO_GP0_GPIO_22_READ_MASK; GPIO_GP0_GPIO_23_READ_MASK; GPIO_GP0_GPIO_24_READ_MASK; GPIO_GP0_GPIO_25_READ_MASK; GPIO_GP0_GPIO_26_READ_MASK; GPIO_GP0_GPIO_27_READ_MASK; GPIO_GP0_GPIO_8_WRITE_MASK; GPIO_GP0_GPIO_9_WRITE_MASK; GPIO_GP0_GPIO_10_WRITE_MASK; GPIO_GP0_GPIO_11_WRITE_MASK; GPIO_GP0_GPIO_12_WRITE_MASK; GPIO_GP0_GPIO_13_WRITE_MASK; GPIO_GP0_GPIO_14_WRITE_MASK; GPIO_GP0_GPIO_15_WRITE_MASK; GPIO_GP0_GPIO_16_WRITE_MASK; GPIO_GP0_GPIO_17_WRITE_MASK; GPIO_GP0_GPIO_18_WRITE_MASK; GPIO_GP0_GPIO_19_WRITE_MASK; GPIO_GP0_GPIO_20_WRITE_MASK; GPIO_GP0_GPIO_21_WRITE_MASK; GPIO_GP0_GPIO_22_WRITE_MASK; GPIO_GP0_GPIO_23_WRITE_MASK; GPIO_GP0_GPIO_24_WRITE_MASK; GPIO_GP0_GPIO_25_WRITE_MASK; GPIO_GP0_GPIO_26_WRITE_MASK; GPIO_GP0_GPIO_27_WRITE_MASK; 0x00100000; 0x003E0002; 0x003F0000",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  }
+]'''
+
+          data = json.loads(json_input)
+
+          wb = Workbook()
+          ws = wb.active
+          ws.title = "TestPlan"
+          meta = wb.create_sheet("MetaData")
+
+          headers = list(data[0].keys()) if data else []
+          header_font = Font(bold=True)
+          header_fill = PatternFill(start_color="FFDDEBF7", end_color="FFDDEBF7", fill_type="solid")
+          wrap = Alignment(wrap_text=True, vertical="top")
+
+          for col_idx, h in enumerate(headers, 1):
+              c = ws.cell(row=1, column=col_idx, value=h)
+              c.font = header_font
+              c.fill = header_fill
+              c.alignment = wrap
+
+          for r_idx, row in enumerate(data, start=2):
+              for c_idx, h in enumerate(headers, start=1):
+                  val = row.get(h, "")
+                  ws.cell(row=r_idx, column=c_idx, value=val).alignment = wrap
+
+          ws.freeze_panes = "A2"
+
+          for c_idx, h in enumerate(headers, start=1):
+              max_len = len(str(h))
+              for r in range(2, 2 + len(data)):
+                  v = ws.cell(row=r, column=c_idx).value
+                  max_len = max(max_len, len(str(v)) if v is not None else 0)
+              width = min(max(12, max_len + 2), 60)
+              ws.column_dimensions[get_column_letter(c_idx)].width = width
+
+          meta_headers = ["Key", "Value"]
+          for i, h in enumerate(meta_headers, 1):
+              c = meta.cell(row=1, column=i, value=h)
+              c.font = header_font
+              c.fill = header_fill
+              c.alignment = wrap
+
+          try:
+              now = datetime.datetime.now(tz)
+              ist_ts = now.strftime("%Y-%m-%d %H:%M:%S %Z")
+              ts_name = now.strftime("%Y%m%d_%H%M%S")
+          except Exception:
+              now = datetime.datetime.utcnow()
+              ist_ts = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+              ts_name = now.strftime("%Y%m%d_%H%M%S")
+
+          meta_rows = [
+              ("IP_NAME", os.environ.get("IP_NAME", "")),
+              ("SourceRepo", "titusbspgit/PSVValidation@main"),
+              ("TargetRepo", "titusbspgit/PSVValidation"),
+              ("TargetBranch", "main"),
+              ("OutputDirectory", os.environ.get("OUTPUT_DIR", "")),
+              ("CommitMessage", os.environ.get("COMMIT_MSG", "")),
+              ("GenerationTimestampIST", ist_ts),
+          ]
+          for r, (k, v) in enumerate(meta_rows, start=2):
+              meta.cell(row=r, column=1, value=k).alignment = wrap
+              meta.cell(row=r, column=2, value=v).alignment = wrap
+
+          meta.sheet_state = "veryHidden"
+
+          filename = f"{os.environ.get('IP_NAME','IP')}_TestPlan_{ts_name}.xlsx"
+          out_dir = os.environ.get("OUTPUT_DIR", "Test_Output/GPIO/TestPlan")
+          os.makedirs(out_dir, exist_ok=True)
+          out_path = os.path.join(out_dir, filename)
+          wb.save(out_path)
+
+          with open("generated_path.txt", "w") as f:
+              f.write(out_path)
+          PY
+
+          GEN_PATH=$(cat generated_path.txt)
+          echo "Generated: $GEN_PATH"
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git add "$GEN_PATH"
+          git commit -m "${COMMIT_MSG}" || echo "No changes to commit"
+          git push origin HEAD:main
