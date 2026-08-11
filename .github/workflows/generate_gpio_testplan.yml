@@ -1,1 +1,55 @@
-name: Generate GPIO TestPlan\n\non:\n  workflow_dispatch: {}\n  push:\n    paths:\n      - .github/workflows/generate_gpio_testplan.yml\n      - .github/scripts/generate_testplan_gpio.py\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Setup Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.x'\n\n      - name: Install dependencies\n        run: |\n          python -m pip install --upgrade pip\n          pip install openpyxl\n\n      - name: Generate Excel\n        env:\n          FINAL_JSON: |\n            [\n              {\n                "stage": "Stage 6-7 result",\n                "repo": "titusbspgit/PSVValidation",\n                "branch": "main",\n                "output_directory": "Test_Output/GPIO/TestPlan/",\n                "file_name": "GPIO_TestPlan_20260811_000000.xlsx",\n                "ist_timestamp_token": "20260811_000000",\n                "commit": {\n                  "sha": "e52d320a93ddff3534562dddfe1c3da3c1ddf93c",\n                  "message": "Add GPIO TestPlan (GPIO_TestPlan_20260811_000000.xlsx) [IST]",\n                  "file_path": "Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260811_000000.xlsx",\n                  "github_url": "https://github.com/titusbspgit/PSVValidation/blob/main/Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260811_000000.xlsx",\n                  "raw_url": "https://raw.githubusercontent.com/titusbspgit/PSVValidation/main/Test_Output/GPIO/TestPlan/GPIO_TestPlan_20260811_000000.xlsx"\n                },\n                "verification": {\n                  "ref": "refs/heads/main",\n                  "object_type": "commit",\n                  "object_sha": "e52d320a93ddff3534562dddfe1c3da3c1ddf93c"\n                }\n              }\n            ]\n          OUTPUT_DIR: Test_Output/GPIO/TestPlan/\n          IP_NAME: GPIO\n        run: |\n          python .github/scripts/generate_testplan_gpio.py\n\n      - name: Commit and push\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: |\n          git config user.name "github-actions[bot]"\n          git config user.email "github-actions[bot]@users.noreply.github.com"\n          git add -A\n          if git diff --cached --quiet; then\n            echo "No changes to commit."\n          else\n            git commit -m "Add GPIO TestPlan (auto-generated via workflow)"\n            git push\n          fi\n
+name: Generate GPIO TestPlan Excel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/generate_gpio_testplan.yml
+      - tools/generate_gpio_testplan.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+      - name: Generate Excel from Stage 6 aggregated JSON
+        run: |
+          python tools/generate_gpio_testplan.py
+      - name: Commit and push generated Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Read commit message prepared by the generator script (contains IST timestamp)
+          COMMIT_MSG_FILE="Test_Output/GPIO/TestPlan/commit_message.txt"
+          if [ -f "$COMMIT_MSG_FILE" ]; then
+            COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+          else
+            # Fallback generic message with current IST timestamp
+            IST_TS=$(TZ=Asia/Kolkata date +"%Y%m%d_%H%M%S")
+            COMMIT_MSG="Auto-generate GPIO TestPlan Excel at ${IST_TS} IST (IP_NAME=GPIO)"
+          fi
+
+          git add Test_Output/GPIO/TestPlan/*.xlsx Test_Output/GPIO/TestPlan/commit_message.txt
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "$COMMIT_MSG"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
