@@ -1,0 +1,167 @@
+name: Generate and Push GPIO TestPlan (from Aggregated JSON)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl pytz
+
+      - name: Generate Excel from EXACT aggregated JSON
+        run: |
+          python - << 'PY'
+          import json, os
+          from datetime import datetime
+          import pytz
+          from openpyxl import Workbook
+          from openpyxl.styles import Font, PatternFill, Alignment
+          from openpyxl.utils import get_column_letter
+
+          # EXACT aggregated JSON (order preserved) - DO NOT MODIFY
+          data_json = r'''[
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "gpio_reg_wr_rd_test",
+    "Test Description": "Read GPIO group 0 pin registers 8 through 27 sequentially and record the values.",
+    "Meta Test Description": "Test reads GPIO GP0 pin registers using the following macros in order without performing writes or comparisons: MIZAR_GPIO_GP0_GPIO_8 through MIZAR_GPIO_GP0_GPIO_27. Each macro resolves to an address expression of the form MIZAR_GPIO_BASE + GPIO_GP0_GPIO_X_OFFSET. The flow performs ordered 32-bit reads and logs the values; no assertions, bit manipulations, waits, interrupts, or error-handling constructs are specified.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1. Read GPIO group 0 pin registers 8 to 27 in order.\n2. Record the readback value of each register for review.",
+    "Meta Test Steps / Procedure": "1) For each macro in order: MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27: perform a 32-bit read from the address defined by the macro (resolved form: MIZAR_GPIO_BASE + GPIO_GP0_GPIO_X_OFFSET) and log/store the value.\n2) No writes, masks, comparisons, loops beyond ordered iteration, delays, or ISR handling are specified.\n3) Test ends after the final read with collected logs only.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Required",
+    "Meta Headers": "NA",
+    "Meta Macros": "#define MIZAR_GPIO_BASE 0xA001A000; #define MIZAR_GPIO_BASE 0xA002A000; #define MIZAR_GPIO_GP0_GPIO_8 MIZAR_GPIO_BASE + GPIO_GP0_GPIO_8_OFFSET; #define GPIO_GP0_GPIO_8_OFFSET 0x0; #define GPIO_GP0_GPIO_8_DEFAULT_VAL 0x00100000; #define GPIO_GP0_GPIO_8_VALID_MASK 0x003F0003; #define GPIO_GP0_GPIO_8_WRITE_MASK 0x003F0000",
+    "Meta Arrays": "NA"
+  }
+]'''
+
+          rows = json.loads(data_json)
+          assert isinstance(rows, list) and rows, 'Input aggregated JSON must be a non-empty list'
+
+          # Preserve key order exactly as in the JSON
+          keys = list(rows[0].keys())
+
+          wb = Workbook()
+          ws = wb.active
+          ws.title = 'TestPlan'
+          ws_meta = wb.create_sheet('MetaData')
+
+          # Headers for TestPlan: all keys, in order
+          ws.append(keys)
+
+          # Data rows
+          def gv(d, k):
+              return d.get(k, '')
+          for r in rows:
+              ws.append([gv(r, k) for k in keys])
+
+          # MetaData sheet: key/value context
+          meta_rows = [
+              ('repo_url', 'https://github.com/titusbspgit/PSVValidation'),
+              ('repo', 'titusbspgit/PSVValidation'),
+              ('branch', 'main'),
+              ('subdirectory', 'TestRepo/gpio'),
+              ('IP_NAME', 'GPIO'),
+              ('output_directory', 'Test_Output/GPIO/TestPlan/'),
+              ('output_file_naming_rule', '<IP_NAME>_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx'),
+          ]
+          ws_meta.append(['Key', 'Value'])
+          for a,b in meta_rows:
+              ws_meta.append([a,b])
+
+          # Formatting
+          header_font = Font(bold=True)
+          header_fill = PatternFill('solid', fgColor='FFD9E1F2')
+          align_wrap = Alignment(wrap_text=True, vertical='top')
+
+          for c in ws[1]:
+              c.font = header_font
+              c.fill = header_fill
+              c.alignment = align_wrap
+          for row in ws.iter_rows(min_row=2):
+              for c in row:
+                  c.alignment = align_wrap
+
+          for c in ws_meta[1]:
+              c.font = header_font
+              c.fill = header_fill
+              c.alignment = align_wrap
+          for row in ws_meta.iter_rows(min_row=2):
+              for c in row:
+                  c.alignment = align_wrap
+
+          # Freeze first row
+          ws.freeze_panes = 'A2'
+          ws_meta.freeze_panes = 'A2'
+
+          # Column widths autosize
+          def autosize(sheet, min_w=12, max_w=60):
+              for idx, col in enumerate(sheet.columns, start=1):
+                  maxlen = 0
+                  for cell in col:
+                      v = '' if cell.value is None else str(cell.value)
+                      if len(v) > maxlen:
+                          maxlen = len(v)
+                  width = max(min_w, min(maxlen + 2, max_w))
+                  sheet.column_dimensions[get_column_letter(idx)].width = width
+
+          autosize(ws)
+          autosize(ws_meta)
+
+          # Very hide MetaData sheet
+          ws_meta.sheet_state = 'veryHidden'
+
+          # IST timestamp and filename
+          tz = pytz.timezone('Asia/Kolkata')
+          now = datetime.now(tz)
+          datestr = now.strftime('%Y%m%d')
+          timestr = now.strftime('%H%M%S')
+
+          out_dir = os.path.join('Test_Output', 'GPIO', 'TestPlan')
+          os.makedirs(out_dir, exist_ok=True)
+          filename = f'GPIO_TestPlan_{datestr}_{timestr}.xlsx'
+          out_path = os.path.join(out_dir, filename)
+
+          wb.save(out_path)
+          print(f'Wrote: {out_path}')
+          PY
+
+      - name: Commit and push Excel to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/*.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            COMMIT_TS=$(TZ=Asia/Kolkata date +'%Y%m%d_%H%M%S')
+            git commit -m "Auto-generate GPIO TestPlan (IST timestamped) ${COMMIT_TS}"
+            git push origin HEAD:main
+          fi
