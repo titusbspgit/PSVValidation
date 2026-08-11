@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
+# Aggregated JSON injected directly; preserve exact order/values
 AGG_JSON = r'''[
   {
     "Index": "1",
@@ -31,26 +32,14 @@ AGG_JSON = r'''[
   }
 ]'''
 
-def main():
-    data = json.loads(AGG_JSON)
-    if not isinstance(data, list):
-        raise SystemExit("Aggregated JSON is not a list")
-    output_directory = "Test_Output/GPIO/TestPlan"
-    ip_name = "GPIO"
-    tz = timezone(timedelta(hours=5, minutes=30))
-    now = datetime.now(tz)
-    ts = now.strftime("%Y%m%d_%H%M%S")
-    filename = f"{ip_name}_TestPlan_{ts}.xlsx"
-    os.makedirs(output_directory, exist_ok=True)
-    path = os.path.join(output_directory, filename)
-    # Build workbook
+
+def build_workbook(rows):
     wb = Workbook()
     ws = wb.active
     ws.title = "TestPlan"
-    # columns in order
-    columns = list(data[0].keys()) if data else []
+    columns = list(rows[0].keys()) if rows else []
     ws.append(columns)
-    for row in data:
+    for row in rows:
         ws.append([row.get(col, "") for col in columns])
     # styles
     header_font = Font(bold=True)
@@ -64,37 +53,48 @@ def main():
         for cell in r:
             cell.alignment = wrap
     ws.freeze_panes = "A2"
-    # column widths
+    # widths
+    from openpyxl.utils import get_column_letter
     for idx, col in enumerate(columns, start=1):
-        max_len = max([len(str(col))] + [len(str(r.get(col, ""))) for r in data]) if data else len(str(col))
-        width = min(max_len + 2, 100)
-        ws.column_dimensions[get_column_letter(idx)].width = width
-    # MetaData
+        max_len = max([len(str(col))] + [len(str(r.get(col, ""))) for r in rows]) if rows else len(str(col))
+        ws.column_dimensions[get_column_letter(idx)].width = min(max_len + 2, 100)
+    # MetaData sheet
     meta = wb.create_sheet("MetaData")
     meta.sheet_state = "veryHidden"
-    meta_cols = ["Key", "Value"]
-    meta.append(meta_cols)
-    meta_pairs = [
-        ("Repo", "titusbspgit/PSVValidation"),
-        ("Branch", "main"),
-        ("Output Directory", output_directory),
-        ("IP_NAME", ip_name),
-        ("Generated On IST", now.strftime("%Y-%m-%d %H:%M:%S %z")),
-        ("Source JSON Row Count", str(len(data))),
-        ("Columns Count", str(len(columns))),
-    ]
-    for k, v in meta_pairs:
-        meta.append([k, v])
+    meta.append(["Key", "Value"])
+    tz = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(tz)
     for cell in meta[1]:
-        cell.font = header_font
+        cell.font = Font(bold=True)
         cell.fill = header_fill
         cell.alignment = wrap
-    for r in meta.iter_rows(min_row=2):
-        for cell in r:
+    meta_rows = [
+        ("Repo", "titusbspgit/PSVValidation"),
+        ("Branch", "main"),
+        ("IP_NAME", "GPIO"),
+        ("Generated On IST", now.strftime("%Y-%m-%d %H:%M:%S %z")),
+        ("Source JSON Row Count", str(len(rows))),
+        ("Columns Count", str(len(columns)))
+    ]
+    for k, v in meta_rows:
+        meta.append([k, v])
+        for cell in meta[meta.max_row]:
             cell.alignment = wrap
-    # Save
+    return wb
+
+
+def main():
+    rows = json.loads(AGG_JSON)
+    tz = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(tz)
+    ts = now.strftime('%Y%m%d_%H%M%S')
+    out_dir = os.path.join('Test_Output', 'GPIO', 'TestPlan')
+    os.makedirs(out_dir, exist_ok=True)
+    filename = f"GPIO_TestPlan_{ts}.xlsx"
+    path = os.path.join(out_dir, filename)
+    wb = build_workbook(rows)
     wb.save(path)
     print(path)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
