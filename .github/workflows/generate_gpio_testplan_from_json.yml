@@ -2,6 +2,10 @@ name: Generate and Push GPIO TestPlan (from Aggregated JSON)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/generate_gpio_testplan_from_json.yml
 
 permissions:
   contents: write
