@@ -1,0 +1,32 @@
+name: Generate GPIO TestPlan (v2)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Generate Excel
+        id: gen
+        run: |
+          OUTPUT_PATH=$(python tools/generate_testplan_GPIO.py)
+          echo "output_path=$OUTPUT_PATH" >> $GITHUB_OUTPUT
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.gen.outputs.output_path }}"
+          git commit -m "Auto-generated TestPlan for GPIO" || echo "No changes to commit"
+          git push
