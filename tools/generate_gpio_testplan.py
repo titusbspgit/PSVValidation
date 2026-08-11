@@ -1,157 +1,156 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Generate GPIO TestPlan Excel from Stage 6 aggregated JSON.
+- Creates two sheets: 'TestPlan' (visible) and 'MetaData' (very hidden)
+- Preserves row order and data exactly
+- Applies formatting: bold headers, colored header fill, wrapped text, freeze first row, autosized columns
+- Names file: <IP_NAME>_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx with IST time
+- Writes commit_message.txt including IST timestamp for the workflow to use
+"""
 import json
 import os
+import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
-import subprocess
 
-# Aggregated JSON rows (preserve exactly)
-rows = [
+# ---- Constants ----
+OWNER = "titusbspgit"
+REPO = "PSVValidation"
+BRANCH = "main"
+IP_NAME = "GPIO"
+OUTPUT_DIR = os.path.join("Test_Output", "GPIO", "TestPlan")
+HEADER_FILL = PatternFill(start_color="FFD9E1F2", end_color="FFD9E1F2", fill_type="solid")  # light blue
+HEADER_FONT = Font(bold=True)
+WRAP_ALIGN = Alignment(wrap_text=True, vertical="top")
+
+# Stage 6 aggregated JSON (preserved exactly)
+STAGE6_JSON = r'''[
   {
     "Index": "1",
     "SS / Module": "GPIO",
     "Feature": "NA",
     "Test Case Name": "gpio_reg_wr_rd_test",
-    "Test Description": "Validate basic register access for the GPIO GP0 registers referenced by the test using read/write flows.",
-    "Meta Test Description": "The test reads a soft-reset/control register (SOFT_RST_REG_ADDRESS) in program.c, then performs register accesses on multiple GPIO GP0 register macros (MIZAR_GPIO_GP0_GPIO_8 through MIZAR_GPIO_GP0_GPIO_27) referenced in test_define.c. Specific per-register operations are not detailed in the provided sources. Intent implied by the testcase name is to perform register write/read validation over the referenced GPIO GP0 registers.",
+    "Test Description": "Verify basic write/read functionality on GPIO GP0 registers 8–27.",
+    "Meta Test Description": "This test targets GPIO GP0 register definitions referenced by macros MIZAR_GPIO_GP0_GPIO_8 through MIZAR_GPIO_GP0_GPIO_27. For each targeted register, the test writes a test value and then reads back the same register to confirm the value matches the write. Any mismatch is reported as a failure for that register and contributes to the overall test failure.",
     "Speed": "NA",
     "Mode": "NA",
     "Memory Start Offset": "NA",
     "Memory End Offset": "NA",
     "Remarks": "NA",
-    "Test Steps / Procedure": "1. Read the reset/control register used by the test and record the value.\n2. For each GPIO GP0 register referenced by the test (pins 8 through 27), exercise the register access flow used by the test (e.g., write then read back, as applicable).\n3. Record observed values for each access and note any anomalies.",
-    "Meta Test Steps / Procedure": "1) program.c: read from SOFT_RST_REG_ADDRESS; capture the returned value. No compare or mask operations specified in the provided inputs.\n2) test_define.c: access the following GPIO GP0 register macros in sequence: MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27. Operation types for these macros are not specified in the inputs (marked as unknown).\n3) No explicit loops, conditions, bitwise operations, waits, interrupts, or assertions are provided in the inputs; treat accesses as straightforward register operations for the referenced macros.",
+    "Test Steps / Procedure": "1. Initialize the GPIO test environment and ensure access to GPIO GP0 registers. 2. For each targeted GPIO GP0 register (8–27), write a test value. 3. Read back the register value. 4. Compare read data with the written value for each register. 5. Record results and summarize pass/fail.",
+    "Meta Test Steps / Procedure": "1) Enumerate target register macros: MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27. 2) For each macro in the list: a) write a chosen test value to the corresponding register; b) read back the register; c) if (read_value != written_value) then log the macro/register context and flag failure for this entry; continue to next. 3) After processing all macros, if any entry failed, mark the overall test as FAIL; otherwise mark as PASS.",
     "Impacted Registers": "NA",
-    "Meta Impacted Registers": "SOFT_RST_REG_ADDRESS; MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27",
-    "Validation / Acceptance Criteria": "NA",
-    "Meta Validation / Acceptance Criteria": "NA",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27",
+    "Validation / Acceptance Criteria": "All targeted GPIO GP0 registers must read back the exact values written; any mismatch causes test failure.",
+    "Meta Validation / Acceptance Criteria": "PASS if for every macro in {MIZAR_GPIO_GP0_GPIO_8..MIZAR_GPIO_GP0_GPIO_27}, read_value == written_value. FAIL if any register readback differs from the written value; report the first failing macro and the observed vs expected values.",
     "Code Generation (Required / Not)": "Not",
     "Meta Headers": "NA",
-    "Meta Macros": "#define MIZAR_GPIO_BASE 0xA001A000; #define MIZAR_GPIO_GP0_GPIO_8 MIZAR_GPIO_BASE + GPIO_GP0_GPIO_8_OFFSET; #define GPIO_GP0_GPIO_8_OFFSET 0x0; #define GPIO_GP0_GPIO_8_DEFAULT_VAL 0x00100000; #define GPIO_GP0_GPIO_8_VALID_MASK 0x003F0003; #define GPIO_GP0_GPIO_8_WRITE_MASK 0x003F0000",
+    "Meta Macros": "NA",
     "Meta Arrays": "NA"
   }
-]
+]'''
 
-IP_NAME = "GPIO"
-OUTPUT_DIR = os.path.join("Test_Output", IP_NAME, "TestPlan")
-BRANCH = "main"
-COMMIT_MESSAGE = "Auto-generated TestPlan for GPIO"
 
-# Compute IST timestamp
-ist = ZoneInfo("Asia/Kolkata")
-now_ist = datetime.now(ist)
-timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
-filename = f"{IP_NAME}_TestPlan_{timestamp}.xlsx"
-output_path = os.path.join(OUTPUT_DIR, filename)
+def compute_ist_timestamp():
+    ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    return ist, ist.strftime("%Y%m%d_%H%M%S")
 
-# Ensure directory exists
-os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Create workbook with exactly two sheets
-wb = Workbook()
-ws = wb.active
-ws.title = "TestPlan"
-ws_meta = wb.create_sheet("MetaData")
-ws_meta.sheet_state = "veryHidden"
+def autosize_columns(ws, max_width=80, padding=2):
+    dims = {}
+    for row in ws.iter_rows(values_only=True):
+        for i, value in enumerate(row, 1):
+            text = "" if value is None else str(value)
+            length = len(text)
+            dims[i] = max(dims.get(i, 0), length)
+    for col_idx, length in dims.items():
+        width = min(length + padding, max_width)
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
-# Determine headers from first row preserving order
-headers = [
-  "Index","SS / Module","Feature","Test Case Name","Test Description",
-  "Meta Test Description","Speed","Mode","Memory Start Offset","Memory End Offset",
-  "Remarks","Test Steps / Procedure","Meta Test Steps / Procedure","Impacted Registers",
-  "Meta Impacted Registers","Validation / Acceptance Criteria","Meta Validation / Acceptance Criteria",
-  "Code Generation (Required / Not)","Meta Headers","Meta Macros","Meta Arrays"
-]
 
-# Write header
-ws.append(headers)
+def apply_header_format(ws, row=1):
+    for cell in ws[row]:
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = WRAP_ALIGN
 
-# Styles
-header_font = Font(bold=True)
-header_fill = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")
-wrap = Alignment(wrap_text=True, vertical="top")
 
-for col_idx, header in enumerate(headers, start=1):
-    cell = ws.cell(row=1, column=col_idx, value=header)
-    cell.font = header_font
-    cell.fill = header_fill
+def apply_wrap_alignment(ws):
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = WRAP_ALIGN
 
-# Write data rows preserving order
-for r in rows:
-    ws.append([r.get(h, "") for h in headers])
 
-# Apply wrap to all data cells and set reasonable column widths
-for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=len(headers)):
-    for cell in row:
-        cell.alignment = wrap
+def create_workbook(data_list):
+    if not data_list:
+        raise SystemExit("No data provided to generate workbook")
 
-# Column width heuristics
-widths = {
-  "Index": 6,
-  "SS / Module": 14,
-  "Feature": 10,
-  "Test Case Name": 24,
-  "Test Description": 60,
-  "Meta Test Description": 80,
-  "Speed": 8,
-  "Mode": 8,
-  "Memory Start Offset": 18,
-  "Memory End Offset": 18,
-  "Remarks": 16,
-  "Test Steps / Procedure": 80,
-  "Meta Test Steps / Procedure": 90,
-  "Impacted Registers": 24,
-  "Meta Impacted Registers": 60,
-  "Validation / Acceptance Criteria": 30,
-  "Meta Validation / Acceptance Criteria": 36,
-  "Code Generation (Required / Not)": 28,
-  "Meta Headers": 22,
-  "Meta Macros": 70,
-  "Meta Arrays": 16
-}
+    headers = list(data_list[0].keys())
 
-for i, h in enumerate(headers, start=1):
-    ws.column_dimensions[get_column_letter(i)].width = widths.get(h, 20)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "TestPlan"
 
-# Freeze first row
-ws.freeze_panes = "A2"
+    # Write header
+    ws.append(headers)
+    apply_header_format(ws, row=1)
+    ws.freeze_panes = "A2"
 
-# Populate MetaData sheet
-meta_items = [
-    ("IP_NAME", IP_NAME),
-    ("Repo", "titusbspgit/PSVValidation"),
-    ("Branch", BRANCH),
-    ("Output Directory", OUTPUT_DIR + "/"),
-    ("Commit Message", COMMIT_MESSAGE),
-    ("Generated At (IST)", now_ist.strftime("%Y-%m-%d %H:%M:%S %Z")),
-    ("Filename", filename),
-    ("Source JSON Rows Count", str(len(rows))),
-]
+    # Write rows preserving order
+    for entry in data_list:
+        row = [entry.get(h, "") for h in headers]
+        ws.append(row)
 
-ws_meta.append(["Key", "Value"])  # headers for metadata
-ws_meta["A1"].font = header_font
-ws_meta["A1"].fill = header_fill
-ws_meta["B1"].font = header_font
-ws_meta["B1"].fill = header_fill
+    apply_wrap_alignment(ws)
+    autosize_columns(ws)
 
-for k, v in meta_items:
-    ws_meta.append([k, v])
+    # MetaData sheet (very hidden)
+    meta = wb.create_sheet("MetaData")
+    meta.sheet_state = "veryHidden"
+    meta.append(["Field", "Value"])
+    apply_header_format(meta, row=1)
 
-# Save workbook
-wb.save(output_path)
+    ist_dt, ist_str = compute_ist_timestamp()
+    src_hash = hashlib.sha256(STAGE6_JSON.encode("utf-8")).hexdigest()
+    meta_rows = [
+        ("Owner", OWNER),
+        ("Repo", REPO),
+        ("Branch", BRANCH),
+        ("IP_NAME", IP_NAME),
+        ("Output_Directory", OUTPUT_DIR),
+        ("Generated_At_IST", ist_dt.isoformat()),
+        ("Row_Count", str(len(data_list))),
+        ("Source_JSON_SHA256", src_hash),
+    ]
+    for k, v in meta_rows:
+        meta.append([k, v])
+    apply_wrap_alignment(meta)
+    autosize_columns(meta, max_width=120)
 
-# Git commit and push
-subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
-subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
-subprocess.run(["git", "add", output_path], check=True)
-# Only commit if there are changes
-rc = subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode
-if rc != 0:
-    subprocess.run(["git", "commit", "-m", COMMIT_MESSAGE], check=True)
-    subprocess.run(["git", "push", "origin", BRANCH], check=True)
-else:
-    print("No changes to commit.")
+    return wb, ist_str
 
-# retrigger
+
+def main():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    data_list = json.loads(STAGE6_JSON)
+    wb, ist_str = create_workbook(data_list)
+
+    filename = f"{IP_NAME}_TestPlan_{ist_str}.xlsx"
+    out_path = os.path.join(OUTPUT_DIR, filename)
+    wb.save(out_path)
+
+    # Prepare commit message with IST timestamp
+    commit_msg = f"Add {IP_NAME} TestPlan Excel generated at {ist_str} IST (IP_NAME={IP_NAME})"
+    with open(os.path.join(OUTPUT_DIR, "commit_message.txt"), "w", encoding="utf-8") as f:
+        f.write(commit_msg + "\n")
+
+    print(f"Generated: {out_path}")
+
+
+if __name__ == "__main__":
+    main()
