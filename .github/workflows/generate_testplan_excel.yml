@@ -1,65 +1,36 @@
-name: Generate and Commit TestPlan Excel
+name: Generate TestPlan Excel (GPIO)
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - ".github/workflows/generate_testplan_excel.yml"
+      - 'data/testplans/GPIO/final_json.json'
+      - 'scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan_excel.yml'
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: main
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl
-
-      - name: Prepare JSON input
-        id: prep
-        run: |
-          JSON_DATA='[{"Index":"1","SS / Module":"GPIO","Feature":"Independent control register for each GPIO","Test Case Name":"gpio_reg_wr_rd_test","Test Description":"Validates default reset values and masked write/read behavior for 20 GPIO GP0 pin registers (8–27). For each address, non-readable/writable entries are skipped per masks; six data patterns are written under the write mask, read back under the read mask, and compared to the expected value composed of writable bits from the write data and non-writable bits from the default value. The test fails on any mismatch; otherwise it passes. Targets unresolved register macros for the GPIO GP0 pin registers.","Meta Test Description":"Objective: Verify GPIO GP0 pin registers (8..27) for correct default reset values and masked write–read integrity using multiple data patterns.\nInitialization: def_fail_cnt = 0; wr_fail_cnt = 0.\nDefault value check (chk_rst_val): For i in [0..CNT-1], addr = addr_array[i]; if (skip_rst_array[i] == 1) continue; if (read_mask_array[i] == 0x00000000) continue; data_rd = read_reg(addr); data = (data_rd & 0xfffffffe); compare data to default_value_array[i]; on mismatch, def_fail_cnt++ and print failure; otherwise, optional debug PASS log.\nWrite & read check (chk_rd_wr): For six data patterns in unsigned int chk_val[6] = {0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000}:\n- Write phase: For each i, addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; write_reg(addr, (data_wr & write_mask_array[i])).\n- Read/verify phase: For each i, addr = addr_array[i]; if (skip_array[i] == 1) continue; if (write_mask_array[i] == 0x00000000) continue; if (read_mask_array[i] == 0x00000000) continue; data_rd = (read_reg(addr) & read_mask_array[i]); wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])); if (data_rd == exp_val) optional debug PASS; else wr_fail_cnt++ and print failure.\nCompletion: if (def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0).\nSoft reset snippet (soft_reset_chk, disabled by #ifdef 0): default_value = read_reg(SOFT_RST_REG_ADDRESS); write_reg(SOFT_RST_REG_ADDRESS, SOFT_RST_REG_DATA); wait_on(1000); write_reg(SOFT_RST_REG_ADDRESS, default_value); wait_on(1000).","Speed":"NA","Mode":"Polling","Memory Start Offset":"NA","Memory End Offset":"NA","Remarks":"When reading default values, the DIN bit may read as 1 if not forced; forcing zero on DIN can assert level select high, causing a mismatch with expected default values.","Test Steps / Procedure":"1. Initialize failure counters to zero and prepare data patterns (FFFFFFFFh, AAAAAAAAh, 55555555h, F5F5F5F5h, A5A5A5A5h, FFFF0000h).\n2. For each GPIO GP0 pin register (8–27): if marked to skip for reset or not readable, skip; otherwise read the register and mask with 0xFFFFFFFE, then compare with its expected default value; record any mismatches.\n3. For each data pattern: for each GPIO GP0 pin register (8–27): if marked to skip or not writable, skip; otherwise write the pattern masked by the write mask to the register.\n4. After each write pass, for each tested register: if not readable or not writable, skip; otherwise read the register masked by the read mask and compare to the expected value formed by writable bits from the write data and non-writable bits from the default value; record any mismatches.\n5. Declare the test Pass if no mismatches were recorded in default or write/read checks; otherwise declare Fail.","Impacted Registers":"UNRESOLVED(MIZAR_GPIO_GP0_GPIO_8); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_9); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_10); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_11); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_12); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_13); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_14); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_15); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_16); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_17); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_18); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_19); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_20); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_21); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_22); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_23); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_24); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_25); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_26); UNRESOLVED(MIZAR_GPIO_GP0_GPIO_27); UNRESOLVED(GPIO_GP0_GPIO_8_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_9_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_10_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_11_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_12_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_13_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_14_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_15_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_16_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_17_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_18_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_19_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_20_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_21_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_22_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_23_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_24_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_25_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_26_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_27_DEFAULT_VAL); UNRESOLVED(GPIO_GP0_GPIO_8_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_9_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_10_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_11_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_12_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_13_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_14_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_15_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_16_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_17_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_18_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_19_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_20_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_21_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_22_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_23_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_24_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_25_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_26_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_27_READ_MASK); UNRESOLVED(GPIO_GP0_GPIO_8_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_9_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_10_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_11_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_12_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_13_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_14_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_15_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_16_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_17_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_18_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_19_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_20_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_21_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_22_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_23_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_24_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_25_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_26_WRITE_MASK); UNRESOLVED(GPIO_GP0_GPIO_27_WRITE_MASK); UNRESOLVED(SOFT_RST_REG_ADDRESS)","Validation / Acceptance Criteria":"Pass if for each tested register, (a) the masked default read equals its expected default value and (b) for each of the six patterns, the masked readback equals the expected value where writable bits match the written data and non-writable bits match the default. Fail if any mismatch is detected; test terminates with pass on no mismatches and fail otherwise.","Code Generation (Required / Not)":"Not Required","Meta Headers":"#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"test_define.c\"\n#include<gpio/gpio_def.h>\n#include<gpio/gpio_offset.h>","Meta Macros":"#define SOFT_RST_REG_ADDRESS\t0x00000000\n#define SOFT_RST_REG_DATA\t0x00000000\n#define CNT 49","Meta Arrays":"const unsigned long int addr_array[20]={MIZAR_GPIO_GP0_GPIO_8,MIZAR_GPIO_GP0_GPIO_9,MIZAR_GPIO_GP0_GPIO_10,MIZAR_GPIO_GP0_GPIO_11,MIZAR_GPIO_GP0_GPIO_12,MIZAR_GPIO_GP0_GPIO_13,MIZAR_GPIO_GP0_GPIO_14,MIZAR_GPIO_GP0_GPIO_15,MIZAR_GPIO_GP0_GPIO_16,MIZAR_GPIO_GP0_GPIO_17,MIZAR_GPIO_GP0_GPIO_18,MIZAR_GPIO_GP0_GPIO_19,MIZAR_GPIO_GP0_GPIO_20,MIZAR_GPIO_GP0_GPIO_21,MIZAR_GPIO_GP0_GPIO_22,MIZAR_GPIO_GP0_GPIO_23,MIZAR_GPIO_GP0_GPIO_24,MIZAR_GPIO_GP0_GPIO_25,MIZAR_GPIO_GP0_GPIO_26,MIZAR_GPIO_GP0_GPIO_27,};\nconst unsigned int default_value_array[20]={GPIO_GP0_GPIO_8_DEFAULT_VAL,GPIO_GP0_GPIO_9_DEFAULT_VAL,GPIO_GP0_GPIO_10_DEFAULT_VAL,GPIO_GP0_GPIO_11_DEFAULT_VAL,GPIO_GP0_GPIO_12_DEFAULT_VAL,GPIO_GP0_GPIO_13_DEFAULT_VAL,GPIO_GP0_GPIO_14_DEFAULT_VAL,GPIO_GP0_GPIO_15_DEFAULT_VAL,GPIO_GP0_GPIO_16_DEFAULT_VAL,GPIO_GP0_GPIO_17_DEFAULT_VAL,GPIO_GP0_GPIO_18_DEFAULT_VAL,GPIO_GP0_GPIO_19_DEFAULT_VAL,GPIO_GP0_GPIO_20_DEFAULT_VAL,GPIO_GP0_GPIO_21_DEFAULT_VAL,GPIO_GP0_GPIO_22_DEFAULT_VAL,GPIO_GP0_GPIO_23_DEFAULT_VAL,GPIO_GP0_GPIO_24_DEFAULT_VAL,GPIO_GP0_GPIO_25_DEFAULT_VAL,GPIO_GP0_GPIO_26_DEFAULT_VAL,GPIO_GP0_GPIO_27_DEFAULT_VAL,};\nconst unsigned int read_mask_array[20]={GPIO_GP0_GPIO_8_READ_MASK,GPIO_GP0_GPIO_9_READ_MASK,GPIO_GP0_GPIO_10_READ_MASK,GPIO_GP0_GPIO_11_READ_MASK,GPIO_GP0_GPIO_12_READ_MASK,GPIO_GP0_GPIO_13_READ_MASK,GPIO_GP0_GPIO_14_READ_MASK,GPIO_GP0_GPIO_15_READ_MASK,GPIO_GP0_GPIO_16_READ_MASK,GPIO_GP0_GPIO_17_READ_MASK,GPIO_GP0_GPIO_18_READ_MASK,GPIO_GP0_GPIO_19_READ_MASK,GPIO_GP0_GPIO_20_READ_MASK,GPIO_GP0_GPIO_21_READ_MASK,GPIO_GP0_GPIO_22_READ_MASK,GPIO_GP0_GPIO_23_READ_MASK,GPIO_GP0_GPIO_24_READ_MASK,GPIO_GP0_GPIO_25_READ_MASK,GPIO_GP0_GPIO_26_READ_MASK,GPIO_GP0_GPIO_27_READ_MASK,};\nconst unsigned int write_mask_array[20]={GPIO_GP0_GPIO_8_WRITE_MASK,GPIO_GP0_GPIO_9_WRITE_MASK,GPIO_GP0_GPIO_10_WRITE_MASK,GPIO_GP0_GPIO_11_WRITE_MASK,GPIO_GP0_GPIO_12_WRITE_MASK,GPIO_GP0_GPIO_13_WRITE_MASK,GPIO_GP0_GPIO_14_WRITE_MASK,GPIO_GP0_GPIO_15_WRITE_MASK,GPIO_GP0_GPIO_16_WRITE_MASK,GPIO_GP0_GPIO_17_WRITE_MASK,GPIO_GP0_GPIO_18_WRITE_MASK,GPIO_GP0_GPIO_19_WRITE_MASK,GPIO_GP0_GPIO_20_WRITE_MASK,GPIO_GP0_GPIO_21_WRITE_MASK,GPIO_GP0_GPIO_22_WRITE_MASK,GPIO_GP0_GPIO_23_WRITE_MASK,GPIO_GP0_GPIO_24_WRITE_MASK,GPIO_GP0_GPIO_25_WRITE_MASK,GPIO_GP0_GPIO_26_WRITE_MASK,GPIO_GP0_GPIO_27_WRITE_MASK,};\nconst unsigned int skip_array[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};\nconst unsigned int skip_rst_array[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};\nunsigned int chk_val[6]={0xffffffff,0xaaaaaaaa,0x55555555,0xf5f5f5f5,0xA5A5A5A5,0xffff0000};"}]'
-          echo "json_raw<<EOF" >> $GITHUB_OUTPUT
-          echo "$JSON_DATA" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Run generator
-        id: run
+        run: pip install openpyxl
+      - name: Generate Excel
         env:
-          JSON_RAW: ${{ steps.prep.outputs.json_raw }}
           IP_NAME: GPIO
-          OUTPUT_DIR: Test_Output/GPIO/TestPlan
+        run: python scripts/generate_testplan_excel.py
+      - name: Commit and push generated Excel
         run: |
-          python scripts/generate_testplan_excel.py | tee /tmp/gen.out
-          EXCEL_OUTPUT_PATH=$(grep -oP "EXCEL_OUTPUT_PATH=\K.*" /tmp/gen.out)
-          echo "excel_output_path=$EXCEL_OUTPUT_PATH" >> $GITHUB_OUTPUT
-
-      - name: Commit generated Excel
-        env:
-          EXCEL_PATH: ${{ steps.run.outputs.excel_output_path }}
-        run: |
-          if [ -z "$EXCEL_PATH" ] || [ ! -f "$EXCEL_PATH" ]; then
-            echo "Excel not generated" >&2
-            exit 1
-          fi
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add "$EXCEL_PATH"
-          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
-          git push origin HEAD:main
-          echo "excel_repo_path=${EXCEL_PATH}" >> $GITHUB_OUTPUT
-
-      - name: Print location
-        run: |
-          echo "Excel generated at: ${{ steps.run.outputs.excel_output_path }}"
-          echo "Repo path: ${{ steps.run.outputs.excel_output_path }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/*.xlsx || true
+          git commit -m "Add generated TestPlan Excel for GPIO" || echo "No changes to commit"
+          git push

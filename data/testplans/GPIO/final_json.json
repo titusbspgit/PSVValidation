@@ -1,0 +1,25 @@
+[
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "gpio_reg_wr_rd_test",
+    "Test Description": "Verify write/read integrity of GPIO GP0 registers gp0_gpio_8 through gp0_gpio_27.",
+    "Meta Test Description": "Register write/read verification for GPIO GP0 register block. Resolved addresses use base 0xA001A000 with offsets 0x0 to 0x4C for MIZAR_GPIO_GP0_GPIO_8 to MIZAR_GPIO_GP0_GPIO_27 per provided resolution data. SOFT_RST_REG_ADDRESS is present but unresolved in the provided data. The test iterates the resolved registers, performs writes, reads back, and compares results to confirm data retention.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "0x0",
+    "Memory End Offset": "0x4C",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1. Identify the target GPIO GP0 registers gp0_gpio_8 through gp0_gpio_27.\n2. For each register, write a test value.\n3. Read back the value from each register.\n4. Compare the read value with the written value.\n5. Record any mismatch and summarize the results.",
+    "Meta Test Steps / Procedure": "1) Define the ordered macro list: MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27; SOFT_RST_REG_ADDRESS.\n2) For each macro with resolution_status=\"resolved\" in the provided resolution data, compute effective_addr = 0xA001A000 + offset_value (offsets observed: 0x0, 0x4, 0x8, 0xC, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C, 0x40, 0x44, 0x48, 0x4C). Write a test value V to effective_addr, read back R, and compare. If R != V, record a failure condition; otherwise record success.\n3) For SOFT_RST_REG_ADDRESS, the resolution_status is \"unresolved\" (no base/offset available in the provided data).\n4) After iterating all resolved registers, if any mismatch was recorded, mark the test as FAIL; otherwise mark as PASS.",
+    "Impacted Registers": "gp0_gpio_8; gp0_gpio_9; gp0_gpio_10; gp0_gpio_11; gp0_gpio_12; gp0_gpio_13; gp0_gpio_14; gp0_gpio_15; gp0_gpio_16; gp0_gpio_17; gp0_gpio_18; gp0_gpio_19; gp0_gpio_20; gp0_gpio_21; gp0_gpio_22; gp0_gpio_23; gp0_gpio_24; gp0_gpio_25; gp0_gpio_26; gp0_gpio_27",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27; SOFT_RST_REG_ADDRESS",
+    "Validation / Acceptance Criteria": "All reads must match the written values for gp0_gpio_8 through gp0_gpio_27.",
+    "Meta Validation / Acceptance Criteria": "For each resolved register address (base 0xA001A000 with offsets 0x0 to 0x4C), after writing value V, a subsequent read must return V. Any mismatch constitutes a failure. Overall PASS only if all write/read comparisons for the resolved registers match; otherwise FAIL.",
+    "Code Generation (Required / Not)": "Required",
+    "Meta Headers": "NA",
+    "Meta Macros": "#define GPIO0 1",
+    "Meta Arrays": "NA"
+  }
+]
