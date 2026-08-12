@@ -1,0 +1,25 @@
+[
+  {
+    "Index": "1",
+    "SS / Module": "GPIO",
+    "Feature": "NA",
+    "Test Case Name": "gpio_reg_wr_rd_test",
+    "Test Description": "Read GPIO GP0 pins 8–27 and capture their current values.",
+    "Meta Test Description": "The testcase performs sequential read operations on GPIO GP0 pin macros MIZAR_GPIO_GP0_GPIO_8 through MIZAR_GPIO_GP0_GPIO_27 and records the returned values. No writes, offsets, interrupts, waits, or timing parameters are indicated in the provided inputs.",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Remarks": "NA",
+    "Test Steps / Procedure": "1. For GPIO bank GP0, read the value of each pin from 8 to 27.\n2. Record the read value for each pin.\n3. Preserve the collected data for review.",
+    "Meta Test Steps / Procedure": "For each macro in the following ordered list, perform a register read and capture the returned value: MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, MIZAR_GPIO_GP0_GPIO_11, MIZAR_GPIO_GP0_GPIO_12, MIZAR_GPIO_GP0_GPIO_13, MIZAR_GPIO_GP0_GPIO_14, MIZAR_GPIO_GP0_GPIO_15, MIZAR_GPIO_GP0_GPIO_16, MIZAR_GPIO_GP0_GPIO_17, MIZAR_GPIO_GP0_GPIO_18, MIZAR_GPIO_GP0_GPIO_19, MIZAR_GPIO_GP0_GPIO_20, MIZAR_GPIO_GP0_GPIO_21, MIZAR_GPIO_GP0_GPIO_22, MIZAR_GPIO_GP0_GPIO_23, MIZAR_GPIO_GP0_GPIO_24, MIZAR_GPIO_GP0_GPIO_25, MIZAR_GPIO_GP0_GPIO_26, MIZAR_GPIO_GP0_GPIO_27. No write operations, bit-masking logic, conditionals, loops, delays, error handling, or assertions are present in the provided inputs.",
+    "Impacted Registers": "NA",
+    "Meta Impacted Registers": "MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27",
+    "Validation / Acceptance Criteria": "NA",
+    "Meta Validation / Acceptance Criteria": "NA",
+    "Code Generation (Required / Not)": "Not",
+    "Meta Headers": "NA",
+    "Meta Macros": "NA",
+    "Meta Arrays": "NA"
+  }
+]
