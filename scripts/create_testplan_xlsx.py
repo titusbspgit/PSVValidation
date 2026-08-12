@@ -169,3 +169,5 @@ with open('generated_timestamp.txt', 'w', encoding='utf-8') as f:
     f.write(now_ist.strftime('%Y-%m-%d %H:%M:%S %Z'))
 
 print(f"Generated: {output_path}")
+
+# no-op change to trigger workflow
