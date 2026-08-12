@@ -43,3 +43,5 @@ jobs:
           TS=$(date +"%Y-%m-%d %H:%M:%S %Z")
           git commit -m "Add GPIO TestPlan Excel (auto-generated via fallback) - $TS" || echo "No changes to commit"
           git push
+
+# noop: retrigger
