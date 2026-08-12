@@ -1,0 +1,45 @@
+name: Generate GPIO TestPlan Excel (Fallback)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/generate_gpio_testplan.yml"
+      - "scripts/generate_gpio_testplan_excel.py"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Generate Excel
+        run: |
+          python scripts/generate_gpio_testplan_excel.py --output-dir "Test_Output/GPIO/TestPlan" --ip-name "GPIO"
+
+      - name: Commit and push Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FILE_PATH=$(cat .generated_excel_path)
+          echo "Generated file: $FILE_PATH"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE_PATH"
+          TS=$(date +"%Y-%m-%d %H:%M:%S %Z")
+          git commit -m "Add GPIO TestPlan Excel (auto-generated via fallback) - $TS" || echo "No changes to commit"
+          git push
