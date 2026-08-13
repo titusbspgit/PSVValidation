@@ -1,0 +1,58 @@
+name: Generate and Commit TestPlan Excel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Prepare JSON input (empty array per current run)
+        run: |
+          echo '[]' > final_json.json
+          ls -la
+
+      - name: Generate Excel (IST timestamp)
+        run: |
+          python scripts/generate_testplan_excel.py \
+            --json-file final_json.json \
+            --out-dir "Test_Output/GPIO/TestPlan" \
+            --ip-name "GPIO" | tee generation.log
+          echo "Generation log:" && cat generation.log
+
+      - name: Commit and push Excel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage only the generated Excel files in the target directory
+          git add Test_Output/GPIO/TestPlan/*.xlsx || true
+          if git diff --cached --quiet; then
+            echo "No Excel changes to commit."
+          else
+            git commit -m "Added generated TestPlan Excel"
+            git push origin HEAD:main
+          fi
