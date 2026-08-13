@@ -1,11 +1,17 @@
 name: Generate GPIO TestPlan
 
 on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/gpio_testplan_autogen.yml"
   workflow_dispatch:
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - name: Checkout
       uses: actions/checkout@v4
