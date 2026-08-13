@@ -1,0 +1,84 @@
+name: Generate GPIO TestPlan
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+        fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: pip install openpyxl pytz
+    - name: Generate Excel
+      id: gen
+      shell: bash
+      run: |
+        EXCEL_PATH=$(python - <<'PY'
+        import os, json
+        from datetime import datetime
+        import pytz
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+
+        # Inputs
+        final_json = []
+        ip_name = "GPIO"
+        ist = pytz.timezone("Asia/Kolkata")
+        now = datetime.now(ist)
+        datestr = now.strftime("%Y%m%d")
+        timestr = now.strftime("%H%M%S")
+        filename = f"{ip_name}_TestPlan_{datestr}_{timestr}.xlsx"
+        outdir = "Test_Output/GPIO/TestPlan"
+        os.makedirs(outdir, exist_ok=True)
+        outpath = os.path.join(outdir, filename)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "TestPlan"
+        headers = ["Test_ID", "Title", "Description", "Steps", "Expected_Result"]
+        ws.append(headers)
+        # formatting
+        header_font = Font(bold=True)
+        header_fill = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")
+        wrap = Alignment(wrap_text=True, vertical="top")
+        for col_idx, header in enumerate(headers, 1):
+          cell = ws.cell(row=1, column=col_idx, value=header)
+          cell.font = header_font
+          cell.fill = header_fill
+          cell.alignment = wrap
+        # Column widths
+        widths = [16, 28, 44, 44, 36]
+        for i, w in enumerate(widths, 1):
+          ws.column_dimensions[get_column_letter(i)].width = w
+        # Freeze first row
+        ws.freeze_panes = "A2"
+
+        # MetaData sheet very hidden
+        md = wb.create_sheet("MetaData")
+        md["A1"] = "final_json"
+        md["A2"] = json.dumps(final_json, separators=(",", ":"))
+        md.sheet_state = "veryHidden"
+
+        wb.save(outpath)
+        print(outpath)
+        PY
+        )
+        echo "excel_path=$EXCEL_PATH" >> $GITHUB_OUTPUT
+    - name: Commit and push
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add "${{ steps.gen.outputs.excel_path }}"
+        git commit -m "Add GPIO TestPlan (auto-generated) $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')" || echo "No changes to commit"
+        git push
