@@ -1,11 +1,6 @@
 name: Generate GPIO TestPlan
+
 on:
-  push:
-    paths:
-      - '.github/workflows/generate_gpio_testplan.yml'
-      - 'tools/generate_testplan.py'
-      - 'data/final_json.json'
-      - 'data/timestamp_ist.txt'
   workflow_dispatch:
 
 permissions:
@@ -15,27 +10,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl
-      - name: Generate Excel
-        run: |
-          python tools/generate_testplan.py
-      - name: Commit and push
+
+      - name: Generate and commit GPIO TestPlan Excel
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TZ: Asia/Kolkata
         run: |
+          python scripts/generate_gpio_testplan.py
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/GPIO/TestPlan/*.xlsx
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Add GPIO TestPlan ($(cat data/timestamp_ist.txt) IST)"
-            git push
-          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/*.xlsx || true
+          git commit -m "Add GPIO TestPlan (IST timestamp) via workflow" || echo "No changes to commit"
+          git push origin main
