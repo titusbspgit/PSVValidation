@@ -1,0 +1,39 @@
+TestPlan: GPIO
+Generated (IST): 2026-08-17 00:00:00
+
+[Sheet: Tests]
+Testcase Name,Description
+gpio_reg_wr_rd_test,Auto-generated register read/write tests for GPIO gp0 pins (8..30)
+
+[Sheet: RegisterMappings]
+Macro,Offset,Register Name,Status
+MIZAR_GPIO_GP0_GPIO_8,0x0,gp0_gpio_8,matched
+MIZAR_GPIO_GP0_GPIO_9,0x4,gp0_gpio_9,matched
+MIZAR_GPIO_GP0_GPIO_10,0x8,gp0_gpio_10,matched
+MIZAR_GPIO_GP0_GPIO_11,0xC,gp0_gpio_11,matched
+MIZAR_GPIO_GP0_GPIO_12,0x10,gp0_gpio_12,matched
+MIZAR_GPIO_GP0_GPIO_13,0x14,gp0_gpio_13,matched
+MIZAR_GPIO_GP0_GPIO_14,0x18,gp0_gpio_14,matched
+MIZAR_GPIO_GP0_GPIO_15,0x1C,gp0_gpio_15,matched
+MIZAR_GPIO_GP0_GPIO_16,0x20,gp0_gpio_16,matched
+MIZAR_GPIO_GP0_GPIO_17,0x24,gp0_gpio_17,matched
+MIZAR_GPIO_GP0_GPIO_18,0x28,gp0_gpio_18,matched
+MIZAR_GPIO_GP0_GPIO_19,0x2C,gp0_gpio_19,matched
+MIZAR_GPIO_GP0_GPIO_20,0x30,gp0_gpio_20,matched
+MIZAR_GPIO_GP0_GPIO_21,0x34,gp0_gpio_21,matched
+MIZAR_GPIO_GP0_GPIO_22,0x38,gp0_gpio_22,matched
+MIZAR_GPIO_GP0_GPIO_23,0x3C,gp0_gpio_23,matched
+MIZAR_GPIO_GP0_GPIO_24,0x40,gp0_gpio_24,matched
+MIZAR_GPIO_GP0_GPIO_25,0x44,gp0_gpio_25,matched
+MIZAR_GPIO_GP0_GPIO_26,0x48,gp0_gpio_26,matched
+MIZAR_GPIO_GP0_GPIO_27,0x4C,gp0_gpio_27,matched
+MIZAR_GPIO_GP0_GPIO_28,0x50,gp0_gpio_28,matched
+MIZAR_GPIO_GP0_GPIO_29,0x54,gp0_gpio_29,matched
+MIZAR_GPIO_GP0_GPIO_30,0x58,gp0_gpio_30,matched
+
+[Sheet: Coverage]
+Metric,Value
+Total Macros,23
+Matched,23
+Unresolved,0
+Match Rate,100%
