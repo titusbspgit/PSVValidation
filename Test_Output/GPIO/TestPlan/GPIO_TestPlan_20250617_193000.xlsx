@@ -1,7 +1,0 @@
-[Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet]
-This is a placeholder that indicates a real XLSX binary needs to be generated.
-
-Since the push_files API accepts text content and cannot handle binary XLSX data directly,
-I will use the create_or_update_file approach with a Python-generated XLSX instead.
-
-Fallback: A deterministic Python script will be provided.
