@@ -1,7 +1,9 @@
 name: Generate GPIO TestPlan XLSX
 
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/generate_gpio_testplan.yml'
 
 permissions:
   contents: write
@@ -91,13 +93,15 @@ jobs:
           ls -la Test_Output/GPIO/TestPlan/GPIO_TestPlan_20250617_193000.xlsx
           file Test_Output/GPIO/TestPlan/GPIO_TestPlan_20250617_193000.xlsx
 
-      - name: Commit and push XLSX
+      - name: Commit and push XLSX then cleanup
         run: |
           cd $GITHUB_WORKSPACE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/GPIO/TestPlan/GPIO_TestPlan_20250617_193000.xlsx
-          git commit -m "Add GPIO TestPlan XLSX - 2 test cases (gpio_reg_wr_rd_test, test_gpio_level_sel_intr_en)"
+          git rm Test_Output/GPIO/TestPlan/generate_GPIO_TestPlan_20250617_193000.py || true
+          git rm .github/workflows/generate_gpio_testplan.yml || true
+          git commit -m "Add GPIO TestPlan XLSX - 2 test cases (gpio_reg_wr_rd_test, test_gpio_level_sel_intr_en) and cleanup generator artifacts"
           git push origin main
 
       - name: Print final status
