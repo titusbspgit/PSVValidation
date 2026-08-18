@@ -1,0 +1,79 @@
+name: Generate GPIO TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-xlsx:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate XLSX and push
+        run: |
+          python3 << 'PYEOF'
+import json, os
+from datetime import datetime, timezone, timedelta
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+IST = timezone(timedelta(hours=5, minutes=30))
+now_ist = datetime.now(IST)
+TS = now_ist.strftime("%Y%m%d_%H%M%S")
+FN = f"GPIO_TestPlan_{TS}.xlsx"
+FP = f"Test_Output/GPIO/TestPlan/{FN}"
+os.makedirs("Test_Output/GPIO/TestPlan", exist_ok=True)
+
+H = ["Index","SS / Module","Feature","Test Case Name","Test Description","Speed","Mode","Memory Start Offset","Memory End Offset","Remarks","Test Steps / Procedure","Impacted Registers","Validation / Acceptance Criteria","Code Generation (Required / Not)","Meta Test Description","Meta Test Steps / Procedure","Meta Impacted Registers","Meta Validation / Acceptance Criteria","Meta Headers","Meta Macros","Meta Arrays"]
+
+R1 = [1,"GPIO","Register Write Read Verification","gpio_reg_wr_rd_test","Verify register write and read operations for GPIO per-pin registers gp0_gpio_8 through gp0_gpio_30. The test reads default reset values, writes multiple patterns (0x00, 0xFF, 0x55, 0xAA, 0xA5, 0x5A), reads back and verifies using field-specific read/write masks considering RO, WO, RW, and RW2 field types.","NA","Polling","0x0","0x58","","1. Read default reset value from each GPIO register (gp0_gpio_8 to gp0_gpio_30) and verify against expected reset value 0x00100000 (io_ctrl=1 at bit 20).\n2. Write pattern 0x00000000 to each register.\n3. Read back and verify: RW/RW2 fields updated, RO fields unchanged, WO fields read as 0.\n4. Repeat steps 2-3 for patterns 0x000E0000, 0x000A0000, 0x00140000, 0x00060000, 0x00180000 (masked for writable fields).\n5. Trigger soft reset via SOFT_RST_REG_ADDRESS.\n6. Re-read all registers and verify reset values restored.","gp0_gpio_8; gp0_gpio_9; gp0_gpio_10; gp0_gpio_11; gp0_gpio_12; gp0_gpio_13; gp0_gpio_14; gp0_gpio_15; gp0_gpio_16; gp0_gpio_17; gp0_gpio_18; gp0_gpio_19; gp0_gpio_20; gp0_gpio_21; gp0_gpio_22; gp0_gpio_23; gp0_gpio_24; gp0_gpio_25; gp0_gpio_26; gp0_gpio_27; gp0_gpio_28; gp0_gpio_29; gp0_gpio_30","PASS: All registers return expected reset value 0x00100000 on initial read. All write patterns are correctly reflected in RW/RW2 fields on read-back. RO fields (data_in, intr_raw_sts) remain unchanged after write. WO field (intr_clr) reads as 0. After soft reset, all registers return to reset value. FAIL: Any mismatch between expected and actual values.","Not Required","Verify register write and read operations for GPIO per-pin registers gp0_gpio_8 through gp0_gpio_30. The test reads default reset values, writes multiple patterns (0x00, 0xFF, 0x55, 0xAA, 0xA5, 0x5A), reads back and verifies using field-specific read/write masks considering RO, WO, RW, and RW2 field types.","1. Read default reset value from each GPIO register (gp0_gpio_8 to gp0_gpio_30) and verify against expected reset value 0x00100000 (io_ctrl=1 at bit 20).\n2. Write pattern 0x00000000 to each register.\n3. Read back and verify: RW/RW2 fields updated, RO fields unchanged, WO fields read as 0.\n4. Repeat steps 2-3 for patterns 0x000E0000, 0x000A0000, 0x00140000, 0x00060000, 0x00180000 (masked for writable fields).\n5. Trigger soft reset via SOFT_RST_REG_ADDRESS.\n6. Re-read all registers and verify reset values restored.","MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10; MIZAR_GPIO_GP0_GPIO_11; MIZAR_GPIO_GP0_GPIO_12; MIZAR_GPIO_GP0_GPIO_13; MIZAR_GPIO_GP0_GPIO_14; MIZAR_GPIO_GP0_GPIO_15; MIZAR_GPIO_GP0_GPIO_16; MIZAR_GPIO_GP0_GPIO_17; MIZAR_GPIO_GP0_GPIO_18; MIZAR_GPIO_GP0_GPIO_19; MIZAR_GPIO_GP0_GPIO_20; MIZAR_GPIO_GP0_GPIO_21; MIZAR_GPIO_GP0_GPIO_22; MIZAR_GPIO_GP0_GPIO_23; MIZAR_GPIO_GP0_GPIO_24; MIZAR_GPIO_GP0_GPIO_25; MIZAR_GPIO_GP0_GPIO_26; MIZAR_GPIO_GP0_GPIO_27; MIZAR_GPIO_GP0_GPIO_28; MIZAR_GPIO_GP0_GPIO_29; MIZAR_GPIO_GP0_GPIO_30; SOFT_RST_REG_ADDRESS","PASS: All registers return expected reset value 0x00100000 on initial read. All write patterns are correctly reflected in RW/RW2 fields on read-back. RO fields (data_in, intr_raw_sts) remain unchanged after write. WO field (intr_clr) reads as 0. After soft reset, all registers return to reset value. FAIL: Any mismatch between expected and actual values.","","",""]
+
+R2 = [2,"GPIO","Level Select Interrupt Enable","test_gpio_level_sel_intr_en","Verify GPIO level-select interrupt functionality for all 32 GPIO pins (pin 8 through pin 39). The test configures each per-pin GPIO register in input mode with level-triggered interrupt enabled, enables the group interrupt via the group interrupt enable register, enables LSS sysreg interrupt routing via the sysreg interrupt enable register, drives an external stimulus, and verifies interrupt assertion through the per-pin interrupt raw status bit, the group interrupt status register, and the LSS sysreg raw status register. The test covers both active HIGH level (level_sel=1) and active LOW level (level_sel=0) interrupt generation. After each interrupt, the test clears the per-pin interrupt, verifies the clear succeeded, disables the group interrupt, verifies the group status is cleared, clears the sysreg raw status, and verifies the sysreg clear succeeded. The test uses GIC IRQ 87 for GPIO0 interrupt routing.","NA","ISR","0x0","0x88","Requires GIC interrupt controller to be initialized and IRQ 87 routed for GPIO0.","1. Enable GIC IRQ for GPIO0 interrupt routing.\n2. Write to the LSS sysreg interrupt enable register (intr_en1) to enable GPIO0 interrupt at bit 1.\n3. For each GPIO pin (pin 8 to pin 39), configure the per-pin register in input mode with level-select interrupt set to active HIGH.\n4. Enable the group interrupt for the target pin.\n5. Drive external stimulus HIGH.\n6. Wait for ISR.\n7. In ISR, verify interrupt raw status bit asserted.\n8. Verify group interrupt status.\n9. Clear per-pin interrupt.\n10. Verify clear (expected 0x100001).\n11. Disable group interrupt.\n12. Verify group status 0x0.\n13. Clear sysreg raw_stcr1.\n14. Verify sysreg cleared.\n15. Clear GIC IRQ.\n16. Repeat for all 32 pins active HIGH.\n17. Repeat for active LOW.\n18. Verify zero errors.","intr_en1; gp0_gpio_8; gp0_intr1_intr_en1; gp0_intr1_intr_sts1; raw_stcr1","PASS: For each of the 32 GPIO pins in active HIGH mode (level_sel=1): the per-pin register interrupt raw status bit (bit 1) is asserted when the external stimulus is HIGH. The group interrupt status register shows the corresponding pin bit set. After clearing, per-pin register reads 0x100001. Group interrupt status reads 0x0. Sysreg raw_stcr1 GPIO0 bit cleared. Same for active LOW. Zero errors. FAIL: Any mismatch.","Not Required","Verify GPIO level-select interrupt for all 32 GPIO pins. GIC_EnableIRQ(87). write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR). Active HIGH loop: write_reg(MIZAR_GPIO_GP0_GPIO_8+(i*4), 0x00180000), write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 1<<i), write_reg(0xA0243ffc, 0xffffffff). ISR checks and clears. Active LOW loop similar with 0x00100000. finish(test_err).","1. GIC_EnableIRQ(87).\n2. write_reg(MIZAR_LSS_SYSREG_INTR_EN1, LSS_SYSREG_INTR_EN1_GPIO0_INTR).\n3-12. Active HIGH loop with ISR validation.\n13-15. Active LOW loop. finish(test_err).","MIZAR_LSS_SYSREG_INTR_EN1; MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_INTR1_INTR_EN1; 0xA0243ffc; MIZAR_GPIO_GP0_INTR1_INTR_STS1; MIZAR_LSS_SYSREG_RAW_STCR1","PASS: (rdata & 0x2)!=0, (rdata_grp & (1<<i))!=0, rdata==0x100001 after clear, group sts==0x0, sysreg cleared. FAIL if test_err>0.","#include<lss_sysreg.h>; #include<stdio.h>; #include<test_define.c>; #include<test_common.h>; #include<gpio/gpio_def.h>; #include<gpio/gpio_offset.h>","#define CNT 49","addr_array[49], default_value_array[49], read_mask_array[49], write_mask_array[49], skip_array[49]"]
+
+CW = [8,14,30,32,60,8,10,20,18,40,70,60,65,28,60,70,60,65,50,30,50]
+
+wb = Workbook()
+ws = wb.active
+ws.title = "TestPlan"
+hf = Font(name="Calibri",size=11,bold=True,color="FFFFFF")
+hfill = PatternFill(start_color="4472C4",end_color="4472C4",fill_type="solid")
+ha = Alignment(horizontal="center",vertical="center",wrap_text=True)
+ca = Alignment(vertical="top",wrap_text=True)
+tb = Border(left=Side(style="thin"),right=Side(style="thin"),top=Side(style="thin"),bottom=Side(style="thin"))
+for ci,h in enumerate(H,1):
+    c = ws.cell(row=1,column=ci,value=h)
+    c.font=hf; c.fill=hfill; c.alignment=ha; c.border=tb
+for ri,rd in enumerate([R1,R2],2):
+    for ci,v in enumerate(rd,1):
+        c = ws.cell(row=ri,column=ci,value=v)
+        c.alignment=ca; c.border=tb; c.font=Font(name="Calibri",size=10)
+for ci,w in enumerate(CW,1):
+    ws.column_dimensions[ws.cell(row=1,column=ci).column_letter].width=w
+ws.freeze_panes="A2"
+wm = wb.create_sheet(title="MetaData")
+meta = json.dumps([{H[i]:R1[i] for i in range(21)},{H[i]:R2[i] for i in range(21)}],indent=2)
+wm.cell(row=1,column=1,value=meta)
+wm.sheet_state="veryHidden"
+wb.save(FP)
+print(f"Generated: {FP} ({os.path.getsize(FP)} bytes)")
+PYEOF
+
+      - name: Commit and push xlsx
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx"
+          git commit -m "Auto-generated GPIO TestPlan xlsx via GitHub Actions"
+          git push
