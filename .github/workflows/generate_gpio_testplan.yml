@@ -4,20 +4,16 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/GPIO/TestPlan/generate_gpio_testplan.py'
-
-permissions:
-  contents: write
+      - 'Test_Output/GPIO/TestPlan/generate_GPIO_TestPlan_20250617.py'
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,15 +23,15 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl PyGithub
 
-      - name: Generate Excel workbook
+      - name: Generate Excel TestPlan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python Test_Output/GPIO/TestPlan/generate_gpio_testplan.py
+        run: python Test_Output/GPIO/TestPlan/generate_GPIO_TestPlan_20250617.py
 
       - name: Commit and push generated Excel
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/GPIO/TestPlan/*.xlsx
-          git diff --cached --quiet || git commit -m "Auto-generate GPIO TestPlan Excel workbook [skip ci]"
-          git push origin main
+          git diff --cached --quiet || git commit -m "Auto-generated GPIO TestPlan Excel (28-col, 10 rows)"
+          git push
