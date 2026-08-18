@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Fallback Automation Script: GPIO TestPlan Excel Generator & GitHub Pusher
-=========================================================================
-This script generates a real binary .xlsx workbook with two sheets:
-  - TestPlan (visible)
-  - MetaData (veryHidden)
-And pushes it to the GitHub repository.
+GPIO TestPlan Excel Generator & GitHub Auto-Pusher
+====================================================
+Generates a real binary .xlsx workbook with two sheets:
+  - TestPlan (visible) — 14 columns, 2 data rows
+  - MetaData (veryHidden) — 11 columns, 2 data rows
 
 Requirements:
   pip install openpyxl PyGithub
@@ -47,7 +46,7 @@ GITHUB_REPO = "PSVValidation"
 GITHUB_BRANCH = "main"
 
 # ============================================================
-# Test Data - 2 Records
+# Column Definitions
 # ============================================================
 TESTPLAN_COLUMNS = [
     "Index",
@@ -80,6 +79,9 @@ METADATA_COLUMNS = [
     "Meta Arrays"
 ]
 
+# ============================================================
+# Test Data — 2 Records (Exact Preservation)
+# ============================================================
 RECORDS = [
     {
         "Index": "1",
@@ -136,8 +138,9 @@ def create_workbook():
 
     # ---- Styles ----
     header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
-    header_fill_tp = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")  # Blue for TestPlan
-    header_fill_md = PatternFill(start_color="548235", end_color="548235", fill_type="solid")  # Green for MetaData
+    data_font = Font(name="Calibri", size=11)
+    header_fill_tp = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_fill_md = PatternFill(start_color="548235", end_color="548235", fill_type="solid")
     cell_alignment = Alignment(wrap_text=True, vertical="top")
     header_alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
     thin_border = Border(
@@ -147,7 +150,7 @@ def create_workbook():
         bottom=Side(style="thin")
     )
 
-    # Column widths
+    # Column widths for TestPlan
     TP_COL_WIDTHS = {
         "Index": 8,
         "SS / Module": 15,
@@ -165,6 +168,7 @@ def create_workbook():
         "Code Generation (Required / Not)": 25
     }
 
+    # Column widths for MetaData
     MD_COL_WIDTHS = {
         "Index": 8,
         "SS / Module": 15,
@@ -196,6 +200,7 @@ def create_workbook():
         for col_idx, col_name in enumerate(TESTPLAN_COLUMNS, 1):
             value = record.get(col_name, "")
             cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
+            cell.font = data_font
             cell.alignment = cell_alignment
             cell.border = thin_border
 
@@ -223,6 +228,7 @@ def create_workbook():
         for col_idx, col_name in enumerate(METADATA_COLUMNS, 1):
             value = record.get(col_name, "")
             cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
+            cell.font = data_font
             cell.alignment = cell_alignment
             cell.border = thin_border
 
@@ -253,7 +259,7 @@ def push_to_github(file_bytes, filepath):
     try:
         from github import Github
     except ImportError:
-        print("ERROR: PyGithub not installed. Run: pip install PyGithub")
+        print("WARNING: PyGithub not installed. Run: pip install PyGithub")
         print("Saving file locally instead...")
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "wb") as f:
@@ -263,7 +269,7 @@ def push_to_github(file_bytes, filepath):
 
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        print("ERROR: GITHUB_TOKEN environment variable not set.")
+        print("WARNING: GITHUB_TOKEN environment variable not set.")
         print("Saving file locally instead...")
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "wb") as f:
@@ -274,14 +280,11 @@ def push_to_github(file_bytes, filepath):
     g = Github(token)
     repo = g.get_repo(f"{GITHUB_OWNER}/{GITHUB_REPO}")
 
-    content_b64 = base64.b64encode(file_bytes).decode("utf-8")
-
     try:
-        # Check if file exists
         existing = repo.get_contents(filepath, ref=GITHUB_BRANCH)
         repo.update_file(
             path=filepath,
-            message=f"Update {FILENAME} - GPIO TestPlan",
+            message=f"Update {FILENAME} - GPIO TestPlan Excel",
             content=file_bytes,
             sha=existing.sha,
             branch=GITHUB_BRANCH
@@ -290,7 +293,7 @@ def push_to_github(file_bytes, filepath):
     except Exception:
         repo.create_file(
             path=filepath,
-            message=f"Add {FILENAME} - GPIO TestPlan",
+            message=f"Add {FILENAME} - GPIO TestPlan Excel",
             content=file_bytes,
             branch=GITHUB_BRANCH
         )
@@ -300,38 +303,41 @@ def push_to_github(file_bytes, filepath):
 
 
 def main():
-    print("=" * 60)
-    print("GPIO TestPlan Excel Generator - Fallback Automation")
-    print("=" * 60)
-    print(f"Timestamp (IST): {now_ist.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    print(f"Output filename:  {FILENAME}")
-    print(f"Output path:      {OUTPUT_PATH}")
+    print("=" * 70)
+    print("  GPIO TestPlan Excel Generator")
+    print("=" * 70)
+    print(f"  Timestamp (IST) : {now_ist.strftime('%Y-%m-%d %H:%M:%S IST')}")
+    print(f"  Output filename  : {FILENAME}")
+    print(f"  Output path      : {OUTPUT_PATH}")
+    print(f"  Target repo      : {GITHUB_OWNER}/{GITHUB_REPO}")
+    print(f"  Target branch    : {GITHUB_BRANCH}")
     print()
 
     # Step 1: Create workbook
-    print("[1/3] Creating workbook...")
+    print("[1/3] Creating workbook with 2 sheets...")
     wb = create_workbook()
-    print("      - TestPlan sheet: 2 data rows, 14 columns")
-    print("      - MetaData sheet: 2 data rows, 11 columns (veryHidden)")
+    print("      TestPlan sheet : visible, 14 columns, 2 data rows, blue header (#4472C4)")
+    print("      MetaData sheet : veryHidden, 11 columns, 2 data rows, green header (#548235)")
 
     # Step 2: Save to bytes
-    print("[2/3] Saving workbook to binary .xlsx...")
+    print("[2/3] Serializing to binary .xlsx format...")
     file_bytes = save_and_get_bytes(wb)
-    print(f"      - File size: {len(file_bytes)} bytes")
+    print(f"      File size: {len(file_bytes):,} bytes")
 
-    # Step 3: Push to GitHub
-    print("[3/3] Pushing to GitHub...")
+    # Step 3: Push to GitHub or save locally
+    print("[3/3] Pushing to GitHub repository...")
     success = push_to_github(file_bytes, OUTPUT_PATH)
 
     print()
-    print("=" * 60)
+    print("=" * 70)
     if success:
-        print("STATUS: SUCCESS")
-        print(f"GitHub URL: https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/blob/{GITHUB_BRANCH}/{OUTPUT_PATH}")
+        github_url = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/blob/{GITHUB_BRANCH}/{OUTPUT_PATH}"
+        print(f"  STATUS     : SUCCESS")
+        print(f"  GitHub URL : {github_url}")
     else:
-        print("STATUS: PARTIAL - File saved locally (GitHub push requires GITHUB_TOKEN)")
-        print(f"Local path: {OUTPUT_PATH}")
-    print("=" * 60)
+        print(f"  STATUS     : LOCAL SAVE (GitHub push requires GITHUB_TOKEN)")
+        print(f"  Local path : {OUTPUT_PATH}")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
