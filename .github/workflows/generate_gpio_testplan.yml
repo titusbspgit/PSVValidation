@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  generate:
+  generate-xlsx:
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Kolkata
@@ -17,26 +17,27 @@ jobs:
         with:
           ref: main
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install openpyxl
         run: pip install openpyxl
 
-      - name: Generate XLSX TestPlan
+      - name: Generate GPIO TestPlan XLSX
         working-directory: Test_Output/GPIO/TestPlan
-        run: python generate_testplan.py
+        run: python build_xlsx.py
 
-      - name: Move generated file
+      - name: Verify XLSX generated
         run: |
-          find . -name "GPIO_TestPlan_*.xlsx" -exec mv {} Test_Output/GPIO/TestPlan/ \; 2>/dev/null || true
+          ls -la Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx
+          echo "XLSX file generated successfully"
 
-      - name: Commit and push XLSX
+      - name: Commit and push XLSX to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "Test_Output/GPIO/TestPlan/*.xlsx"
-          git commit -m "Auto-generated GPIO TestPlan XLSX [skip ci]" || echo "No changes to commit"
+          git add "Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx"
+          git commit -m "Add auto-generated GPIO TestPlan XLSX [skip ci]"
           git push
