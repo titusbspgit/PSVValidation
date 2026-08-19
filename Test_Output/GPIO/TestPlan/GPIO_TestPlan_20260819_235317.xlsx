@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="header">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:Bold="1" ss:Size="11" ss:FontName="Calibri" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#4472C4" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="data">
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Font ss:Size="10" ss:FontName="Calibri"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="TestPlan">
+  <Table>
+   <Column ss:Width="45"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="400"/>
+   <Column ss:Width="60"/>
+   <Column ss:Width="60"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="300"/>
+   <Column ss:Width="400"/>
+   <Column ss:Width="200"/>
+   <Column ss:Width="350"/>
+   <Column ss:Width="120"/>
+   <Row>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Index</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">SS / Module</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Feature</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Test Case Name</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Test Description</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Speed</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Mode</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Memory Start Offset</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Memory End Offset</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Remarks</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Test Steps / Procedure</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Impacted Registers</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Validation / Acceptance Criteria</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Code Generation (Required / Not)</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="data"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">GPIO</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">Register Write-Read Verification</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">gpio_reg_wr_rd_test</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">This test verifies the default reset values and write-read-back integrity of GPIO registers gp0_gpio_8, gp0_gpio_9, and gp0_gpio_10. The test first reads each register after reset and validates that the read-back value matches the expected default value. It then writes six different test patterns (all-ones, alternating-bit patterns, and mixed patterns) to each writable register, reads back the values, and verifies correctness by accounting for read-only and write-only field masks. The test reports pass if all default value checks and all write-read-back checks succeed, and reports fail if any mismatch is detected.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">NA</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">NA</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">0xA001A000</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">0xA001A008</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">The test masks out bit 0 (data_in field) during default value comparison because this read-only field reflects the live GPIO pin level and may not match the reset value. Certain registers are skipped during write-read and reset checks as controlled by skip arrays. The soft reset check function is disabled in the source code. Six distinct test patterns are used to exercise alternating bit combinations across all writable fields.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">1. Initialize the test environment and ensure the GPIO module is out of reset.&#10;2. Read each GPIO register (gp0_gpio_8, gp0_gpio_9, gp0_gpio_10) and verify the read-back value matches the expected default/reset value, masking out the data_in bit (bit 0) which reflects the live pin state.&#10;3. Skip default value verification for any registers flagged in the skip-reset array or registers that are not readable.&#10;4. Write the first test pattern (0xFFFFFFFF) to each writable GPIO register, applying the appropriate write mask to avoid writing to read-only fields.&#10;5. Read back each register after writing, apply the read mask, and verify the read-back value matches the expected value computed from the write data, read mask, write mask, and default values for non-writable bits.&#10;6. Repeat steps 4-5 with the second test pattern (0xAAAAAAAA).&#10;7. Repeat steps 4-5 with the third test pattern (0x55555555).&#10;8. Repeat steps 4-5 with the fourth test pattern (0xF5F5F5F5).&#10;9. Repeat steps 4-5 with the fifth test pattern (0xA5A5A5A5).&#10;10. Repeat steps 4-5 with the sixth test pattern (0xFFFF0000).&#10;11. Verify that all default value checks and all write-read-back checks passed with zero mismatches.&#10;12. Report PASS if no failures are detected; report FAIL otherwise.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">gp0_gpio_8; gp0_gpio_9; gp0_gpio_10</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">1. All GPIO registers must return their expected default/reset values after reset, with bit 0 (data_in) masked out during comparison. 2. For each of the six test patterns, the write-read-back value must match the expected value computed using write masks, read masks, and default values for non-writable bits. 3. The test must complete with zero default-value mismatches and zero write-read mismatches to pass.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">Not Required</Data></Cell>
+   </Row>
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>1</SplitHorizontal>
+   <TopRowBottomPane>1</TopRowBottomPane>
+  </WorksheetOptions>
+ </Worksheet>
+ <Worksheet ss:Name="MetaData">
+  <Table>
+   <Column ss:Width="45"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="500"/>
+   <Column ss:Width="500"/>
+   <Column ss:Width="250"/>
+   <Column ss:Width="350"/>
+   <Column ss:Width="250"/>
+   <Column ss:Width="250"/>
+   <Column ss:Width="300"/>
+   <Row>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Index</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Test Case Name</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Test Description</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Test Steps / Procedure</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Impacted Registers</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Validation / Acceptance Criteria</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Headers</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Macros</Data></Cell>
+    <Cell ss:StyleID="header"><Data ss:Type="String">Meta Arrays</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="data"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">gpio_reg_wr_rd_test</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">This testcase validates the default (reset) values and write-read-back integrity of GPIO GP0 registers. The test_define.c file includes gpio/gpio_def.h and gpio/gpio_offset.h headers and declares CNT=49. It defines addr_array[49] containing register address macros: MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10 (remaining entries are implicit). Corresponding arrays default_value_array[] (GPIO_GP0_GPIO_8_DEFAULT_VAL, GPIO_GP0_GPIO_9_DEFAULT_VAL, GPIO_GP0_GPIO_10_DEFAULT_VAL), read_mask_array[] (GPIO_GP0_GPIO_8_READ_MASK, GPIO_GP0_GPIO_9_READ_MASK, GPIO_GP0_GPIO_10_READ_MASK), and write_mask_array[] (GPIO_GP0_GPIO_8_WRITE_MASK, GPIO_GP0_GPIO_9_WRITE_MASK, GPIO_GP0_GPIO_10_WRITE_MASK) are also declared. skip_array[] and skip_rst_array[] control which registers are skipped during write-read and reset-value checks respectively. The test_case() function calls chk_rst_val() followed by chk_rd_wr(). chk_rst_val() iterates over addr_array, skips entries flagged in skip_rst_array, skips entries with read_mask_array==0x00000000, reads each register via read_reg(addr), masks the read data with 0xfffffffe (data = data_rd and 0xfffffffe), and compares against default_value_array[i]. Mismatches increment def_fail_cnt. chk_rd_wr() uses six test patterns: {0xffffffff, 0xaaaaaaaa, 0x55555555, 0xf5f5f5f5, 0xA5A5A5A5, 0xffff0000}. For each pattern, it iterates addr_array, skips entries flagged in skip_array, skips entries with write_mask_array==0x00000000, and writes (data_wr and write_mask_array[i]) via write_reg(addr, ...). Then it reads back via read_reg(addr), masks with read_mask_array[i], computes expected value as ((data_wr and read_mask_array[i] and write_mask_array[i]) | (wr_n and read_mask_array[i] and default_value_array[i])) where wr_n = (write_mask_array[i] ^ 0xffffffff), and compares. Mismatches increment wr_fail_cnt. If either fail counter is non-zero, finish(1) is called (test fail); otherwise finish(0) (test pass). soft_reset_chk() is defined but disabled via #ifdef 0. SOFT_RST_REG_ADDRESS is defined as 0x00000000 but is ignored per instructions.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">1. Include headers: gpio/gpio_def.h, gpio/gpio_offset.h, test_common.h.&#10;2. Define CNT=49.&#10;3. Declare addr_array[49] = {MIZAR_GPIO_GP0_GPIO_8, MIZAR_GPIO_GP0_GPIO_9, MIZAR_GPIO_GP0_GPIO_10, ...}.&#10;4. Declare default_value_array[49] = {GPIO_GP0_GPIO_8_DEFAULT_VAL, GPIO_GP0_GPIO_9_DEFAULT_VAL, GPIO_GP0_GPIO_10_DEFAULT_VAL, ...}.&#10;5. Declare read_mask_array[49] = {GPIO_GP0_GPIO_8_READ_MASK, GPIO_GP0_GPIO_9_READ_MASK, GPIO_GP0_GPIO_10_READ_MASK, ...}.&#10;6. Declare write_mask_array[49] = {GPIO_GP0_GPIO_8_WRITE_MASK, GPIO_GP0_GPIO_9_WRITE_MASK, GPIO_GP0_GPIO_10_WRITE_MASK, ...}.&#10;7. Declare skip_array[49] and skip_rst_array[49] with per-register skip flags.&#10;8. Call chk_rst_val(): a. Loop i=0 to CNT-1. b. addr = addr_array[i]. c. If skip_rst_array[i]==1, skip. d. If read_mask_array[i]==0x00000000, skip. e. data_rd = read_reg(addr). f. data = (data_rd and 0xfffffffe). g. Compare data against default_value_array[i]. h. If mismatch, increment def_fail_cnt.&#10;9. Call chk_rd_wr(): a. Define chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0xf5f5f5f5, 0xA5A5A5A5, 0xffff0000}. b. Outer loop j=0 to 5. c. Write loop for each register. d. Read-back loop with expected value computation.&#10;10. If def_fail_cnt > 0 or wr_fail_cnt > 0, call finish(1) FAIL.&#10;11. Else call finish(0) PASS.&#10;12. soft_reset_chk() is disabled (#ifdef 0) - ignored.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">1. All GPIO registers must return their expected default/reset values after reset, with bit 0 (data_in) masked out during comparison. 2. For each of the six test patterns, the write-read-back value must match the expected value computed using write masks, read masks, and default values for non-writable bits. 3. The test must complete with zero default-value mismatches and zero write-read mismatches to pass.</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">gpio/gpio_def.h; gpio/gpio_offset.h; test_common.h</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">MIZAR_GPIO_GP0_GPIO_8; MIZAR_GPIO_GP0_GPIO_9; MIZAR_GPIO_GP0_GPIO_10</Data></Cell>
+    <Cell ss:StyleID="data"><Data ss:Type="String">addr_array[49]; default_value_array[49]; read_mask_array[49]; write_mask_array[49]; skip_array[49]; skip_rst_array[49]; chk_val[6]</Data></Cell>
+   </Row>
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <Visible>SheetVeryHidden</Visible>
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>1</SplitHorizontal>
+   <TopRowBottomPane>1</TopRowBottomPane>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>
