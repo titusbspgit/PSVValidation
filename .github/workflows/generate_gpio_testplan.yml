@@ -2,6 +2,11 @@ name: Generate GPIO TestPlan XLSX
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Test_Output/GPIO/TestPlan/build_xlsx.py'
+      - '.github/workflows/generate_gpio_testplan.yml'
 
 permissions:
   contents: write
@@ -25,19 +30,45 @@ jobs:
       - name: Install openpyxl
         run: pip install openpyxl
 
+      - name: Remove any previous XLSX files
+        working-directory: Test_Output/GPIO/TestPlan
+        run: rm -f GPIO_TestPlan_*.xlsx GPIO_TestPlan_*.b64
+
       - name: Generate GPIO TestPlan XLSX
         working-directory: Test_Output/GPIO/TestPlan
         run: python build_xlsx.py
 
       - name: Verify XLSX generated
         run: |
-          ls -la Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx
-          echo "XLSX file generated successfully"
+          XLSX_FILE=$(ls Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated"
+            exit 1
+          fi
+          FILE_SIZE=$(stat -c%s "$XLSX_FILE")
+          echo "Generated: $XLSX_FILE ($FILE_SIZE bytes)"
+          if [ "$FILE_SIZE" -lt 4000 ]; then
+            echo "ERROR: XLSX file too small, likely corrupt"
+            exit 1
+          fi
+          echo "XLSX_FILENAME=$XLSX_FILE" >> $GITHUB_ENV
 
       - name: Commit and push XLSX to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx"
-          git commit -m "Add auto-generated GPIO TestPlan XLSX [skip ci]"
-          git push
+          git diff --cached --quiet && echo "No changes to commit" || {
+            git commit -m "Auto-generated GPIO TestPlan XLSX [skip ci]"
+            git push
+          }
+
+      - name: Summary
+        run: |
+          echo "## GPIO TestPlan XLSX Generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Status:** SUCCESS" >> $GITHUB_STEP_SUMMARY
+          echo "📄 **File:** ${{ env.XLSX_FILENAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "🕐 **Timezone:** IST (GMT+05:30)" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Sheets:** TestPlan (visible), MetaData (veryHidden)" >> $GITHUB_STEP_SUMMARY
+          echo "📁 **Path:** Test_Output/GPIO/TestPlan/" >> $GITHUB_STEP_SUMMARY
