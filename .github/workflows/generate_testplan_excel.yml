@@ -1,11 +1,16 @@
 name: Generate TestPlan Excel
 
 on:
+  push:
+    paths:
+      - '.github/workflows/generate_testplan_excel.yml'
   workflow_dispatch:
 
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
