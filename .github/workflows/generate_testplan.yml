@@ -1,4 +1,4 @@
-name: Generate TestPlan Excel
+name: Generate GPIO TestPlan XLSX
 
 on:
   push:
@@ -19,20 +19,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install openpyxl
+      - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel
-        run: python Test_Output/GPIO/TestPlan/generate_testplan.py
+      - name: Generate XLSX
+        run: |
+          cd Test_Output/GPIO/TestPlan
+          python3 generate_testplan.py
 
-      - name: Remove generator script
-        run: rm -f Test_Output/GPIO/TestPlan/generate_testplan.py
-
-      - name: Commit Excel
+      - name: Commit XLSX
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/GPIO/TestPlan/*.xlsx
-          git rm --cached Test_Output/GPIO/TestPlan/generate_testplan.py || true
           git commit -m "Added generated TestPlan Excel"
+          git push
+
+      - name: Cleanup generator
+        run: |
+          git rm Test_Output/GPIO/TestPlan/generate_testplan.py
+          git rm .github/workflows/generate_testplan.yml
+          git commit -m "Cleanup: remove generator script and workflow"
           git push
