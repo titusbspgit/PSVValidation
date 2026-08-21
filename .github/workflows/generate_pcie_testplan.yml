@@ -3,12 +3,13 @@ name: Generate PCIE TestPlan Excel
 on:
   push:
     paths:
-      - '.github/workflows/generate_pcie_testplan.yml'
-  workflow_dispatch:
+      - 'Test_Output/PCIE/TestPlan/trigger.txt'
 
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +43,6 @@ jobs:
           header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
           wrap_alignment = Alignment(wrap_text=True, vertical='top')
 
-          # TestPlan Sheet
           ws_tp = wb.active
           ws_tp.title = 'TestPlan'
           tp_headers = ['Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description', 'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks', 'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria', 'Code Generation']
@@ -66,7 +66,6 @@ jobs:
               c = ws_tp.cell(row=2, column=ci, value=v)
               c.alignment = wrap_alignment
 
-          # MetaData Sheet
           ws_md = wb.create_sheet('MetaData')
           md_headers = ['Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure', 'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria', 'Meta Headers', 'Meta Macros', 'Meta Arrays']
           for ci, h in enumerate(md_headers, 1):
@@ -106,16 +105,16 @@ jobs:
           wb.save(output_path)
           print(f'Generated: {output_path}')
           print(f'Size: {os.path.getsize(output_path)} bytes')
-
-          # Write filename to env for next step
-          with open(os.environ['GITHUB_ENV'], 'a') as f:
-              f.write(f'XLSX_FILENAME={filename}\n')
           PYEOF
+
+      - name: Remove trigger file
+        run: rm -f Test_Output/PCIE/TestPlan/trigger.txt
 
       - name: Commit Excel
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/PCIE/TestPlan/*.xlsx
+          git add Test_Output/PCIE/TestPlan/trigger.txt || true
           git commit -m "Added generated TestPlan Excel"
           git push
