@@ -1,41 +1,45 @@
-name: Generate PCIE TestPlan XLSX
+name: Generate PCIE TestPlan Excel
 
 on:
   push:
     paths:
-      - 'Test_Output/PCIE/TestPlan/.generator/generate_xlsx.py'
+      - 'Test_Output/PCIE/TestPlan/generate_testplan.py'
   workflow_dispatch:
 
 jobs:
-  generate-xlsx:
+  generate-excel:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      
       - name: Install dependencies
         run: pip install openpyxl
-
-      - name: Generate XLSX
-        run: python Test_Output/PCIE/TestPlan/.generator/generate_xlsx.py
-
-      - name: Commit and push XLSX
+      
+      - name: Generate Excel workbook
+        run: |
+          cd Test_Output/PCIE/TestPlan
+          python generate_testplan.py
+      
+      - name: Remove placeholder file if exists
+        run: |
+          if [ -f "Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250627_121500.xlsx" ]; then
+            rm -f "Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250627_121500.xlsx"
+          fi
+      
+      - name: Commit generated Excel
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add 'Test_Output/PCIE/TestPlan/*.xlsx'
-          git commit -m "Auto-generated PCIE TestPlan XLSX workbook" || echo "No changes to commit"
+          git add Test_Output/PCIE/TestPlan/*.xlsx
+          git rm --cached Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250627_121500.xlsx 2>/dev/null || true
+          git commit -m "Added generated PCIE TestPlan Excel workbook" || echo "No changes to commit"
           git push
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PCIE-TestPlan-XLSX
-          path: Test_Output/PCIE/TestPlan/*.xlsx
