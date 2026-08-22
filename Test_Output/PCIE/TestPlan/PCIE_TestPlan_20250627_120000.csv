@@ -1,0 +1,140 @@
+Index,SS_Module,Test_Case_Name,Feature,Meta_Test_Description,Test_Description,Meta_Test_Steps,Test_Steps,Meta_Impacted_Registers,Impacted_Registers,Validation_Criteria,Speed,Mode,Memory_Offset,Remarks,Headers,Defines,Arrays
+1,PCIE,pcie_device_enumerate_test,Device Enumeration,"This testcase performs PCIe device enumeration by first writing 0x0 to register at 0xE6004100, then initiating link training (link_training_dm0_x4 or link_training_dm1_x4 depending on DM0_RC/DM1_RC/DM0_EP/DM1_EP compile flags with speed parameter 4). Cache programming is performed by read-modify-write operations on mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF and mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF using set_data() to set bits [14:11] and [6:3] to 0xF, then bits [30:27] and [22:19] to 0xF. After wait_on(20), a combined cache programming pass sets all four bit fields in a single read-modify-write. The test then polls SII0 register at offset 0xC0 until (data_rd & 0xD1) == 0xD1, indicating link-up status. Similarly polls SII1 register at offset 0xC0 for the same condition. Under DM0_RC, reads Vendor ID from PCIe slave0 config space at offset 0x0, writes 0x7 to offset 0x4 (command register), then calls mem_base_program_dm0_x4() and mem_base_program_dm1_x4(). Writes 0x1 to SoC registers at 0xE690000C, 0xE6900010, 0xE6900014, 0xE6900018, 0xE6900030, 0xE6900034. Cache disable programming is performed by read-modify-write on both coherency control registers, setting bits [22:19] to 0x0 while keeping other fields, then after wait_on(10), clearing both [30:27] and [22:19] to 0x0. After wait_on(30), BAR sizing is performed on PCIe slave1 by writing 0xFFFFFFFF to offsets 0x10-0x24, reading back, then writing actual BAR values. Same BAR sizing sequence is repeated for PCIe slave0. Finally, polls register at 0xE6004100 until value equals 0x12345678, then calls finish(0).","This test validates PCIe device enumeration functionality. It initializes the PCIe link by performing link training at Gen4 speed, programs the coherency control registers for cache enablement on both PCIe controller instances, and waits for link-up status by polling the SII status registers. Once the link is established, it reads the Vendor ID from the device configuration space via TYPE1_DEV_ID_VEND_ID_REG, enables bus master and memory space via TYPE1_STATUS_COMMAND_REG, and programs the memory base address windows. The test then configures SoC-level interrupt/control registers, disables cache coherency programming, and performs BAR sizing on both PCIe slave ports by writing all-ones to BAR0_REG through PREF_MEM_LIMIT_PREF_MEM_BASE_REG, reading back the supported size, and programming the actual base addresses. The test concludes by polling a synchronization register until a completion handshake value is received.","1. write_reg(0xE6004100, 0x0) - clear synchronization register.
+2. Conditional link training: call link_training_dm0_x4(4) or link_training_dm1_x4(4) based on compile flags.
+3. CACHE PROGRAMMING - PCIE0: read-modify-write mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF setting bits [14:11]=0xF, [6:3]=0xF, then [30:27]=0xF, [22:19]=0xF.
+4. CACHE PROGRAMMING - PCIE1: same sequence on mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF.
+5. wait_on(20).
+6. Combined cache programming pass on both PCIE0 and PCIE1.
+7. Repeat steps 2-7 (duplicated code block).
+8. Poll read_sii0_reg(0xC0) until (data_rd & 0xD1) == 0xD1.
+9. Poll read_sii1_reg(0xC0) until (data_rd & 0xD1) == 0xD1.
+10. read_pcie_slv0_reg(0x0) - read Vendor ID.
+11. write_pcie_slv0_reg(0x4, 0x7) - enable IO/Memory/Bus Master.
+12. mem_base_program_dm0_x4() and mem_base_program_dm1_x4().
+13. write_reg SoC registers 0xE690000C-0xE6900034 with 0x1.
+14. Disable cache programming on both instances.
+15. BAR sizing on slave1 and slave0.
+16. Poll 0xE6004100 until 0x12345678.
+17. finish(0).","1. Clear the synchronization register.
+2. Initiate PCIe link training at x4 lane width.
+3. Enable cache coherency on COHERENCY_CONTROL_3_OFF for both instances.
+4. Wait for coherency settings to take effect.
+5. Poll SII0 and SII1 link status registers until link-up.
+6. Read TYPE1_DEV_ID_VEND_ID_REG to verify Vendor ID.
+7. Write TYPE1_STATUS_COMMAND_REG to enable IO/Memory/Bus Master.
+8. Program memory base address windows.
+9. Configure SoC-level control registers.
+10. Disable cache coherency in phased sequence.
+11. Perform BAR sizing on both slave ports.
+12. Poll synchronization register for completion.
+13. End test with pass status.","0xE6004100; mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; 0xC0; 0x0; 0x4; 0xE690000C; 0xE6900010; 0xE6900014; 0xE6900018; 0xE6900030; 0xE6900034; 0x10; 0x14; 0x18; 0x1c; 0x20; 0x24","COHERENCY_CONTROL_3_OFF; TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG; BAR0_REG; BAR1_REG; SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG; SEC_STAT_IO_LIMIT_IO_BASE_REG; MEM_LIMIT_MEM_BASE_REG; PREF_MEM_LIMIT_PREF_MEM_BASE_REG","1. PCIe link training completes successfully.
+2. SII0 and SII1 report link-up (0xD1 mask).
+3. TYPE1_DEV_ID_VEND_ID_REG returns valid Vendor ID.
+4. TYPE1_STATUS_COMMAND_REG accepts command write.
+5. BAR sizing returns valid masks.
+6. BAR registers retain programmed values.
+7. Synchronization register reaches 0x12345678.
+8. Test completes with finish(0).",Gen4 x4,"Root Complex (DM0_RC/DM1_RC) / Endpoint (DM0_EP/DM1_EP)",NA,"Duplicated link training and cache programming block. Cache enabled before enumeration and disabled afterward. BAR sizing on both slave ports. Six SoC registers written with 0x1.","stdlib.h; stdio.h; test_common.h; pcie.h","DM0_RC; DM1_RC; DM0_EP; DM1_EP; DEBUG_DISPLAY",NA
+2,PCIE,pcie_dma_write_test,DMA Write,"This testcase performs PCIe DMA write and read-back operations across all four DMA channels. It clears the synchronization register, performs link training, waits for link-up, reads Vendor ID, enables IO/Memory/Bus Master, programs BARs and memory base. Source memory is preloaded with 0xC0DEBEED and 0xF00DDEAF patterns. GIC is initialized. DMA write interrupts are unmasked via DMA_WRITE_INT_MASK_OFF and DMA_READ_INT_MASK_OFF. DMA write channels 0-3 are triggered via DMA_WRITE_DOORBELL_OFF with interrupt-driven completion. DMA read channels 0-3 are triggered via DMA_READ_DOORBELL_OFF. The IRQ handler reads DMA_WRITE_INT_STATUS_OFF and DMA_READ_INT_STATUS_OFF, clears via DMA_WRITE_INT_CLEAR_OFF and DMA_READ_INT_CLEAR_OFF.","This test validates PCIe DMA write and read-back functionality across all four DMA channels. It initializes the PCIe link, reads Vendor ID via TYPE1_DEV_ID_VEND_ID_REG, enables IO/Memory/Bus Master via TYPE1_STATUS_COMMAND_REG. DMA interrupts are unmasked via DMA_WRITE_INT_MASK_OFF and DMA_READ_INT_MASK_OFF. DMA write transfers are executed on channels 0-3 via DMA_WRITE_DOORBELL_OFF. DMA read-back transfers use DMA_READ_DOORBELL_OFF. The interrupt handler reads DMA_WRITE_INT_STATUS_OFF and DMA_READ_INT_STATUS_OFF, clears via DMA_WRITE_INT_CLEAR_OFF and DMA_READ_INT_CLEAR_OFF.","1. write_reg(0xE6004100, 0x0).
+2. Link training.
+3. Poll SII link status at 0xC0.
+4. Read Vendor ID at 0x0.
+5. Write 0x7 to 0x4.
+6. BAR and memory base programming.
+7. non_secure_prot_nic().
+8. Poll 0xE6004100 for 0x12345678.
+9. Preload source memory.
+10. GIC_Set() and GIC_EnableAllIRQ().
+11. Unmask DMA interrupts.
+12. DMA write channels 0-3 via DOORBELL.
+13. DMA read channels 0-3 via DOORBELL.
+14. IRQ handler: read status, clear interrupts.
+15. finish(0).","1. Clear synchronization register.
+2. Initiate link training.
+3. Poll SII link status until link-up.
+4. Read TYPE1_DEV_ID_VEND_ID_REG.
+5. Write TYPE1_STATUS_COMMAND_REG.
+6. Perform BAR and memory base programming.
+7. Wait for synchronization handshake.
+8. Preload source memory with known patterns.
+9. Initialize GIC and enable IRQs.
+10. Unmask DMA interrupts.
+11. Execute DMA write channels 0-3.
+12. Execute DMA read channels 0-3.
+13. Verify interrupt handling.
+14. End test with pass status.","0xE6004100; 0xC0; 0x0; 0x4; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_MASK_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_MASK_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_DOORBELL_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_DOORBELL_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_MASK_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_MASK_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_DOORBELL_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_DOORBELL_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_STATUS_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_STATUS_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_CLEAR_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_CLEAR_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_STATUS_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_STATUS_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_CLEAR_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_CLEAR_OFF","TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG; DMA_WRITE_INT_MASK_OFF; DMA_READ_INT_MASK_OFF; DMA_WRITE_DOORBELL_OFF; DMA_READ_DOORBELL_OFF; DMA_WRITE_INT_STATUS_OFF; DMA_READ_INT_STATUS_OFF; DMA_WRITE_INT_CLEAR_OFF; DMA_READ_INT_CLEAR_OFF","1. PCIe link training completes successfully.
+2. SII link status reports link-up (0xD1 mask).
+3. TYPE1_DEV_ID_VEND_ID_REG returns valid Vendor ID.
+4. DMA write/read interrupt masks cleared.
+5. All four DMA write channels complete via interrupt.
+6. All four DMA read channels complete via interrupt.
+7. Interrupts correctly cleared.
+8. Synchronization register reaches 0x12345678.
+9. Test completes with finish(0).",Gen4 x4,"Root Complex (DM0_RC/DM1_RC) / Endpoint (DM0_EP/DM1_EP)","src_addr0 = 0xE6000000; dst_addr0 = 0xE6001000; wr_addr0(DM0) = 0xA7000000; wr_addr0(DM1) = 0xC7000000","All four DMA write and read channels exercised sequentially. Transfer length 0x40. Two distinct data patterns. Interrupt-driven completion.","stdlib.h; stdio.h; test_common.h; pcie.h","DM0_RC; DM1_RC; DM0_EP; DM1_EP; DEBUG_DISPLAY",NA
+3,PCIE,pcie_mem_wr_rd_test,Memory Write Read,"This testcase performs PCIe memory write and read-back verification. It clears the synchronization register, performs link training, enables cache coherency, waits for link-up, reads Vendor ID, enables IO/Memory/Bus Master, programs BARs and memory base. Signals readiness via 0x11111111. Disables cache coherency. Performs memory write-read-back at multiple offsets. In RC mode: 0x01040000, 0x01000020, 0x01004000. In EP mode: 0x10100, 0x20100, 0x1B100, 0x2B100, 0x30100.","This test validates PCIe memory write and read-back functionality. It initializes the link, programs coherency control registers, reads Vendor ID via TYPE1_DEV_ID_VEND_ID_REG, enables IO/Memory/Bus Master via TYPE1_STATUS_COMMAND_REG. After cache disable, performs memory write-read-back verification at multiple PCIe memory-mapped offsets.","1. write_reg(0xE6004100, 0x0).
+2. Link training.
+3. Cache programming on both PCIE0 and PCIE1.
+4. Poll SII link status.
+5. Read Vendor ID, enable command register.
+6. BAR and memory base programming.
+7. non_secure_prot_nic().
+8. write_reg(0xE6004100, 0x11111111).
+9. Disable cache programming.
+10. Memory write-read-back operations.
+11. Poll 0xE6004100 for 0x12345678.
+12. finish(0).","1. Clear synchronization register.
+2. Initiate link training.
+3. Enable cache coherency on both instances.
+4. Poll SII link status until link-up.
+5. Read TYPE1_DEV_ID_VEND_ID_REG.
+6. Write TYPE1_STATUS_COMMAND_REG.
+7. Perform BAR and memory base programming.
+8. Signal readiness.
+9. Disable cache coherency.
+10. Perform memory write-read-back verification.
+11. Poll for completion handshake.
+12. End test with pass status.","0xE6004100; mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; 0xC0; 0x0; 0x4; 0x01040000; 0x01000020; 0x01004000; 0x10100; 0x20100; 0x1B100; 0x2B100; 0x30100","COHERENCY_CONTROL_3_OFF; TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG","1. PCIe link training completes successfully.
+2. SII link status reports link-up.
+3. TYPE1_DEV_ID_VEND_ID_REG returns valid Vendor ID.
+4. TYPE1_STATUS_COMMAND_REG accepts command write.
+5. Memory write-read-back returns expected data.
+6. RC mode: 3 locations pass verification.
+7. EP mode: 5 BAR1 locations pass verification.
+8. Synchronization register reaches 0x12345678.
+9. Test completes with finish(0).",Gen4 x4,"Root Complex (DM0_RC/DM1_RC) / Endpoint (DM0_EP/DM1_EP)","RC mode: 0x01040000; 0x01000020; 0x01004000 | EP mode (Bar1): 0x10100; 0x20100; 0x1B100; 0x2B100; 0x30100","Cache enabled before link-up, disabled after BAR programming. Supports DM0_RC, DM1_RC, DM0_EP, DM1_EP modes. Synchronization register written with 0x11111111 for readiness.","stdlib.h; stdio.h; test_common.h; pcie.h","DM0_RC; DM1_RC; DM0_EP; DM1_EP; DM0; DM1; DEBUG_DISPLAY",NA
+4,PCIE,pcie_reg_wr_rd_test,Register Write Read,"This testcase performs PCIe register write and read-back verification across DBI controller registers, SII registers, and PHY registers. Five DBI controller registers per instance are tested: MSI_CAP_OFF_08H_REG (offset 0x58), MSI_CAP_OFF_10H_REG (offset 0x60), FILTER_MASK_2_OFF (offset 0x720), AXI_MSTR_MSG_ADDR_HIGH_OFF (offset 0x8F4), and UTILITY_OFF (offset 0xC80). Three SII registers per instance are tested: PCIE0_TRANSMIT_HEADER2, PCIE0_TRANSMIT_HEADER3, PHY_CONTROL_23. Three PHY registers per instance are tested at addresses 0xE68860B8/0xE68862B8/0xE68864B8 (PCIE0) and 0xE68A60B8/0xE68A62B8/0xE68A64B8 (PCIE1). The test first reads all registers and compares against default values (chk_rst_val). Then writes test patterns 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555 (and 0x7BAF, 0x1, 0x003B for PHY) and reads back to verify (chk_rd_wr). SII registers are masked with write masks before writing. PHY registers require PHY reset control write (0x01203000) before access. PHY register reads use 16-bit extraction based on address alignment. Test result is determined by err1 and err2 error counters.","This test validates PCIe register write and read-back functionality across three register domains: DBI controller registers (MSI_CAP_OFF_08H_REG, MSI_CAP_OFF_10H_REG, FILTER_MASK_2_OFF, AXI_MSTR_MSG_ADDR_HIGH_OFF, UTILITY_OFF), SII integration registers, and PHY lane registers. It first verifies reset default values for all registers, then performs write-read-back verification using multiple test data patterns to ensure register accessibility and data integrity.","1. chk_rst_val() - Reset value check:
+   a. Read rc0_ctl_addr[0..4] and compare with ctl_default[0..4].
+   b. Read rc1_ctl_addr[0..4] and compare with ctl_default[0..4].
+   c. Read sii0_addr[0..2] and compare with sii_default[0..2].
+   d. Read sii1_addr[0..2] and compare with sii_default[0..2].
+   e. write_reg(mizar_PCIE0_SII_PHY_RST_CONTROL, 0x01203000).
+   f. write_reg(mizar_PCIE1_SII_PHY_RST_CONTROL, 0x01203000).
+   g. Read phy0_addr[0..2] with 16-bit extraction, compare with phy0_default.
+   h. Read phy1_addr[0..2] with 16-bit extraction, compare with phy1_default.
+2. chk_rd_wr() - Write-read-back check (3 iterations with patterns 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555):
+   a. Write chk_val[j] to rc0_ctl_addr[0..4].
+   b. Write chk_val[j] to rc1_ctl_addr[0..4].
+   c. Write (chk_val[j] & sii0_write_mask[i]) to sii0_addr[0..2].
+   d. Write (chk_val[j] & sii1_write_mask[i]) to sii1_addr[0..2].
+   e. write_reg(mizar_PCIE0_SII_PHY_RST_CONTROL, 0x01203000).
+   f. write_reg(mizar_PCIE1_SII_PHY_RST_CONTROL, 0x01203000).
+   g. Write (chk_val_phy[j] & phy0_write_mask[i]) to phy0_addr[0..2].
+   h. Write (chk_val_phy[j] & phy1_write_mask[i]) to phy1_addr[0..2].
+   i. Read back and verify all registers.
+3. finish(err2 || err1).","1. Read all DBI controller registers for both PCIE0 and PCIE1 instances and verify reset default values.
+2. Read all SII registers for both instances and verify reset default values.
+3. Write PHY reset control to enable PHY register access.
+4. Read all PHY registers for both instances with 16-bit extraction and verify reset default values.
+5. Write test pattern 0xFFFFFFFF to all DBI controller registers and read back to verify.
+6. Write masked test pattern to all SII registers and read back to verify.
+7. Write PHY test pattern to all PHY registers and read back with 16-bit extraction to verify.
+8. Repeat write-read-back with patterns 0xAAAAAAAA and 0x55555555.
+9. Accumulate errors in err1 and err2 counters.
+10. End test with finish(err2 || err1) - pass if no errors.","mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG; mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG; mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF; mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF; mizar_PCIE0_DBI_DSP_UTILITY_OFF; mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG; mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG; mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF; mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF; mizar_PCIE1_DBI_DSP_UTILITY_OFF; mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2; mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3; mizar_PCIE0_SII_PHY_CONTROL_23; mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2; mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3; mizar_PCIE1_SII_PHY_CONTROL_23; mizar_PCIE0_SII_PHY_RST_CONTROL; mizar_PCIE1_SII_PHY_RST_CONTROL; 0xE68860B8; 0xE68862B8; 0xE68864B8; 0xE68A60B8; 0xE68A62B8; 0xE68A64B8","MSI_CAP_OFF_08H_REG; MSI_CAP_OFF_10H_REG; FILTER_MASK_2_OFF; AXI_MSTR_MSG_ADDR_HIGH_OFF; UTILITY_OFF","1. All DBI controller registers read reset default value 0x0.
+2. All SII registers read reset default value 0x0.
+3. All PHY registers read reset default value 0x0.
+4. DBI controller registers accept and retain all test patterns.
+5. SII registers accept and retain masked test patterns.
+6. PHY registers accept and retain masked test patterns with 16-bit extraction.
+7. No data mismatches detected (err1 == 0 and err2 == 0).
+8. Test completes with finish(0) indicating pass.",NA,NA,NA,"Three register domains tested: DBI controller (5 regs x 2 instances), SII (3 regs x 2 instances), PHY (3 regs x 2 instances). SII registers use write masks. PHY registers require reset control write before access and use 16-bit extraction. Three test patterns for DBI/SII, three PHY-specific patterns. Error counters err1 and err2 track failures separately.","stdlib.h; stdio.h; test_common.h; pcie.h",NA,"rc0_ctl_addr[5]; rc1_ctl_addr[5]; ctl_default[5]; sii0_addr[3]; sii1_addr[3]; sii_default[3]; sii0_write_mask[3]; sii1_write_mask[3]; phy0_addr[3]; phy1_addr[3]; phy0_default[3]; phy1_default[3]; phy0_write_mask[3]; phy1_write_mask[3]; chk_val[6]; chk_val_phy[3]"
