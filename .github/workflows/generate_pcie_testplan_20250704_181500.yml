@@ -1,0 +1,74 @@
+name: Generate PCIE TestPlan Excel 20250704_181500
+
+on:
+  push:
+    paths:
+      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250704_181500_generator.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel workbook
+        run: python Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250704_181500_generator.py
+
+      - name: Verify generated file
+        run: |
+          FILE="Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250704_181500.xlsx"
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: File not generated"
+            exit 1
+          fi
+          SIZE=$(stat -c%s "$FILE")
+          if [ "$SIZE" -eq 0 ]; then
+            echo "ERROR: File is empty"
+            exit 1
+          fi
+          echo "File generated successfully: $FILE ($SIZE bytes)"
+
+      - name: Validate workbook with Python
+        run: |
+          python -c "
+          from openpyxl import load_workbook
+          wb = load_workbook('Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250704_181500.xlsx')
+          assert 'TestPlan' in wb.sheetnames, 'TestPlan sheet missing'
+          assert 'MetaData' in wb.sheetnames, 'MetaData sheet missing'
+          ws_tp = wb['TestPlan']
+          assert ws_tp.max_row >= 2, 'TestPlan has no data rows'
+          ws_md = wb['MetaData']
+          assert ws_md.max_row >= 2, 'MetaData has no data rows'
+          assert ws_md.sheet_state == 'veryHidden', 'MetaData not veryHidden'
+          print('Validation PASSED')
+          print(f'TestPlan rows: {ws_tp.max_row - 1}')
+          print(f'MetaData rows: {ws_md.max_row - 1}')
+          wb.close()
+          "
+
+      - name: Commit and push Excel file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250704_181500.xlsx
+          git commit -m "Added generated TestPlan Excel"
+          git push
+
+      - name: Cleanup workflow file
+        run: |
+          git rm .github/workflows/generate_pcie_testplan_20250704_181500.yml
+          git commit -m "Cleanup: Remove one-time generator workflow"
+          git push
