@@ -2,6 +2,7 @@
 """
 Auto-generated TestPlan Excel Generator
 Generates: PCIE_TestPlan_20250704_181500.xlsx
+Triggered: workflow_dispatch or push
 """
 
 import os
