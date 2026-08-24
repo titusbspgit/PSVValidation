@@ -1,0 +1,37 @@
+name: Generate PCIE TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate XLSX
+        working-directory: Test_Output/PCIE/TestPlan
+        run: python .generator/xlsx_builder_20260824.py
+
+      - name: Commit and push XLSX
+        working-directory: Test_Output/PCIE/TestPlan
+        run: |
+          XLSX_FILE=$(ls -t PCIE_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated"
+            exit 1
+          fi
+          echo "Generated: $XLSX_FILE ($(stat -c%s "$XLSX_FILE") bytes)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$XLSX_FILE"
+          git commit -m "Added generated TestPlan Excel"
+          git push
