@@ -2,6 +2,13 @@ name: Generate PCIE TestPlan XLSX
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/generate_pcie_testplan_xlsx.yml'
+
+permissions:
+  contents: write
 
 jobs:
   generate:
