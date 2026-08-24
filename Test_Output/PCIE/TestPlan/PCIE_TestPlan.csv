@@ -1,0 +1,120 @@
+Test_ID,Test_Name,Test_Folder,Test_Description,Test_Category,Test_Steps,Macro_Name,Resolved_Register_Name,Register_Offset,Block_Base_Offset,Register_Address_PCIE0,Register_Address_PCIE1,Field_Name,Bit_Range,Access_Type,Reset_Value,Operation,Write_Value,Expected_Value,Pass_Criteria
+TC_001,pcie_device_enumerate_test,pcie_device_enumerate_test,"PCIe Device Enumeration Test - Validates PCIe link training for DM0/DM1 in RC/EP modes, programs coherency cache control registers, reads Vendor ID, programs memory base addresses, performs BAR register read/write, and validates device enumeration completion via polling.",Enumeration,"Step 1: Write 0x0 to address 0xE6004100 (initialization)
+Step 2: Perform link training (dm0_x4 or dm1_x4 based on config)
+Step 3: Program COHERENCY_CONTROL_3_OFF for PCIE0 - set bits[14:11]=0xF (AWCACHE_MODE), bits[6:3]=0xF (ARCACHE_MODE)
+Step 4: Program COHERENCY_CONTROL_3_OFF for PCIE0 - set bits[30:27]=0xF (AWCACHE_VALUE), bits[22:19]=0xF (ARCACHE_VALUE)
+Step 5: Repeat Steps 3-4 for PCIE1
+Step 6: Wait 20 cycles
+Step 7: Re-program COHERENCY_CONTROL_3_OFF for both PCIE0 and PCIE1 with all cache fields set to 0xF
+Step 8: Poll SII0 register 0xC0 until (data & 0xD1) == 0xD1 (link up)
+Step 9: Poll SII1 register 0xC0 until (data & 0xD1) == 0xD1 (link up)
+Step 10: Read Vendor ID from PCIe slave0 offset 0x0
+Step 11: Write 0x7 to PCIe slave0 offset 0x4 (enable IO/MEM/BusMaster)
+Step 12: Program memory base for DM0 and DM1
+Step 13: Write control registers 0xE690000C-0xE6900034 with 0x1
+Step 14: Disable cache - set ARCACHE_VALUE and AWCACHE_VALUE to 0x0
+Step 15: Write 0xFFFFFFFF to PCIe slave BAR registers (0x10-0x24) for sizing
+Step 16: Read back BAR registers to determine size
+Step 17: Program BAR registers with base addresses
+Step 18: Read back and verify BAR programming
+Step 19: Poll 0xE6004100 until value == 0x12345678 (test completion)
+Step 20: Call finish(0)",mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x700 + 0x1E8,PCIE1_DBI_BASE + 0x700 + 0x1E8,"CFG_MSTR_ARCACHE_MODE[6:3], CFG_MSTR_AWCACHE_MODE[14:11], CFG_MSTR_ARCACHE_VALUE[22:19], CFG_MSTR_AWCACHE_VALUE[30:27]","[6:3],[14:11],[22:19],[30:27]",rw,0x0,Read-Modify-Write,"0xF (each field)","Cache enable: all fields=0xF; Cache disable: VALUE fields=0x0","Link training completes successfully; SII status shows 0xD1; Vendor ID read returns valid value; BAR sizing and programming succeed; Polling 0xE6004100 returns 0x12345678"
+TC_001_R01,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: COHERENCY_CONTROL_3_OFF - Cache mode and value programming for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,CFG_MSTR_ARCACHE_MODE,"[6:3]",rw,4'h0,Read-Modify-Write,0xF,0xF,Read-back matches written value
+TC_001_R02,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: COHERENCY_CONTROL_3_OFF - AWCACHE mode programming for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,CFG_MSTR_AWCACHE_MODE,"[14:11]",rw,4'h0,Read-Modify-Write,0xF,0xF,Read-back matches written value
+TC_001_R03,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: COHERENCY_CONTROL_3_OFF - ARCACHE value programming for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,CFG_MSTR_ARCACHE_VALUE,"[22:19]",rw,4'h0,Read-Modify-Write,"0xF (enable) / 0x0 (disable)","0xF or 0x0",Read-back matches written value
+TC_001_R04,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: COHERENCY_CONTROL_3_OFF - AWCACHE value programming for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,CFG_MSTR_AWCACHE_VALUE,"[30:27]",rw,4'h0,Read-Modify-Write,"0xF (enable) / 0x0 (disable)","0xF or 0x0",Read-back matches written value
+TC_001_R05,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: COHERENCY_CONTROL_3_OFF - Cache programming for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),,PCIE1_DBI_BASE + 0x8E8,"CFG_MSTR_ARCACHE_MODE, CFG_MSTR_AWCACHE_MODE, CFG_MSTR_ARCACHE_VALUE, CFG_MSTR_AWCACHE_VALUE","[6:3],[14:11],[22:19],[30:27]",rw,4'h0,Read-Modify-Write,"0xF / 0x0","0xF / 0x0",Read-back matches written value
+TC_001_R06,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: TYPE1_DEV_ID_VEND_ID_REG - Vendor ID read via PCIe slave,Register_Access,,N/A (PCIe Config Space),TYPE1_DEV_ID_VEND_ID_REG,0x0,0x0 (TYPE1_HDR),PCIe_SLV0 + 0x0,,VENDOR_ID,"[15:0]",ro,16'h16C3,Read,N/A,Valid Vendor ID,Non-zero Vendor ID returned
+TC_001_R07,pcie_device_enumerate_test,pcie_device_enumerate_test,Register: TYPE1_STATUS_COMMAND_REG - Enable IO/MEM/BusMaster,Register_Access,,N/A (PCIe Config Space),TYPE1_STATUS_COMMAND_REG,0x4,0x0 (TYPE1_HDR),PCIe_SLV0 + 0x4,,"IO_EN, MSE, BME","[0],[1],[2]","other,other,rw",0x0,Write,0x7,0x7,Command register enables IO/MEM/BusMaster
+TC_002,pcie_dma_write_test,pcie_dma_write_test,"PCIe DMA Write/Read Test - Validates DMA engine operation across all 4 write and 4 read channels for DM0/DM1. Programs DMA interrupt masks, preloads source data, triggers DMA transfers via doorbell registers, and validates completion via interrupt handling.",DMA,"Step 1: Write 0x0 to address 0xE6004100 (initialization)
+Step 2: Perform link training (dm0_x4 or dm1_x4)
+Step 3: Poll SII0/SII1 register 0xC0 until link up (data & 0xD1 == 0xD1)
+Step 4: Read Vendor ID from PCIe slave offset 0x0
+Step 5: Write 0x7 to PCIe slave offset 0x4 (enable IO/MEM/BusMaster)
+Step 6: Program BAR registers
+Step 7: Program memory base
+Step 8: Configure non-secure protection in NIC
+Step 9: Poll 0xE6004100 until 0x12345678 (sync)
+Step 10: Set DMA transfer length = 0x40
+Step 11: Set source address = 0xE6000000
+Step 12: Set write/read addresses (DM0: 0xA7000000; DM1: 0xC7000000)
+Step 13: Preload source data: 128 words of 0xC0DEBEED, 128 words of 0xF00DDEAF
+Step 14: Configure GIC interrupts
+Step 15: Write 0x0 to DMA_WRITE_INT_MASK_OFF (unmask all write interrupts)
+Step 16: Write 0x0 to DMA_READ_INT_MASK_OFF (unmask all read interrupts)
+Step 17: Program DMA write channel 0 and trigger via DMA_WRITE_DOORBELL_OFF = 0x0
+Step 18: Wait for interrupt, clear via DMA_WRITE_INT_CLEAR_OFF
+Step 19: Repeat for DMA write channels 1-3 (doorbell values 0x1-0x3)
+Step 20: Program DMA read channel 0 and trigger via DMA_READ_DOORBELL_OFF = 0x0
+Step 21: Wait for interrupt, clear via DMA_READ_INT_CLEAR_OFF
+Step 22: Repeat for DMA read channels 1-3
+Step 23: Call finish(0)",mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_MASK_OFF,DMA_WRITE_INT_MASK_OFF,0x54,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x380054,PCIE1_DBI_BASE + 0x380054,"WR_DONE_INT_MASK[3:0], WR_ABORT_INT_MASK[19:16]","[3:0],[19:16]",rw,"4'hF, 4'hF",Write,0x0,0x0 (all interrupts unmasked),All DMA write interrupts are unmasked
+TC_002_R01,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_WRITE_INT_MASK_OFF - Unmask DMA write interrupts,Register_Access,,mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_MASK_OFF,DMA_WRITE_INT_MASK_OFF,0x54,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x380054,PCIE1_DBI_BASE + 0x380054,WR_DONE_INT_MASK,"[3:0]",rw,4'hF,Write,0x0,0x0,Interrupt mask cleared
+TC_002_R02,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_READ_INT_MASK_OFF - Unmask DMA read interrupts,Register_Access,,mizar_PCIE0_DBI_DSP_DMA_READ_INT_MASK_OFF,DMA_READ_INT_MASK_OFF,0xA8,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x3800A8,PCIE1_DBI_BASE + 0x3800A8,RD_DONE_INT_MASK,"[3:0]",rw,4'hF,Write,0x0,0x0,Interrupt mask cleared
+TC_002_R03,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_WRITE_DOORBELL_OFF - Trigger DMA write channels 0-3,Register_Access,,mizar_PCIE0_DBI_DSP_DMA_WRITE_DOORBELL_OFF,DMA_WRITE_DOORBELL_OFF,0x10,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x380010,PCIE1_DBI_BASE + 0x380010,WR_DOORBELL_NUM,"[2:0]",other,3'h0,Write,"0x0/0x1/0x2/0x3",N/A (trigger),DMA write transfer initiated for each channel
+TC_002_R04,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_READ_DOORBELL_OFF - Trigger DMA read channels 0-3,Register_Access,,mizar_PCIE0_DBI_DSP_DMA_READ_DOORBELL_OFF,DMA_READ_DOORBELL_OFF,0x30,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x380030,PCIE1_DBI_BASE + 0x380030,RD_DOORBELL_NUM,"[2:0]",other,3'h0,Write,"0x0/0x1/0x2/0x3",N/A (trigger),DMA read transfer initiated for each channel
+TC_002_R05,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_WRITE_INT_STATUS_OFF - Read DMA write interrupt status (IRQ handler),Register_Access,,mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_STATUS_OFF,DMA_WRITE_INT_STATUS_OFF,0x4C,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x38004C,PCIE1_DBI_BASE + 0x38004C,WR_DONE_INT_STATUS,"[7:0]",other,8'h0,Read,N/A,Non-zero on completion,Interrupt status indicates DMA write done
+TC_002_R06,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_READ_INT_STATUS_OFF - Read DMA read interrupt status (IRQ handler),Register_Access,,mizar_PCIE0_DBI_DSP_DMA_READ_INT_STATUS_OFF,DMA_READ_INT_STATUS_OFF,0xA0,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x3800A0,PCIE1_DBI_BASE + 0x3800A0,RD_DONE_INT_STATUS,"[7:0]",other,8'h0,Read,N/A,Non-zero on completion,Interrupt status indicates DMA read done
+TC_002_R07,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_WRITE_INT_CLEAR_OFF - Clear DMA write interrupt (IRQ handler),Register_Access,,mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_CLEAR_OFF,DMA_WRITE_INT_CLEAR_OFF,0x58,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x380058,PCIE1_DBI_BASE + 0x380058,WR_DONE_INT_CLEAR,"[3:0]",other,4'h0,Write,dma_wr_int_sts,0x0 (cleared),DMA write interrupt cleared successfully
+TC_002_R08,pcie_dma_write_test,pcie_dma_write_test,Register: DMA_READ_INT_CLEAR_OFF - Clear DMA read interrupt (IRQ handler),Register_Access,,mizar_PCIE0_DBI_DSP_DMA_READ_INT_CLEAR_OFF,DMA_READ_INT_CLEAR_OFF,0xAC,0x380000 (DMA_CAP),PCIE0_DBI_BASE + 0x3800AC,PCIE1_DBI_BASE + 0x3800AC,RD_DONE_INT_CLEAR,"[7:0]",other,8'h0,Write,dma_rd_int_sts,0x0 (cleared),DMA read interrupt cleared successfully
+TC_003,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,"PCIe Memory Write/Read Test - Validates PCIe memory space read/write operations through slave interfaces. Programs coherency cache control, performs link training, BAR programming, memory base programming, and executes memory write/read transactions to verify data integrity across PCIe memory space.",Memory_Access,"Step 1: Write 0x0 to address 0xE6004100 (initialization)
+Step 2: Perform link training (dm0_x4 or dm1_x4)
+Step 3: Program COHERENCY_CONTROL_3_OFF for PCIE0 - enable cache (ARCACHE/AWCACHE MODE and VALUE = 0xF)
+Step 4: Program COHERENCY_CONTROL_3_OFF for PCIE1 - enable cache
+Step 5: Wait 20 cycles
+Step 6: Re-program cache with all fields = 0xF for both PCIE0 and PCIE1
+Step 7: Poll SII0 register 0xC0 until link up
+Step 8: Poll SII1 register 0xC0 until link up
+Step 9: Read Vendor ID from PCIe slave
+Step 10: Write 0x7 to command register (enable IO/MEM/BusMaster)
+Step 11: Program BAR registers for DM0/DM1
+Step 12: Program memory base for DM0/DM1
+Step 13: Program BAR for EP mode if applicable
+Step 14: Configure non-secure protection in NIC
+Step 15: Write 0x11111111 to 0xE6004100 (sync signal)
+Step 16: Disable cache - set ARCACHE_VALUE and AWCACHE_VALUE to 0x0
+Step 17: Wait and fully disable cache (MODE fields also to 0x0)
+Step 18: Wait 30 cycles
+Step 19: DM0_RC: Memory write/read at offsets 0x01040000(data=0xA5A5A5A5), 0x01000020(data=0xA6A6A6A6), 0x01004000(data=0xA7A7A7A7)
+Step 20: DM1_RC: Memory write/read at offsets 0x01040000(data=0xB5B5B5B5), 0x01000020(data=0xB5B5B6B6), 0x01004000(data=0xB7B7B5B5)
+Step 21: DM0_EP: Memory write/read at BAR1 offsets 0x10100,0x20100,0x1B100,0x2B100,0x30100 (data=0x5A5A5A5A)
+Step 22: DM1_EP: Same as Step 21 via slave1
+Step 23: Poll 0xE6004100 until 0x12345678
+Step 24: Call finish(0)",mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,PCIE1_DBI_BASE + 0x8E8,"CFG_MSTR_ARCACHE_MODE, CFG_MSTR_AWCACHE_MODE, CFG_MSTR_ARCACHE_VALUE, CFG_MSTR_AWCACHE_VALUE","[6:3],[14:11],[22:19],[30:27]",rw,0x0,Read-Modify-Write,"0xF (enable) / 0x0 (disable)","Enable: 0xF; Disable: 0x0","Cache programming verified; Memory write data matches read data for all addresses"
+TC_003_R01,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,Register: COHERENCY_CONTROL_3_OFF - Cache enable for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,"CFG_MSTR_ARCACHE_MODE, CFG_MSTR_AWCACHE_MODE","[6:3],[14:11]",rw,4'h0,Read-Modify-Write,0xF,0xF,Cache mode enabled
+TC_003_R02,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,Register: COHERENCY_CONTROL_3_OFF - Cache value for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8E8,,"CFG_MSTR_ARCACHE_VALUE, CFG_MSTR_AWCACHE_VALUE","[22:19],[30:27]",rw,4'h0,Read-Modify-Write,"0xF / 0x0","0xF / 0x0",Cache value programmed correctly
+TC_003_R03,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,Register: COHERENCY_CONTROL_3_OFF - Cache enable for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF,COHERENCY_CONTROL_3_OFF,0x1E8,0x700 (PORT_LOGIC),,PCIE1_DBI_BASE + 0x8E8,"CFG_MSTR_ARCACHE_MODE, CFG_MSTR_AWCACHE_MODE, CFG_MSTR_ARCACHE_VALUE, CFG_MSTR_AWCACHE_VALUE","[6:3],[14:11],[22:19],[30:27]",rw,4'h0,Read-Modify-Write,"0xF / 0x0","0xF / 0x0",Cache programming verified for PCIE1
+TC_003_R04,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,Memory Write/Read - DM0_RC data integrity check,Data_Integrity,,N/A,N/A,N/A,N/A,"PCIe_SLV0 + 0x01040000, 0x01000020, 0x01004000",,N/A,N/A,N/A,N/A,Write then Read,"0xA5A5A5A5, 0xA6A6A6A6, 0xA7A7A7A7","0xA5A5A5A5, 0xA6A6A6A6, 0xA7A7A7A7",Read data matches written data
+TC_003_R05,pcie_mem_wr_rd_test,pcie_mem_wr_rd_test,Memory Write/Read - DM1_RC data integrity check,Data_Integrity,,N/A,N/A,N/A,N/A,,"PCIe_SLV1 + 0x01040000, 0x01000020, 0x01004000",N/A,N/A,N/A,N/A,Write then Read,"0xB5B5B5B5, 0xB5B5B6B6, 0xB7B7B5B5","0xB5B5B5B5, 0xB5B5B6B6, 0xB7B7B5B5",Read data matches written data
+TC_004,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,"PCIe Register Write/Read Test - Validates reset default values and read/write functionality of PCIe controller registers (DBI), SII registers, and PHY registers. Tests multiple data patterns (0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000) with write mask verification.",Register_RW,"Step 1: Call chk_rst_val() to verify reset defaults
+Step 2: Read rc0_ctl_addr[0..4] and compare against ctl_default[0..4] (all 0x0)
+Step 3: Read rc1_ctl_addr[0..4] and compare against ctl_default[0..4]
+Step 4: Read sii0_addr[0..2] and compare against sii_default[0..2] (all 0x0)
+Step 5: Read sii1_addr[0..2] and compare against sii_default[0..2]
+Step 6: Write 0x01203000 to PHY_RST_CONTROL for PCIE0 and PCIE1
+Step 7: Read phy0_addr[0..2] and compare against phy0_default (all 0x0)
+Step 8: Read phy1_addr[0..2] and compare against phy1_default (all 0x0)
+Step 9: Call chk_rd_wr() for read/write verification
+Step 10: For each pattern in {0xFFFFFFFF, 0xAAAAAAAA, 0x55555555}:
+Step 10a: Write pattern to all rc0_ctl_addr and rc1_ctl_addr registers
+Step 10b: Write (pattern & write_mask) to all sii0_addr and sii1_addr registers
+Step 10c: Write PHY_RST_CONTROL, then write phy patterns to phy0/phy1 addresses
+Step 10d: Read back all registers and verify against written values
+Step 11: Call finish(err2 || err1)",mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG,MSI_CAP_OFF_08H_REG,0x8,0x50 (MSI_CAP),PCIE0_DBI_BASE + 0x58,PCIE1_DBI_BASE + 0x58,"PCI_MSI_CAP_OFF_08H[15:0], PCI_MSI_CAP_OFF_0AH[31:16]","[15:0],[31:16]",rw,0x0,"Reset Check then Write/Read","0xFFFFFFFF / 0xAAAAAAAA / 0x55555555",Written value,"Reset value = 0x0; Read-back matches written pattern"
+TC_004_R01,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: MSI_CAP_OFF_08H_REG - Reset check and RW test for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG,MSI_CAP_OFF_08H_REG,0x8,0x50 (MSI_CAP),PCIE0_DBI_BASE + 0x58,,"PCI_MSI_CAP_OFF_08H, PCI_MSI_CAP_OFF_0AH","[15:0],[31:16]",rw,0x0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R02,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: MSI_CAP_OFF_10H_REG - Reset check and RW test for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG,MSI_CAP_OFF_10H_REG,0x10,0x50 (MSI_CAP),PCIE0_DBI_BASE + 0x60,,PCI_MSI_CAP_OFF_10H,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R03,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: FILTER_MASK_2_OFF - Reset check and RW test for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF,FILTER_MASK_2_OFF,0x20,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x720,,MASK_RADM_2,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R04,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: AXI_MSTR_MSG_ADDR_HIGH_OFF - Reset check and RW test for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,AXI_MSTR_MSG_ADDR_HIGH_OFF,0x1F4,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0x8F4,,CFG_AXIMSTR_MSG_ADDR_HIGH,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R05,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: UTILITY_OFF - Reset check and RW test for PCIE0,Register_Access,,mizar_PCIE0_DBI_DSP_UTILITY_OFF,UTILITY_OFF,0x580,0x700 (PORT_LOGIC),PCIE0_DBI_BASE + 0xC80,,UTILITY,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R06,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: MSI_CAP_OFF_08H_REG - Reset check and RW test for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG,MSI_CAP_OFF_08H_REG,0x8,0x50 (MSI_CAP),,PCIE1_DBI_BASE + 0x58,"PCI_MSI_CAP_OFF_08H, PCI_MSI_CAP_OFF_0AH","[15:0],[31:16]",rw,0x0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R07,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: MSI_CAP_OFF_10H_REG - Reset check and RW test for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG,MSI_CAP_OFF_10H_REG,0x10,0x50 (MSI_CAP),,PCIE1_DBI_BASE + 0x60,PCI_MSI_CAP_OFF_10H,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R08,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: FILTER_MASK_2_OFF - Reset check and RW test for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF,FILTER_MASK_2_OFF,0x20,0x700 (PORT_LOGIC),,PCIE1_DBI_BASE + 0x720,MASK_RADM_2,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R09,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: AXI_MSTR_MSG_ADDR_HIGH_OFF - Reset check and RW test for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,AXI_MSTR_MSG_ADDR_HIGH_OFF,0x1F4,0x700 (PORT_LOGIC),,PCIE1_DBI_BASE + 0x8F4,CFG_AXIMSTR_MSG_ADDR_HIGH,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R10,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: UTILITY_OFF - Reset check and RW test for PCIE1,Register_Access,,mizar_PCIE1_DBI_DSP_UTILITY_OFF,UTILITY_OFF,0x580,0x700 (PORT_LOGIC),,PCIE1_DBI_BASE + 0xC80,UTILITY,"[31:0]",rw,32'h0,"Reset Read / Pattern Write / Read-back","0xFFFFFFFF/0xAAAAAAAA/0x55555555",Written pattern,Reset=0x0; RW patterns match
+TC_004_R11,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: SII PCIE0_TRANSMIT_HEADER2 - Reset check and RW test,Register_Access,,mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2,PCIE0_TRANSMIT_HEADER2,N/A,SII Block,PCIE0_SII_BASE + offset,,TRANSMIT_HEADER2,"[31:0]",rw,0x0,"Reset Read / Pattern Write (masked) / Read-back","Pattern & 0xFFFFFFFF",Written masked value,Reset=0x0; RW with mask verified
+TC_004_R12,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: SII PCIE0_TRANSMIT_HEADER3 - Reset check and RW test,Register_Access,,mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3,PCIE0_TRANSMIT_HEADER3,N/A,SII Block,PCIE0_SII_BASE + offset,,TRANSMIT_HEADER3,"[31:0]",rw,0x0,"Reset Read / Pattern Write (masked) / Read-back","Pattern & 0xFFFFFFFF",Written masked value,Reset=0x0; RW with mask verified
+TC_004_R13,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: SII PHY_CONTROL_23 - Reset check and RW test,Register_Access,,mizar_PCIE0_SII_PHY_CONTROL_23,PHY_CONTROL_23,N/A,SII Block,PCIE0_SII_BASE + offset,,PHY_CONTROL_23,"[19:16],[3:0]",rw,0x0,"Reset Read / Pattern Write (mask=0xF000F) / Read-back","Pattern & 0xF000F",Written masked value,Reset=0x0; RW with mask 0xF000F verified
+TC_004_R14,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: SII PCIE1 registers - Reset check and RW test,Register_Access,,"mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2, HEADER3, PHY_CONTROL_23","TRANSMIT_HEADER2, HEADER3, PHY_CONTROL_23",N/A,SII Block,,PCIE1_SII_BASE + offsets,"TRANSMIT_HEADER2, HEADER3, PHY_CONTROL_23",Various,rw,0x0,"Reset Read / Pattern Write (masked) / Read-back","Pattern & write_mask",Written masked value,Reset=0x0; RW with respective masks verified
+TC_004_R15,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: PHY_RST_CONTROL - Write to release PHY reset,Register_Access,,mizar_PCIE0_SII_PHY_RST_CONTROL,PHY_RST_CONTROL,N/A,SII Block,PCIE0_SII_BASE + offset,PCIE1_SII_BASE + offset,PHY_RST_CONTROL,"[31:0]",rw,N/A,Write,0x01203000,0x01203000,PHY reset released for both PCIE0 and PCIE1
+TC_004_R16,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: PHY0 registers (0xE68860B8/0xE68862B8/0xE68864B8) - Reset and RW test,Register_Access,,N/A (Direct PHY addresses),PHY Registers,"0xE68860B8, 0xE68862B8, 0xE68864B8",PHY Block,"0xE68860B8, 0xE68862B8, 0xE68864B8",,PHY register fields,"[12:0] (mask=0x1FFF)",rw,0x0,"Reset Read / Pattern Write (mask=0x1FFF) / Read-back","0x7BAF&0x1FFF=0x1BAF / 0x1&0x1FFF=0x1 / 0x3B&0x1FFF=0x3B",Written masked value,Reset=0x0; RW with mask 0x1FFF verified
+TC_004_R17,pcie_reg_wr_rd_test,pcie_reg_wr_rd_test,Register: PHY1 registers (0xE68A60B8/0xE68A62B8/0xE68A64B8) - Reset and RW test,Register_Access,,N/A (Direct PHY addresses),PHY Registers,"0xE68A60B8, 0xE68A62B8, 0xE68A64B8",PHY Block,,"0xE68A60B8, 0xE68A62B8, 0xE68A64B8",PHY register fields,"[12:0] (mask=0x1FFF)",rw,0x0,"Reset Read / Pattern Write (mask=0x1FFF) / Read-back","0x7BAF&0x1FFF / 0x1&0x1FFF / 0x3B&0x1FFF",Written masked value,Reset=0x0; RW with mask 0x1FFF verified
