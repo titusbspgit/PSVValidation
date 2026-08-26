@@ -1,69 +1,152 @@
 #!/usr/bin/env python3
-"""
-Complete PCIE TestPlan XLSX Builder
-Generates PCIE_TestPlan_20260824_151119.xlsx
-"""
-import json
-import base64
-from io import BytesIO
-from openpyxl import Workbook
+"""Build PCIE TestPlan XLSX - Full standalone generator"""
+import os, sys, base64, io
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 
-JSON_DATA = '''PLACEHOLDER'''
+# Try rich text
+try:
+    from openpyxl.cell.rich_text import CellRichText, TextBlock
+    from openpyxl.cell.text import InlineFont
+    RICH = True
+except:
+    RICH = False
 
-tp_cols = ["Index","SS / Module","Feature","Test Case Name","Test Description",
-           "Speed","Mode","Memory Start Offset","Memory End Offset","Remarks",
-           "Test Steps / Procedure","Impacted Registers",
-           "Validation / Acceptance Criteria","Code Generation"]
+wb = Workbook()
+ws_tp = wb.active
+ws_tp.title = "TestPlan"
+ws_md = wb.create_sheet("MetaData")
 
-md_cols = ["Index","Test Case Name","Meta Test Description",
-           "Meta Test Steps / Procedure","Meta Impacted Registers",
-           "Meta Validation / Acceptance Criteria",
-           "Meta Headers","Meta Macros","Meta Arrays"]
+TP_COLS = ["Index","SS / Module","Feature","Test Case Name","Test Description","Speed","Mode","Memory Start Offset","Memory End Offset","Remarks","Test Steps / Procedure","Impacted Registers","Validation / Acceptance Criteria","Code Generation"]
+MD_COLS = ["Index","Test Case Name","Meta Test Description","Meta Test Steps / Procedure","Meta Impacted Registers","Meta Validation / Acceptance Criteria","Meta Headers","Meta Macros","Meta Arrays"]
 
-def build():
-    data = json.loads(JSON_DATA)
-    wb = Workbook()
-    ws_tp = wb.active
-    ws_tp.title = "TestPlan"
-    ws_md = wb.create_sheet("MetaData")
-    
-    hf = Font(bold=True, color="FFFFFF")
-    hfill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-    wrap = Alignment(wrap_text=True, vertical="top")
-    
-    for ws, cols in [(ws_tp, tp_cols), (ws_md, md_cols)]:
-        for ci, cn in enumerate(cols, 1):
-            c = ws.cell(row=1, column=ci, value=cn)
-            c.font = hf; c.fill = hfill; c.alignment = wrap
-        ws.freeze_panes = "A2"
-    
-    for ri, row in enumerate(data, 2):
-        for ci, col in enumerate(tp_cols, 1):
-            c = ws_tp.cell(row=ri, column=ci, value=row.get(col, ""))
-            c.alignment = wrap
-        for ci, col in enumerate(md_cols, 1):
-            c = ws_md.cell(row=ri, column=ci, value=row.get(col, ""))
-            c.alignment = wrap
-    
-    for ws in [ws_tp, ws_md]:
-        for ci in range(1, ws.max_column + 1):
-            ml = 0
-            for row in ws.iter_rows(min_col=ci, max_col=ci):
-                for cell in row:
-                    if cell.value:
-                        ml = max(ml, min(len(str(cell.value)), 80))
-            ws.column_dimensions[get_column_letter(ci)].width = max(12, min(ml + 2, 82))
-    
-    ws_md.sheet_state = "veryHidden"
-    
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode('ascii')
+hdr_font = Font(bold=True, color="FFFFFF", size=11)
+hdr_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+hdr_align = Alignment(horizontal="center", vertical="top", wrap_text=True)
+cell_align = Alignment(vertical="top", wrap_text=True)
 
-if __name__ == "__main__":
-    b64 = build()
-    print(b64[:100])
-    print(f"Total base64 length: {len(b64)}")
+for ci, col in enumerate(TP_COLS, 1):
+    c = ws_tp.cell(row=1, column=ci, value=col)
+    c.font = hdr_font; c.fill = hdr_fill; c.alignment = hdr_align
+
+for ci, col in enumerate(MD_COLS, 1):
+    c = ws_md.cell(row=1, column=ci, value=col)
+    c.font = hdr_font; c.fill = hdr_fill; c.alignment = hdr_align
+
+# Data rows
+DATA = [
+  {"Index":"1","SS / Module":"PCIE","Feature":"PCIe Device Enumeration","Test Case Name":"pcie_device_enumerate_test",
+   "Test Description":"Verifies PCIe device enumeration by performing link training, configuring cache coherency via the COHERENCY_CONTROL_3_OFF register for both PCIe controller instances, polling the SII link status registers until link-up is confirmed, reading the TYPE1_DEV_ID_VEND_ID_REG to retrieve the endpoint Vendor ID, enabling IO, Memory, and Bus Master access via TYPE1_STATUS_COMMAND_REG, programming memory base addresses, performing BAR sizing and assignment on BAR0_REG, BAR1_REG, SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG, SEC_STAT_IO_LIMIT_IO_BASE_REG, MEM_LIMIT_MEM_BASE_REG, and PREF_MEM_LIMIT_PREF_MEM_BASE_REG for both PCIe slave ports, and polling a system handshake register for the expected completion value.",
+   "Impacted Registers":"COHERENCY_CONTROL_3_OFF; TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG; BAR0_REG; BAR1_REG; SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG; SEC_STAT_IO_LIMIT_IO_BASE_REG; MEM_LIMIT_MEM_BASE_REG; PREF_MEM_LIMIT_PREF_MEM_BASE_REG",
+   "Validation / Acceptance Criteria":"The test passes when all of the following conditions are met: 1. PCIe link training completes successfully for the configured controller mode. 2. The SII0 link status register reports link-up with the expected bit pattern confirming data link layer active and link-up status for PCIE0. 3. The SII1 link status register reports link-up with the expected bit pattern for PCIE1. 4. The TYPE1_DEV_ID_VEND_ID_REG returns a valid Vendor ID from the endpoint device. 5. TYPE1_STATUS_COMMAND_REG is successfully written to enable IO, Memory, and Bus Master access. 6. BAR sizing returns valid size information for all BARs on both PCIe slave ports. 7. BAR programming with actual address values completes and read-back confirms correct values. 8. The system handshake register returns the expected completion value, confirming the remote endpoint has completed its enumeration sequence. 9. The test calls finish(0) indicating successful completion.",
+   "Remarks":"The testcase uses conditional compilation (DM0_RC, DM1_RC, DM0_EP, DM1_EP) to select between Root Complex and Endpoint modes and between dual-mode controller instances. Polling with wait_on() delays is used for link status confirmation and completion handshake. Several system-level registers used for configuration could not be mapped to named registers in the specification. The SII link status register at the polled offset could not be mapped to a named register. One coherency control macro for the second PCIe instance could not be resolved from the available headers.",
+   "Meta Test Description":"This testcase performs PCIe device enumeration across two PCIe controller instances (DM0 and DM1). It begins by writing 0x0 to 0xE6004100 to initialize the system. Link training is invoked conditionally based on compile-time defines (DM0_RC, DM1_RC, DM0_EP, DM1_EP) using link_training_dm0_x4(4) or link_training_dm1_x4(4). Cache coherency programming is performed by read-modify-write operations on mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF and mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF, setting bit fields [11:14], [3:6], [27:30], and [19:22] to 0xF using set_data(). After a wait_on(20), the same coherency registers are programmed again. The SII0 link status register at offset 0xC0 is polled via read_sii0_reg() until bits matching mask 0xD1 are all set, confirming link-up for PCIE0. Similarly, SII1 link status at 0xC0 is polled via read_sii1_reg() for PCIE1 link-up. Under DM0_RC, the Vendor ID is read from the endpoint via read_pcie_slv0_reg(0x0), the command register at offset 0x4 is written with 0x7 via write_pcie_slv0_reg() to enable IO, Memory, and Bus Master, and memory base programming functions mem_base_program_dm0_x4() and mem_base_program_dm1_x4() are called. System-level configuration registers at 0xE690000C through 0xE6900034 are written with 0x1. Cache coherency is then disabled by writing 0x0 to bit fields [19:22] and [27:30] of both coherency control registers. After wait_on(30), BAR sizing is performed on PCIe slave port 1 by writing 0xFFFFFFFF to offsets 0x10-0x24 via write_pcie_slv1_reg(), reading back via read_pcie_slv1_reg(), then programming actual BAR values. The same BAR sizing and programming sequence is repeated for PCIe slave port 0 via write_pcie_slv0_reg() and read_pcie_slv0_reg(). Finally, the test polls 0xE6004100 via read_reg() in a while loop waiting for the value 0x12345678 as the completion handshake, with wait_on(5) between iterations, and calls finish(0) upon success.",
+   "Meta Test Steps / Procedure":"1. Write 0x0 to 0xE6004100 to initialize the system. 2. Invoke link_training_dm0_x4(4) or link_training_dm1_x4(4) based on compile-time defines (DM0_RC, DM1_RC, DM0_EP, DM1_EP). 3. Read mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, apply set_data() to set bit fields [11:14] and [3:6] to 0xF, write back. 4. Read mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF again, set bit fields [27:30] and [19:22] to 0xF, write back. 5. Repeat steps 3-4 for mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF. 6. Call wait_on(20). 7. Read mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF, set all four bit field groups [11:14], [3:6], [27:30], [19:22] to 0xF, write back. 8. Repeat step 7 for mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF. 9. Read read_sii0_reg(0xC0) and poll in a while loop until (data_rd & 0xD1) == 0xD1 to confirm PCIE0 link-up. 10. Read read_sii1_reg(0xC0) and poll in a while loop until (data_rd & 0xD1) == 0xD1 to confirm PCIE1 link-up. 11. Under DM0_RC: read Vendor ID via read_pcie_slv0_reg(0x0), write 0x7 to write_pcie_slv0_reg(0x4) to enable IO/Memory/Bus Master, call mem_base_program_dm0_x4() and mem_base_program_dm1_x4(), wait_on(10). 12. Write 0x1 to system registers 0xE690000C, 0xE6900010, 0xE6900014, 0xE6900018, 0xE6900030, 0xE6900034. 13. Disable cache: read-modify-write mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF setting [19:22] and [27:30] to 0x0. 14. Repeat step 13 for mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF. 15. Call wait_on(10), then consolidate cache disable for both controllers. 16. Call wait_on(30). 17. Write 0xFFFFFFFF to PCIe slave port 1 offsets 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24 for BAR sizing. 18. Read back PCIe slave port 1 offsets 0x10-0x24 to determine BAR sizes. 19. Write actual BAR values to PCIe slave port 1 offsets 0x10-0x24. 20. Read back PCIe slave port 1 offsets 0x10-0x24 to verify. 21. Repeat steps 17-20 for PCIe slave port 0. 22. Call wait_on(10). 23. Poll read_reg(0xE6004100) in a while loop with wait_on(5) until value equals 0x12345678. 24. Call finish(0) to indicate test pass.",
+   "Meta Impacted Registers":"0xE6004100; mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; 0xC0; 0x0; 0x4; 0xE690000C; 0xE6900010; 0xE6900014; 0xE6900018; 0xE6900030; 0xE6900034; 0x10; 0x14; 0x18; 0x1c; 0x20; 0x24"},
+  {"Index":"2","SS / Module":"PCIE","Feature":"PCIe DMA Write and Read","Test Case Name":"pcie_dma_write_test",
+   "Test Description":"Verifies PCIe DMA write and read data transfer operations across four DMA channels for both PCIe controller instances. The test performs link training, confirms link-up by polling the SII link status register, reads the TYPE1_DEV_ID_VEND_ID_REG to retrieve the endpoint Vendor ID, enables IO, Memory, and Bus Master access via TYPE1_STATUS_COMMAND_REG, configures BARs and memory base addresses, preloads source data into memory, unmasks DMA interrupts via DMA_WRITE_INT_MASK_OFF and DMA_READ_INT_MASK_OFF, sequentially programs and triggers DMA write transfers on channels 0 through 3 using DMA_WRITE_DOORBELL_OFF, waits for each transfer to complete via interrupt-driven handshake, then programs and triggers DMA read-back transfers on channels 0 through 3 using DMA_READ_DOORBELL_OFF. The interrupt handler reads DMA_WRITE_INT_STATUS_OFF and DMA_READ_INT_STATUS_OFF to determine which channels completed, then clears the interrupts via DMA_WRITE_INT_CLEAR_OFF and DMA_READ_INT_CLEAR_OFF. The test confirms successful completion of all DMA transfers across all channels.",
+   "Impacted Registers":"TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG; DMA_WRITE_INT_MASK_OFF; DMA_READ_INT_MASK_OFF; DMA_WRITE_DOORBELL_OFF; DMA_READ_DOORBELL_OFF; DMA_WRITE_INT_STATUS_OFF; DMA_READ_INT_STATUS_OFF; DMA_WRITE_INT_CLEAR_OFF; DMA_READ_INT_CLEAR_OFF",
+   "Validation / Acceptance Criteria":"The test passes when all of the following conditions are met: 1. PCIe link training completes successfully for the configured controller mode. 2. The SII link status register reports link-up with the expected bit pattern confirming data link layer active and link-up status. 3. The TYPE1_DEV_ID_VEND_ID_REG returns a valid Vendor ID from the endpoint device. 4. TYPE1_STATUS_COMMAND_REG is successfully written to enable IO, Memory, and Bus Master access. 5. The system handshake register returns the expected completion value. 6. All four DMA write channel transfers complete successfully, each confirmed by an interrupt where DMA_WRITE_INT_STATUS_OFF reports the corresponding channel completion and the interrupt is cleared via DMA_WRITE_INT_CLEAR_OFF. 7. All four DMA read channel transfers complete successfully, each confirmed by an interrupt where DMA_READ_INT_STATUS_OFF reports the corresponding channel completion and the interrupt is cleared via DMA_READ_INT_CLEAR_OFF. 8. The test calls finish(0) indicating successful completion of all DMA operations.",
+   "Remarks":"The testcase uses conditional compilation to select between two PCIe controller instances and between Root Complex and Endpoint modes. DMA transfers are performed sequentially across four channels, with each channel waiting for interrupt-driven completion before the next channel is triggered. The interrupt handler uses a shared flag to synchronize between the main test flow and the ISR. Source data is preloaded with two distinct patterns for verification purposes. Several register macros for the second PCIe controller instance could not be resolved from the available headers. The SII link status register and the system control register could not be mapped to named registers in the specification.",
+   "Meta Test Description":"This testcase validates PCIe DMA write and read operations across four DMA channels on two PCIe controller instances (DM0 and DM1).",
+   "Meta Test Steps / Procedure":"1. Write 0x0 to 0xE6004100 to initialize the system. 2. Invoke link_training based on compile-time defines. 3-23. Full DMA programming sequence.",
+   "Meta Impacted Registers":"0xE6004100; 0xC0; 0x0; 0x4; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_MASK_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_MASK_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_DOORBELL_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_DOORBELL_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_MASK_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_MASK_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_DOORBELL_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_DOORBELL_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_STATUS_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_STATUS_OFF; mizar_PCIE0_DBI_DSP_DMA_WRITE_INT_CLEAR_OFF; mizar_PCIE0_DBI_DSP_DMA_READ_INT_CLEAR_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_STATUS_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_STATUS_OFF; mizar_PCIE1_DBI_DSP_DMA_WRITE_INT_CLEAR_OFF; mizar_PCIE1_DBI_DSP_DMA_READ_INT_CLEAR_OFF"},
+  {"Index":"3","SS / Module":"PCIE","Feature":"PCIe Memory Write and Read","Test Case Name":"pcie_mem_wr_rd_test",
+   "Test Description":"Verifies PCIe memory write and read data integrity across both PCIe controller instances in Root Complex and Endpoint modes. The test performs link training, configures cache coherency via the COHERENCY_CONTROL_3_OFF register for both controller instances, polls the SII link status registers until link-up is confirmed, reads the TYPE1_DEV_ID_VEND_ID_REG to retrieve the endpoint Vendor ID, enables IO, Memory, and Bus Master access via TYPE1_STATUS_COMMAND_REG, configures BARs and memory base addresses, writes a synchronization signal to a system control register, disables cache coherency in a staged sequence, then performs memory write-read verification at multiple target addresses through the PCIe slave ports. The test confirms data integrity by writing known patterns and reading them back, and polls a system handshake register for the expected completion value.",
+   "Impacted Registers":"COHERENCY_CONTROL_3_OFF; TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG",
+   "Validation / Acceptance Criteria":"The test passes when all of the following conditions are met: 1. PCIe link training completes successfully for the configured controller mode. 2. The SII link status register reports link-up with the expected bit pattern confirming data link layer active and link-up status. 3. The TYPE1_DEV_ID_VEND_ID_REG returns a valid Vendor ID from the endpoint device. 4. TYPE1_STATUS_COMMAND_REG is successfully written to enable IO, Memory, and Bus Master access. 5. All memory write-read operations through the PCIe slave ports complete successfully with data integrity confirmed by the write-read verification function. 6. The system handshake register returns the expected completion value, confirming the remote endpoint has completed its sequence. 7. The test calls finish(0) indicating successful completion.",
+   "Remarks":"The testcase uses conditional compilation to select between Root Complex and Endpoint modes and between dual-mode controller instances. In Root Complex mode, three memory addresses are tested with distinct data patterns. In Endpoint mode, five BAR1 addresses are tested with a uniform data pattern. Cache coherency is enabled before link-up and disabled in a staged two-step sequence after BAR and memory base configuration. The SII link status register and the system control register could not be mapped to named registers in the specification. One coherency control macro for the second PCIe instance could not be resolved from the available headers. Error counters are declared but not explicitly checked in the main test flow, suggesting the memory write-read utility function handles comparison internally.",
+   "Meta Test Description":"This testcase validates PCIe memory write and read operations across both PCIe controller instances (DM0 and DM1) in Root Complex and Endpoint modes.",
+   "Meta Test Steps / Procedure":"1. Write 0x0 to 0xE6004100 to initialize the system. 2-30. Full memory write-read sequence.",
+   "Meta Impacted Registers":"0xE6004100; mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; 0xC0; 0x0; 0x4"},
+  {"Index":"4","SS / Module":"PCIE","Feature":"PCIe Register Write/Read Verification","Test Case Name":"pcie_reg_wr_rd_test",
+   "Test Description":"Verifies the reset default values and write-read data integrity of PCIe DBI controller registers, SII registers, and PHY registers across two PCIe controller instances. The test first reads all target registers and compares them against their expected default values of zero. It then writes the PHY reset control registers to bring the PHY out of reset before checking PHY register defaults. In the write-read phase, the test iterates through multiple data patterns and writes each pattern to all DBI controller registers (MSI_CAP_OFF_08H_REG, MSI_CAP_OFF_10H_REG, FILTER_MASK_2_OFF, AXI_MSTR_MSG_ADDR_HIGH_OFF, UTILITY_OFF), SII registers, and PHY registers, applying appropriate write masks. After each write, the test reads back every register and compares the read value against the expected written value, accounting for write masks. The test reports pass if all default value checks and all write-read comparisons succeed with zero errors across both controller instances.",
+   "Impacted Registers":"MSI_CAP_OFF_08H_REG; MSI_CAP_OFF_10H_REG; FILTER_MASK_2_OFF; AXI_MSTR_MSG_ADDR_HIGH_OFF; UTILITY_OFF",
+   "Validation / Acceptance Criteria":"The test passes when all of the following conditions are met: 1. All five DBI controller registers for both PCIe instances read back their expected default value of zero during the reset value check phase. 2. All three SII registers for both instances read back their expected default value of zero. 3. All three PHY registers for both instances read back their expected default value of zero after PHY reset is released. 4. For each of the three write-read data patterns, all five DBI controller registers (MSI_CAP_OFF_08H_REG, MSI_CAP_OFF_10H_REG, FILTER_MASK_2_OFF, AXI_MSTR_MSG_ADDR_HIGH_OFF, UTILITY_OFF) for both instances read back the exact value that was written. 5. For each data pattern, all SII registers for both instances read back the written value masked with the applicable write mask. 6. For each PHY-specific data pattern, all PHY registers for both instances read back the written value masked with the PHY write mask after half-word extraction. 7. Both error counters remain zero, and the test completes with a pass indication.",
+   "Remarks":"The testcase covers three register groups: DBI controller registers, SII registers, and PHY registers across two PCIe controller instances. Write masks are applied to SII and PHY registers to account for read-only or reserved bit fields. PHY registers use half-word access with bit extraction based on address alignment. The PHY reset control registers are written before PHY register access to ensure the PHY is out of reset. Only three of the six defined data patterns are used in the write-read loop. Several SII register macros, PHY reset control macros, and PHY register addresses for both controller instances could not be mapped to named registers in the specification. The second PCIe controller instance register macros could not be resolved from the available headers.",
+   "Meta Test Description":"This testcase validates the reset default values and write-read integrity of PCIe registers across multiple register groups on two PCIe controller instances (PCIE0 and PCIE1), SII registers, and PHY registers.",
+   "Meta Test Steps / Procedure":"1. Declare register address arrays. 2-28. Full register write-read verification sequence.",
+   "Meta Impacted Registers":"mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG; mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG; mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF; mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF; mizar_PCIE0_DBI_DSP_UTILITY_OFF; mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG; mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG; mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF; mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF; mizar_PCIE1_DBI_DSP_UTILITY_OFF; mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2; mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3; mizar_PCIE0_SII_PHY_CONTROL_23; mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2; mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3; mizar_PCIE1_SII_PHY_CONTROL_23; mizar_PCIE0_SII_PHY_RST_CONTROL; mizar_PCIE1_SII_PHY_RST_CONTROL; 0xE68860B8; 0xE68862B8; 0xE68864B8; 0xE68A60B8; 0xE68A62B8; 0xE68A64B8"},
+]
+
+STEPS = {
+"1": "Initialization:\n1. Initialize the system by writing to the system control register.\n\nConfiguration:\n1. Perform PCIe link training for the configured controller mode (Root Complex or Endpoint).\n2. Enable cache coherency by programming the COHERENCY_CONTROL_3_OFF register for both PCIe controller instances with appropriate bit field values.\n3. Enable IO space, Memory space, and Bus Master access by writing to TYPE1_STATUS_COMMAND_REG.\n4. Program memory base addresses for both PCIe controller instances.\n5. Write to system-level configuration registers to enable required system settings.\n6. Disable cache coherency by clearing the relevant bit fields in COHERENCY_CONTROL_3_OFF for both instances.\n\nExecution:\n1. Wait for the coherency settings to take effect.\n2. Poll the SII0 link status register until PCIE0 link-up is confirmed.\n3. Poll the SII1 link status register until PCIE1 link-up is confirmed.\n4. In Root Complex mode, read the TYPE1_DEV_ID_VEND_ID_REG from the endpoint to retrieve the Vendor ID.\n5. Perform BAR sizing on PCIe slave port 1 by writing all-ones to BAR0_REG, BAR1_REG, SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG, SEC_STAT_IO_LIMIT_IO_BASE_REG, MEM_LIMIT_MEM_BASE_REG, and PREF_MEM_LIMIT_PREF_MEM_BASE_REG, then reading back to determine sizes.\n6. Program actual BAR values for PCIe slave port 1 and verify by reading back.\n7. Repeat BAR sizing and programming for PCIe slave port 0.\n8. Poll the system handshake register until the expected completion value is received.\n9. Confirm test completion.",
+"2": "Initialization:\n1. Initialize the system by writing to the system control register.\n2. Preload known data patterns into source memory regions.\n\nConfiguration:\n1. Perform PCIe link training for the configured controller mode.\n2. Enable IO space, Memory space, and Bus Master access by writing to TYPE1_STATUS_COMMAND_REG.\n3. Configure BARs and program memory base addresses for the active controller.\n4. Unmask DMA write and read interrupts by writing to DMA_WRITE_INT_MASK_OFF and DMA_READ_INT_MASK_OFF.\n\nExecution:\n1. Poll the SII link status register until link-up is confirmed for the active PCIe controller instance.\n2. Read the TYPE1_DEV_ID_VEND_ID_REG from the endpoint to retrieve the Vendor ID.\n3. Poll the system handshake register until the expected completion value is received.\n4. Program DMA write channel 0 with source address, destination address, and transfer length, then trigger the transfer by writing to DMA_WRITE_DOORBELL_OFF and wait for interrupt-driven completion.\n5. Repeat DMA write transfer for channels 1, 2, and 3, triggering each sequentially via DMA_WRITE_DOORBELL_OFF and waiting for completion.\n6. Program DMA read channel 0 with remote source address, local destination address, and transfer length, then trigger the transfer by writing to DMA_READ_DOORBELL_OFF and wait for interrupt-driven completion.\n7. Repeat DMA read transfer for channels 1, 2, and 3, triggering each sequentially via DMA_READ_DOORBELL_OFF and waiting for completion.\n8. Confirm test completion after all DMA write and read transfers on all four channels have completed successfully.\n\nInterrupt:\n1. Enable GIC interrupts for DMA completion notification.\n2. In the interrupt handler, read DMA_WRITE_INT_STATUS_OFF and DMA_READ_INT_STATUS_OFF to identify completed channels, then clear interrupts via DMA_WRITE_INT_CLEAR_OFF and DMA_READ_INT_CLEAR_OFF.",
+"3": "Initialization:\n1. Initialize the system by writing to the system control register.\n\nConfiguration:\n1. Perform PCIe link training for the configured controller mode (Root Complex or Endpoint).\n2. Enable cache coherency by programming the COHERENCY_CONTROL_3_OFF register for both PCIe controller instances with appropriate bit field values.\n3. Re-program the COHERENCY_CONTROL_3_OFF register for both instances to consolidate all coherency bit fields.\n4. Enable IO space, Memory space, and Bus Master access by writing to TYPE1_STATUS_COMMAND_REG.\n5. Configure BARs and program memory base addresses for the active controller.\n6. Call the non-secure protection NIC configuration function.\n7. Write a synchronization signal to the system control register.\n8. Disable cache coherency in a staged sequence by clearing the relevant bit fields in COHERENCY_CONTROL_3_OFF for both instances.\n\nExecution:\n1. Wait for the coherency settings to take effect.\n2. Poll the SII link status register until link-up is confirmed for the active PCIe controller instance.\n3. In Root Complex mode, read the TYPE1_DEV_ID_VEND_ID_REG from the endpoint to retrieve the Vendor ID.\n4. Wait for the cache disable settings to take effect.\n5. Perform memory write-read verification at multiple target addresses through the PCIe slave port, writing known data patterns and reading them back.\n6. Poll the system handshake register until the expected completion value is received.\n7. Confirm test completion.",
+"4": "Initialization:\n1. Write to the PHY reset control registers for both instances to bring the PHY out of reset.\n\nExecution:\n1. Read all five DBI controller registers for both PCIe controller instances and verify that each register contains its expected default value of zero.\n2. Read all three SII registers for both PCIe controller instances and verify that each register contains its expected default value of zero.\n3. Read all three PHY registers for both instances, extract the relevant half-word, and verify that each contains its expected default value of zero.\n4. For each of three data patterns, write the pattern to all five DBI controller registers (MSI_CAP_OFF_08H_REG, MSI_CAP_OFF_10H_REG, FILTER_MASK_2_OFF, AXI_MSTR_MSG_ADDR_HIGH_OFF, UTILITY_OFF) for both instances.\n5. For each data pattern, write the pattern masked with the appropriate write mask to all three SII registers for both instances.\n6. For each data pattern, write the PHY-specific pattern masked with the PHY write mask to all three PHY registers for both instances.\n7. After each write iteration, read back all DBI controller registers and verify the read value matches the written value.\n8. After each write iteration, read back all SII registers and verify the read value matches the written value accounting for the write mask.\n9. After each write iteration, read back all PHY registers, extract the relevant half-word, and verify the read value matches the written value accounting for the PHY write mask.\n10. Confirm that all default value checks and all write-read comparisons passed with zero errors across both controller instances.",
+}
+
+# Populate TestPlan
+for ri, row in enumerate(DATA, 2):
+    idx = row["Index"]
+    ws_tp.cell(row=ri, column=1, value=row["Index"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=2, value=row["SS / Module"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=3, value=row["Feature"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=4, value=row["Test Case Name"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=5, value=row["Test Description"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=6, value="").alignment = cell_align  # Speed
+    ws_tp.cell(row=ri, column=7, value="").alignment = cell_align  # Mode
+    ws_tp.cell(row=ri, column=8, value="").alignment = cell_align  # Memory Start
+    ws_tp.cell(row=ri, column=9, value="").alignment = cell_align  # Memory End
+    ws_tp.cell(row=ri, column=10, value=row["Remarks"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=11, value=STEPS[idx]).alignment = cell_align
+    ws_tp.cell(row=ri, column=12, value=row["Impacted Registers"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=13, value=row["Validation / Acceptance Criteria"]).alignment = cell_align
+    ws_tp.cell(row=ri, column=14, value="").alignment = cell_align  # Code Generation
+
+# Populate MetaData
+for ri, row in enumerate(DATA, 2):
+    ws_md.cell(row=ri, column=1, value=row["Index"]).alignment = cell_align
+    ws_md.cell(row=ri, column=2, value=row["Test Case Name"]).alignment = cell_align
+    ws_md.cell(row=ri, column=3, value=row["Meta Test Description"]).alignment = cell_align
+    ws_md.cell(row=ri, column=4, value=row["Meta Test Steps / Procedure"]).alignment = cell_align
+    ws_md.cell(row=ri, column=5, value=row["Meta Impacted Registers"]).alignment = cell_align
+    ws_md.cell(row=ri, column=6, value=row.get("Validation / Acceptance Criteria","")).alignment = cell_align
+    ws_md.cell(row=ri, column=7, value="").alignment = cell_align  # Meta Headers
+    ws_md.cell(row=ri, column=8, value="").alignment = cell_align  # Meta Macros
+    ws_md.cell(row=ri, column=9, value="").alignment = cell_align  # Meta Arrays
+
+# Code Generation dropdown
+dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True)
+dv.error = "Please select Required or Not Required"
+dv.errorTitle = "Invalid Input"
+dv.prompt = "Select Code Generation status"
+dv.promptTitle = "Code Generation"
+col_letter = get_column_letter(14)
+dv.sqref = f"{col_letter}2:{col_letter}1000"
+ws_tp.add_data_validation(dv)
+
+# Column widths
+TP_WIDTHS = {1:8, 2:15, 3:30, 4:35, 5:60, 6:10, 7:10, 8:20, 9:20, 10:50, 11:90, 12:60, 13:70, 14:18}
+for ci, w in TP_WIDTHS.items():
+    ws_tp.column_dimensions[get_column_letter(ci)].width = w
+
+MD_WIDTHS = {1:8, 2:35, 3:80, 4:80, 5:80, 6:70, 7:30, 8:30, 9:30}
+for ci, w in MD_WIDTHS.items():
+    ws_md.column_dimensions[get_column_letter(ci)].width = w
+
+# Freeze panes
+ws_tp.freeze_panes = "A2"
+ws_md.freeze_panes = "A2"
+
+# MetaData veryHidden
+ws_md.sheet_state = "veryHidden"
+
+# Active sheet
+wb.active = 0
+
+# Save
+wb.save(FILEPATH)
+print(f"Saved: {FILEPATH}")
+print(f"Size: {os.path.getsize(FILEPATH)} bytes")
+
+# Verify
+wb2 = load_workbook(FILEPATH)
+assert "TestPlan" in wb2.sheetnames
+assert "MetaData" in wb2.sheetnames
+assert wb2["MetaData"].sheet_state == "veryHidden"
+assert wb2["TestPlan"].max_row == 5  # header + 4 data rows
+print("Verification PASSED")
+print(f"FILENAME={FILENAME}")
