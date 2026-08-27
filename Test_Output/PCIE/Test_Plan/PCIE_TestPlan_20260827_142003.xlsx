@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+"""
+This file should be an XLSX binary but the runtime cannot generate binary Excel files directly.
+The actual XLSX must be generated via Python/openpyxl execution.
+"""
