@@ -1,13 +1,12 @@
-name: Generate PCIE TestPlan XLSX
+name: Generate PCIE TestPlan Excel
 
 on:
   push:
     paths:
-      - 'Test_Output/PCIE/TestPlan/.generator/PCIE_TestPlan_20260824_161300_generator.py'
-  workflow_dispatch:
+      - 'Test_Output/PCIE/TestPlan/generate_testplan.py'
 
 jobs:
-  generate-xlsx:
+  generate-excel:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,13 +22,23 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate XLSX workbook
-        run: python Test_Output/PCIE/TestPlan/.generator/PCIE_TestPlan_20260824_161300_generator.py
+      - name: Generate Excel TestPlan
+        run: python Test_Output/PCIE/TestPlan/generate_testplan.py
 
-      - name: Commit and push XLSX
+      - name: Commit and push generated Excel
         run: |
+          cd Test_Output/PCIE/TestPlan/
+          XLSX_FILE=$(ls -t PCIE_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated"
+            exit 1
+          fi
+          echo "Generated file: $XLSX_FILE"
+          cd $GITHUB_WORKSPACE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260824_161300.xlsx
-          git commit -m "Added generated PCIE TestPlan Excel workbook - PCIE_TestPlan_20260824_161300.xlsx" || echo "No changes to commit"
+          git add "Test_Output/PCIE/TestPlan/$XLSX_FILE"
+          git rm -f Test_Output/PCIE/TestPlan/generate_testplan.py || true
+          git rm -f .github/workflows/generate_pcie_testplan.yml || true
+          git commit -m "Added generated TestPlan Excel: $XLSX_FILE"
           git push
