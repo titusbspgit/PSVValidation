@@ -1,0 +1,49 @@
+/*
+ * test_define.cin
+ *
+ * Test Case: pcie_device_enumerate_test
+ *
+ * Purpose:
+ *   Definition/include file for PCIe device enumeration testcase.
+ *   Contains headers, macros, and supporting testcase data.
+ *
+ * Notes:
+ *   - Headers field was NA in the Meta TestPlan; using framework defaults.
+ *   - Macros field was NA in the Meta TestPlan; no custom macros defined.
+ *   - Arrays field was NA in the Meta TestPlan; no custom arrays defined.
+ *   - All register addresses and values are used as hardcoded constants
+ *     in the source file as specified by the test procedure.
+ */
+
+#include <stdint.h>
+#include "framework.h"
+#include "log.h"
+#include "mmio.h"
+#include "reg_access.h"
+
+/*
+ * No custom macros were provided in the Meta TestPlan (Macros: NA).
+ * All register addresses and values are used as hardcoded constants
+ * in the source file per the test procedure specification:
+ *
+ *   System init register:        0xE6004100
+ *   Sync completion value:        0x12345678
+ *   SII link status offset:       0xC0
+ *   SII link-up bitmask:          0xD1
+ *   Vendor ID offset:             0x0
+ *   Command register offset:      0x4
+ *   Command register value:       0x7 (IO + Memory + Bus Master)
+ *   System control registers:     0xE690000C, 0xE6900010, 0xE6900014,
+ *                                 0xE6900018, 0xE6900030, 0xE6900034
+ *   BAR offsets:                  0x10, 0x14, 0x18, 0x1c, 0x20, 0x24
+ *   BAR sizing value:             0xFFFFFFFF
+ *   BAR program values:           0x0, 0x4, 0x20000000, 0x40000000,
+ *                                 0x60000000, 0x80000000
+ *
+ * Impacted registers (symbolic):
+ *   mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF
+ *   mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF
+ *   (assumed provided by included headers)
+ */
+
+/* No custom arrays were provided in the Meta TestPlan (Arrays: NA). */
