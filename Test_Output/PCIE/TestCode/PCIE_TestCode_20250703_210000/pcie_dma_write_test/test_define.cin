@@ -1,0 +1,21 @@
+// Author - AI Force 2.3. 03-Jul-2025 21:00 IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * Test Case Name: pcie_dma_write_test
+ * Purpose: PCIe DMA write and read operations across four channels on both
+ *          PCIe controllers. Includes headers, macros, and testcase constants.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
+#include "pcie.h"
+
+/* Macros - compile-time controller mode selection */
+/* DM0_RC, DM1_RC, DM0_EP, DM1_EP are expected to be defined externally */
+/* via compiler flags based on the target controller mode. */
+
+/* DEBUG_DISPLAY is expected to be defined externally to enable verbose logging. */
+
+/* Arrays: NA - No arrays provided for this testcase. */
