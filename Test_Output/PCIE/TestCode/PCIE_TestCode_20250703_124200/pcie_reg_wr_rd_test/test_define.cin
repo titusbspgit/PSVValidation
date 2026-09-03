@@ -1,0 +1,66 @@
+// Author - AI Force 2.3. 03-Jul-2025 18:12 IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * test_define.cin
+ *
+ * Test Case : pcie_reg_wr_rd_test
+ * Purpose   : PCIe register write and read data integrity verification.
+ *             Defines macros, headers, and supporting testcase data.
+ */
+
+/* Headers */
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
+#include "pcie.h"
+
+/*
+ * Macros from Meta TestPlan JSON.
+ * DM0_RC, DM1_RC, DM0_EP, DM1_EP, DEBUG_DISPLAY are compile-time defines
+ * expected to be provided via build configuration or command-line flags.
+ * They are not defined here to avoid overriding project-level settings.
+ */
+
+/*
+ * Arrays: NA
+ * No arrays were supplied in the Meta TestPlan JSON for this testcase.
+ */
+
+/* Register test offsets */
+#define REG_TEST_OFFSET_0       0x10
+#define REG_TEST_OFFSET_1       0x14
+#define REG_TEST_OFFSET_2       0x18
+#define REG_TEST_OFFSET_3       0x1c
+#define REG_TEST_OFFSET_4       0x20
+#define REG_TEST_OFFSET_5       0x24
+
+/*
+ * Register test values.
+ * Known values written to PCIe configuration and control registers
+ * for write/read-back verification. These must be configured per
+ * platform before compilation.
+ */
+#ifndef REG_TEST_VAL_0
+#define REG_TEST_VAL_0          0xA5A5A5A5UL
+#endif
+
+#ifndef REG_TEST_VAL_1
+#define REG_TEST_VAL_1          0x5A5A5A5AUL
+#endif
+
+#ifndef REG_TEST_VAL_2
+#define REG_TEST_VAL_2          0x12345678UL
+#endif
+
+#ifndef REG_TEST_VAL_3
+#define REG_TEST_VAL_3          0x87654321UL
+#endif
+
+#ifndef REG_TEST_VAL_4
+#define REG_TEST_VAL_4          0xDEADBEEFUL
+#endif
+
+#ifndef REG_TEST_VAL_5
+#define REG_TEST_VAL_5          0xCAFEBABEUL
+#endif
