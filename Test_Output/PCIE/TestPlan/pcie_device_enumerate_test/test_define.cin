@@ -1,0 +1,59 @@
+/*
+ * test_define.cin
+ *
+ * Test Case : pcie_device_enumerate_test
+ * Purpose   : Definition/include file containing testcase supporting data
+ *             for PCIe device enumeration across two controller instances
+ *             (DM0 and DM1). Includes register addresses, polling masks,
+ *             BAR offsets, and BAR programming values.
+ *
+ * Note: Headers, Macros, and Arrays fields were NA in the Meta TestPlan JSON.
+ *       The following definitions are derived directly from the Test Steps
+ *       and Impacted Registers provided in the input.
+ */
+
+/* System initialization register */
+#define PCIE_SYNC_REG                          0xE6004100
+
+/* SII link status register offset */
+#define PCIE_SII_LINK_STATUS_OFF               0xC0
+
+/* SII link-up polling mask and expected value */
+#define PCIE_SII_LINK_UP_MASK                  0xD1
+#define PCIE_SII_LINK_UP_EXPECTED              0xD1
+
+/* TYPE1 register offsets (PCIe slave port) */
+#define PCIE_TYPE1_DEV_ID_VEND_ID_OFF          0x0
+#define PCIE_TYPE1_STATUS_COMMAND_OFF           0x4
+#define PCIE_TYPE1_CMD_IO_MEM_BM_EN            0x7
+
+/* System-level control registers */
+#define PCIE_SYS_CTRL_REG_0                    0xE690000C
+#define PCIE_SYS_CTRL_REG_1                    0xE6900010
+#define PCIE_SYS_CTRL_REG_2                    0xE6900014
+#define PCIE_SYS_CTRL_REG_3                    0xE6900018
+#define PCIE_SYS_CTRL_REG_4                    0xE6900030
+#define PCIE_SYS_CTRL_REG_5                    0xE6900034
+#define PCIE_SYS_CTRL_ENABLE                   0x1
+
+/* BAR register offsets */
+#define PCIE_BAR0_OFF                          0x10
+#define PCIE_BAR1_OFF                          0x14
+#define PCIE_SEC_LAT_SUB_SEC_PRI_BUS_OFF       0x18
+#define PCIE_SEC_STAT_IO_LIMIT_IO_BASE_OFF     0x1c
+#define PCIE_MEM_LIMIT_MEM_BASE_OFF            0x20
+#define PCIE_PREF_MEM_LIMIT_PREF_MEM_BASE_OFF  0x24
+
+/* BAR sizing value */
+#define PCIE_BAR_SIZE_ALL_ONES                 0xFFFFFFFF
+
+/* BAR programming values for slave port */
+#define PCIE_BAR0_ADDR_VAL                     0x0
+#define PCIE_BAR1_ADDR_VAL                     0x4
+#define PCIE_SEC_LAT_ADDR_VAL                  0x20000000
+#define PCIE_SEC_STAT_ADDR_VAL                 0x40000000
+#define PCIE_MEM_LIMIT_ADDR_VAL                0x60000000
+#define PCIE_PREF_MEM_ADDR_VAL                 0x80000000
+
+/* Synchronization polling expected value */
+#define PCIE_SYNC_COMPLETE_VAL                 0x12345678
