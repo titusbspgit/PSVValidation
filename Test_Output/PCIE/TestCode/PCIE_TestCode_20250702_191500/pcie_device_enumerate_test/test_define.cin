@@ -1,0 +1,62 @@
+/*
+ * test_define.cin
+ *
+ * Test Case : pcie_device_enumerate_test
+ * Purpose   : PCIe device enumeration across two controller instances (DM0 and DM1).
+ *             Defines register addresses, synchronization values, system control
+ *             register addresses, and link status polling masks used by the testcase.
+ */
+
+/* Headers: NA - No additional headers were supplied in the Meta TestPlan JSON */
+
+/* Synchronization register address */
+#define PCIE_SYNC_REG                   0xE6004100
+
+/* Expected synchronization completion value */
+#define PCIE_SYNC_EXPECTED_VAL          0x12345678
+
+/* SII link status polling mask and expected value */
+#define PCIE_SII_LINK_STATUS_MASK       0xD1
+#define PCIE_SII_LINK_STATUS_EXPECTED   0xD1
+
+/* SII link status register offset */
+#define PCIE_SII_LINK_STATUS_OFF        0xC0
+
+/* System-level control register addresses */
+#define PCIE_SYS_CTRL_REG_0C           0xE690000C
+#define PCIE_SYS_CTRL_REG_10           0xE6900010
+#define PCIE_SYS_CTRL_REG_14           0xE6900014
+#define PCIE_SYS_CTRL_REG_18           0xE6900018
+#define PCIE_SYS_CTRL_REG_30           0xE6900030
+#define PCIE_SYS_CTRL_REG_34           0xE6900034
+
+/* PCIe slave port register offsets for BAR sizing and programming */
+#define PCIE_BAR0_OFF                   0x10
+#define PCIE_BAR1_OFF                   0x14
+#define PCIE_BAR2_OFF                   0x18
+#define PCIE_BAR3_OFF                   0x1c
+#define PCIE_BAR4_OFF                   0x20
+#define PCIE_BAR5_OFF                   0x24
+
+/* BAR sizing write value */
+#define PCIE_BAR_SIZE_PROBE             0xFFFFFFFF
+
+/* BAR programming values for slave port offsets 0x10 through 0x24 */
+#define PCIE_BAR_VAL_0                  0x00000000
+#define PCIE_BAR_VAL_1                  0x00000004
+#define PCIE_BAR_VAL_2                  0x20000000
+#define PCIE_BAR_VAL_3                  0x40000000
+#define PCIE_BAR_VAL_4                  0x60000000
+#define PCIE_BAR_VAL_5                  0x80000000
+
+/* Command register value: IO space + Memory space + Bus Master enable */
+#define PCIE_CMD_IO_MEM_BM              0x7
+
+/* Vendor ID / Device ID register offset on slave port */
+#define PCIE_VENDOR_ID_OFF              0x0
+
+/* Command register offset on slave port */
+#define PCIE_CMD_REG_OFF                0x4
+
+/* Macros: NA - No additional macros were supplied in the Meta TestPlan JSON */
+/* Arrays: NA - No additional arrays were supplied in the Meta TestPlan JSON */
