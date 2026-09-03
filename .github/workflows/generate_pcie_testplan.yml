@@ -1,0 +1,34 @@
+name: Generate PCIE TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_generator_exec.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel workbook
+        run: python Test_Output/PCIE/TestPlan/PCIE_TestPlan_generator_exec.py
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/PCIE/TestPlan/*.xlsx
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push
