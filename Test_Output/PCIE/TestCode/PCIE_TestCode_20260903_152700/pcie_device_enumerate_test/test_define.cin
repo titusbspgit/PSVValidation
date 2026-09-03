@@ -1,0 +1,18 @@
+// Author - AI Force 2.3. 03-Sep-2026 15:27 IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * Test Case Name: pcie_device_enumerate_test
+ * Purpose: PCIe device enumeration and link training test supporting data.
+ *          Macros for conditional compilation of controller modes and debug.
+ */
+
+/* Macros from Meta TestPlan JSON */
+/* DM0_RC, DM1_RC, DM0_EP, DM1_EP are compile-time defines */
+/* They are expected to be defined externally via build configuration */
+
+#ifndef DEBUG_DISPLAY
+/* DEBUG_DISPLAY: enable verbose debug logging when defined */
+#endif
+
+/* Arrays: NA - no arrays provided for this testcase */
