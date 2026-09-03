@@ -1,0 +1,146 @@
+// Author - AI Force 2.3. Date in IST
+// (EMBENGG-SYSAPPS)
+
+/
+ * Test Case Name: pcie_reg_wr_rd_test
+ * Purpose: This testcase verifies PCIe register reset default values
+ * and read-write functionality across three register domains.
+ /
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
+#include <pcie.h>
+
+/ Macros: NA /
+
+/ DBI Control Register Addresses - PCIE0 /
+unsigned int rc0_ctl_addr[5] = {
+ mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_08H_REG,
+ mizar_PCIE0_DBI_DSP_MSI_CAP_OFF_10H_REG,
+ mizar_PCIE0_DBI_DSP_FILTER_MASK_2_OFF,
+ mizar_PCIE0_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,
+ mizar_PCIE0_DBI_DSP_UTILITY_OFF
+};
+
+/ DBI Control Register Addresses - PCIE1 /
+unsigned int rc1_ctl_addr[5] = {
+ mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_08H_REG,
+ mizar_PCIE1_DBI_DSP_MSI_CAP_OFF_10H_REG,
+ mizar_PCIE1_DBI_DSP_FILTER_MASK_2_OFF,
+ mizar_PCIE1_DBI_DSP_AXI_MSTR_MSG_ADDR_HIGH_OFF,
+ mizar_PCIE1_DBI_DSP_UTILITY_OFF
+};
+
+/ DBI Control Register Default Values /
+/ Note: Exact default values must be populated per hardware specification /
+unsigned int ctl_default[5] = {
+ 0x00000000, / MSI_CAP_OFF_08H_REG default /
+ 0x00000000, / MSI_CAP_OFF_10H_REG default /
+ 0x00000000, / FILTER_MASK_2_OFF default /
+ 0x00000000, / AXI_MSTR_MSG_ADDR_HIGH_OFF default /
+ 0x00000000 / UTILITY_OFF default /
+};
+
+/ SII Register Addresses - PCIE0 /
+unsigned int sii0_addr[3] = {
+ mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER2,
+ mizar_PCIE0_SII_PCIE0_TRANSMIT_HEADER3,
+ mizar_PCIE0_SII_PHY_CONTROL_23
+};
+
+/ SII Register Addresses - PCIE1 /
+unsigned int sii1_addr[3] = {
+ mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER2,
+ mizar_PCIE1_SII_PCIE1_TRANSMIT_HEADER3,
+ mizar_PCIE1_SII_PHY_CONTROL_23
+};
+
+/ SII Register Default Values /
+/ Note: Exact default values must be populated per hardware specification /
+unsigned int sii_default[3] = {
+ 0x00000000, / TRANSMIT_HEADER2 default /
+ 0x00000000, / TRANSMIT_HEADER3 default /
+ 0x00000000 / PHY_CONTROL_23 default /
+};
+
+/ SII Write Masks - PCIE0 /
+/ Note: Exact write masks must be populated per hardware specification /
+unsigned int sii0_write_mask[3] = {
+ 0xFFFFFFFF, / TRANSMIT_HEADER2 write mask /
+ 0xFFFFFFFF, / TRANSMIT_HEADER3 write mask /
+ 0xFFFFFFFF / PHY_CONTROL_23 write mask /
+};
+
+/ SII Write Masks - PCIE1 /
+/ Note: Exact write masks must be populated per hardware specification /
+unsigned int sii1_write_mask[3] = {
+ 0xFFFFFFFF, / TRANSMIT_HEADER2 write mask /
+ 0xFFFFFFFF, / TRANSMIT_HEADER3 write mask /
+ 0xFFFFFFFF / PHY_CONTROL_23 write mask /
+};
+
+/ PHY Register Addresses - PCIE0 /
+unsigned int phy0_addr[3] = {
+ 0xE68860B8,
+ 0xE68862B8,
+ 0xE68864B8
+};
+
+/ PHY Register Addresses - PCIE1 /
+unsigned int phy1_addr[3] = {
+ 0xE68A60B8,
+ 0xE68A62B8,
+ 0xE68A64B8
+};
+
+/ PHY Default Values - PCIE0 /
+/ Note: Exact default values must be populated per hardware specification /
+unsigned int phy0_default[3] = {
+ 0x00000000, / PHY0 lane0 default /
+ 0x00000000, / PHY0 lane1 default /
+ 0x00000000 / PHY0 lane2 default /
+};
+
+/ PHY Default Values - PCIE1 /
+/ Note: Exact default values must be populated per hardware specification /
+unsigned int phy1_default[3] = {
+ 0x00000000, / PHY1 lane0 default /
+ 0x00000000, / PHY1 lane1 default /
+ 0x00000000 / PHY1 lane2 default /
+};
+
+/ PHY Write Masks - PCIE0 /
+/ Note: Exact write masks must be populated per hardware specification /
+unsigned int phy0_write_mask[3] = {
+ 0xFFFFFFFF, / PHY0 lane0 write mask /
+ 0xFFFFFFFF, / PHY0 lane1 write mask /
+ 0xFFFFFFFF / PHY0 lane2 write mask /
+};
+
+/ PHY Write Masks - PCIE1 /
+/ Note: Exact write masks must be populated per hardware specification /
+unsigned int phy1_write_mask[3] = {
+ 0xFFFFFFFF, / PHY1 lane0 write mask /
+ 0xFFFFFFFF, / PHY1 lane1 write mask /
+ 0xFFFFFFFF / PHY1 lane2 write mask /
+};
+
+/ Check values - three test patterns for DBI/SII read-write verification /
+/ Note: Exact test patterns must be populated per test specification /
+unsigned int chk_val[6] = {
+ 0x00000000, / pattern 0 /
+ 0xFFFFFFFF, / pattern 1 /
+ 0xA5A5A5A5, / pattern 2 /
+ 0x00000000, / pattern 3 /
+ 0xFFFFFFFF, / pattern 4 /
+ 0x5A5A5A5A / pattern 5 /
+};
+
+/ Check values for PHY read-write verification /
+/ Note: Exact test patterns must be populated per test specification /
+unsigned int chk_val_phy[3] = {
+ 0x00000000, / PHY pattern 0 /
+ 0xFFFFFFFF, / PHY pattern 1 /
+ 0xA5A5A5A5 / PHY pattern 2 */
+};
