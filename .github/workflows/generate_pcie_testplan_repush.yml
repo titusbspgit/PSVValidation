@@ -1,0 +1,41 @@
+name: Generate PCIE TestPlan Excel (Re-push)
+
+on:
+  push:
+    paths:
+      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250715_183000_generator.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel workbook
+        run: |
+          cd Test_Output/PCIE/TestPlan
+          python PCIE_TestPlan_20250715_183000_generator.py
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add 'Test_Output/PCIE/TestPlan/*.xlsx'
+          git commit -m 'Added generated TestPlan Excel' || echo 'No changes to commit'
+          git push
+
+      - name: Cleanup generator and workflow
+        run: |
+          git rm 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250715_183000_generator.py' || true
+          git rm '.github/workflows/generate_pcie_testplan_repush.yml' || true
+          git commit -m 'Cleanup: remove generator script and workflow' || echo 'No cleanup needed'
+          git push
