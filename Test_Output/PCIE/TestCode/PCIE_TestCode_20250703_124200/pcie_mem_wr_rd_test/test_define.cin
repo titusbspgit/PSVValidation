@@ -1,0 +1,73 @@
+// Author - AI Force 2.3. 03-Jul-2025 18:12 IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * test_define.cin
+ *
+ * Test Case : pcie_mem_wr_rd_test
+ * Purpose   : PCIe memory write and read data integrity verification.
+ *             Defines macros, headers, and supporting testcase data.
+ */
+
+/* Headers */
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
+#include "pcie.h"
+
+/*
+ * Macros from Meta TestPlan JSON.
+ * DM0_RC, DM1_RC, DM0_EP, DM1_EP, DEBUG_DISPLAY are compile-time defines
+ * expected to be provided via build configuration or command-line flags.
+ * They are not defined here to avoid overriding project-level settings.
+ */
+
+/*
+ * Arrays: NA
+ * No arrays were supplied in the Meta TestPlan JSON for this testcase.
+ */
+
+/* SII link status polling mask and expected value */
+#define SII_LINK_STATUS_MASK    0xD1
+#define SII_LINK_STATUS_EXPECT  0xD1
+
+/* Completion synchronization expected value */
+#define COMPLETION_SYNC_REG     0xE6004100
+#define COMPLETION_SYNC_VALUE   0x12345678
+
+/* System-level control register addresses */
+#define SYS_CTRL_REG_0          0xE690000C
+#define SYS_CTRL_REG_1          0xE6900010
+#define SYS_CTRL_REG_2          0xE6900014
+#define SYS_CTRL_REG_3          0xE6900018
+#define SYS_CTRL_REG_4          0xE6900030
+#define SYS_CTRL_REG_5          0xE6900034
+#define SYS_CTRL_ENABLE_VAL     0x1
+
+/*
+ * Memory test configuration.
+ * The exact pcie_slv0/pcie_slv1 memory offsets and data patterns are
+ * described in the test procedure but specific offset lists and pattern
+ * values were not enumerated in the Meta TestPlan JSON.
+ * The following defaults must be configured per platform before compilation.
+ */
+
+#ifndef MEM_TEST_BASE_OFFSET
+/* Base offset for memory write/read test - configure per platform */
+#define MEM_TEST_BASE_OFFSET    0x0UL
+#endif
+
+#ifndef MEM_TEST_STRIDE
+/* Stride between consecutive memory test locations - configure per platform */
+#define MEM_TEST_STRIDE         0x4UL
+#endif
+
+#ifndef MEM_TEST_NUM_OFFSETS
+/* Number of memory offsets to test - configure per platform */
+#define MEM_TEST_NUM_OFFSETS    8U
+#endif
+
+#ifndef MEM_TEST_BASE_PATTERN
+/* Base data pattern for memory write/read test - configure per platform */
+#define MEM_TEST_BASE_PATTERN   0xA5A5A5A5UL
+#endif
