@@ -1,29 +1,36 @@
-name: Generate PCIE TestPlan Excel
+name: Generate PCIE TestPlan XLSX
+
 on:
   push:
     paths:
-      - 'Test_Output/PCIE/TestPlan/generate_pcie_testplan.py'
-      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_*_data.json'
+      - 'Test_Output/PCIE/TestPlan/*_data.json'
+      - 'Test_Output/PCIE/TestPlan/generate_testplan_xlsx.py'
   workflow_dispatch:
 
 jobs:
-  generate:
+  generate-xlsx:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install openpyxl
-      - name: Generate Excel
-        run: python Test_Output/PCIE/TestPlan/generate_pcie_testplan.py
-      - name: Commit Excel
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate XLSX
+        run: python Test_Output/PCIE/TestPlan/generate_testplan_xlsx.py
+
+      - name: Commit and push XLSX
         run: |
-          cd Test_Output/PCIE/TestPlan
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.xlsx
-          git commit -m "Auto-generated PCIE TestPlan Excel workbook" || echo "No changes"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add 'Test_Output/PCIE/TestPlan/*.xlsx'
+          git commit -m 'Auto-generated PCIE TestPlan XLSX' || echo 'No changes to commit'
           git push
