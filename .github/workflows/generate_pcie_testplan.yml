@@ -1,9 +1,14 @@
 name: Generate PCIE TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
+      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434_generator.py'
       - '.github/workflows/generate_pcie_testplan.yml'
+
+permissions:
+  contents: write
 
 jobs:
   generate-excel:
@@ -26,12 +31,19 @@ jobs:
       - name: Verify generated file
         run: |
           ls -la Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx
-          python -c "from openpyxl import load_workbook; wb=load_workbook('Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx'); print('Sheets:', wb.sheetnames); print('TestPlan rows:', wb['TestPlan'].max_row-1); print('MetaData rows:', wb['MetaData'].max_row-1); print('VALIDATION PASSED')"
+          python -c "
+from openpyxl import load_workbook
+wb = load_workbook('Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx')
+print('Sheets:', wb.sheetnames)
+print('TestPlan rows:', wb['TestPlan'].max_row - 1)
+print('MetaData rows:', wb['MetaData'].max_row - 1)
+print('VALIDATION PASSED')
+"
 
       - name: Commit and push Excel file
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx
-          git commit -m "Added generated TestPlan Excel - PCIE_TestPlan_20260903_112434.xlsx"
+          git diff --cached --quiet || git commit -m "Added generated TestPlan Excel - PCIE_TestPlan_20260903_112434.xlsx"
           git push
