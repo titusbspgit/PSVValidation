@@ -1,0 +1,23 @@
+// Author - AI Force 2.3. Date in IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * Test Case Name: pcie_device_enumerate_test
+ * Purpose: This testcase performs PCIe device enumeration and link training.
+ * It initializes control registers, performs link training, cache programming,
+ * SII polling, Vendor ID read, BAR probing, and completion synchronization.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <test_common.h>
+#include "pcie.h"
+
+/* Compile-time defines for PCIe mode selection */
+/* DM0_RC - Define to enable DM0 Root Complex mode */
+/* DM1_RC - Define to enable DM1 Root Complex mode */
+/* DM0_EP - Define to enable DM0 Endpoint mode */
+/* DM1_EP - Define to enable DM1 Endpoint mode */
+/* DEBUG_DISPLAY - Define to enable debug display logging */
+
+/* Arrays: NA */
