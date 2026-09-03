@@ -2,13 +2,12 @@ name: Generate PCIE TestPlan Excel
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'Test_Output/PCIE/TestPlan/build_xlsx_base64.py'
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,133 +21,15 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Excel workbook
+        run: python Test_Output/PCIE/TestPlan/excel_generator.py
+
+      - name: Commit and push Excel file
         run: |
-          cd Test_Output/PCIE/TestPlan
-          python3 -c "
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
-from datetime import datetime, timezone, timedelta
-import os
-
-IST = timezone(timedelta(hours=5, minutes=30))
-now_ist = datetime.now(IST)
-timestamp = now_ist.strftime('%Y%m%d_%H%M%S')
-filename = f'PCIE_TestPlan_{timestamp}.xlsx'
-
-json_data = [
-    {
-        'Index': '1',
-        'SS / Module': 'PCIE',
-        'Test Case Name': 'pcie_device_enumerate_test',
-        'Feature': 'Device Enumeration',
-        'Speed': 'NA',
-        'Mode': 'NA',
-        'Memory Start Offset': 'NA',
-        'Memory End Offset': 'NA',
-        'Test Description': 'This test performs PCIe device enumeration by training the PCIe link, programming cache coherency control registers for both PCIE0 and PCIE1, polling SII link status until the link is established, reading the Vendor ID from the device identification register, enabling bus master and memory space via the status/command register, programming memory base addresses, and then enumerating BAR registers (BAR0, BAR1, secondary bus/primary bus, IO limit/base, memory limit/base, and prefetchable memory limit/base) on both PCIe slave ports by first writing all-ones to determine BAR sizes, reading back, then programming actual base addresses and verifying by reading back. The test concludes by polling a synchronization register until a completion pattern is received.',
-        'Test Steps / Procedure': '1. Clear the synchronization register to prepare for the test.\\n2. Perform PCIe link training based on the configured mode (Root Complex or Endpoint for DM0/DM1).\\n3. Program cache coherency control registers for both PCIE0 and PCIE1 by enabling specific bit fields.\\n4. Wait for coherency settings to take effect.\\n5. Re-apply cache coherency settings for both PCIE0 and PCIE1.\\n6. Poll SII0 link status register until the link is established (expected status pattern detected).\\n7. Poll SII1 link status register until the link is established.\\n8. Configure non-secure protection settings.\\n9. Read the device Vendor ID from the TYPE1_DEV_ID_VEND_ID_REG on PCIe slave 0.\\n10. Write to TYPE1_STATUS_COMMAND_REG to enable bus master, memory space, and IO space.\\n11. Program memory base addresses for both DM0 and DM1.\\n12. Enable configuration registers by writing to six system-level control registers.\\n13. Disable cache coherency by clearing specific bit fields in the coherency control registers for both PCIE0 and PCIE1.\\n14. Wait for cache disable to take effect.\\n15. Write all-ones to BAR0_REG, BAR1_REG, SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG, SEC_STAT_IO_LIMIT_IO_BASE_REG, MEM_LIMIT_MEM_BASE_REG, and PREF_MEM_LIMIT_PREF_MEM_BASE_REG on PCIe slave 1 to determine BAR sizes.\\n16. Read back all BAR registers on PCIe slave 1 to capture size information.\\n17. Program actual base addresses into the BAR registers on PCIe slave 1.\\n18. Read back all BAR registers on PCIe slave 1 to verify programming.\\n19. Repeat BAR size detection, programming, and verification for PCIe slave 0.\\n20. Poll the synchronization register until the expected completion value is received, confirming test completion.',
-        'Impacted Registers': 'TYPE1_DEV_ID_VEND_ID_REG; TYPE1_STATUS_COMMAND_REG; BAR0_REG; BAR1_REG; SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG; SEC_STAT_IO_LIMIT_IO_BASE_REG; MEM_LIMIT_MEM_BASE_REG; PREF_MEM_LIMIT_PREF_MEM_BASE_REG',
-        'Validation / Acceptance Criteria': '1. SII0 and SII1 link status registers must report the expected link-up pattern before proceeding.\\n2. The Vendor ID read from TYPE1_DEV_ID_VEND_ID_REG must return a valid device identifier confirming device presence.\\n3. BAR registers (BAR0_REG, BAR1_REG, SEC_LAT_TIMER_SUB_BUS_SEC_BUS_PRI_BUS_REG, SEC_STAT_IO_LIMIT_IO_BASE_REG, MEM_LIMIT_MEM_BASE_REG, PREF_MEM_LIMIT_PREF_MEM_BASE_REG) must correctly reflect size information after writing all-ones and must retain programmed base addresses after final configuration.\\n4. The synchronization register must eventually return the expected completion value, confirming the remote endpoint has completed its operations.\\n5. The test must complete successfully with a pass indication.',
-        'Remarks': 'The test uses conditional compilation (DM0_RC, DM1_RC, DM0_EP, DM1_EP) to select between Root Complex and Endpoint modes for link training. The source contains a duplicated block of link training and cache programming code. SII link status polling uses a busy-wait loop. Cache coherency is enabled before enumeration and disabled afterward. A synchronization mechanism using a polling register is used to coordinate with the remote PCIe endpoint. Multiple wait delays (wait_on) are used throughout the test for timing.',
-        'Code Generation': '',
-        'Meta Headers': '<stdlib.h>; <stdio.h>; <test_common.h>; pcie.h',
-        'Meta Macros': 'NA',
-        'Meta Arrays': 'NA',
-        'Meta Test Description': 'This testcase performs PCIe device enumeration. It begins by writing 0x0 to address 0xE6004100.',
-        'Meta Test Steps / Procedure': '1. write_reg(0xE6004100, 0x0) - clear synchronization register. 2. Conditional link training.',
-        'Meta Impacted Registers': '0xE6004100; mizar_PCIE0_DBI_DSP_COHERENCY_CONTROL_3_OFF; mizar_PCIE1_DBI_DSP_COHERENCY_CONTROL_3_OFF; 0xC0; 0x0; 0x4',
-        'Meta Validation / Acceptance Criteria': '1. SII0 link status polling confirms link is up. 2. Vendor ID read verifies device presence.'
-    }
-]
-
-testplan_columns = [
-    'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description',
-    'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks',
-    'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria',
-    'Code Generation'
-]
-
-metadata_columns = [
-    'Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure',
-    'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria',
-    'Meta Headers', 'Meta Macros', 'Meta Arrays'
-]
-
-wb = openpyxl.Workbook()
-header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
-header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-cell_alignment = Alignment(vertical='top', wrap_text=True)
-
-ws_tp = wb.active
-ws_tp.title = 'TestPlan'
-for col_idx, col_name in enumerate(testplan_columns, 1):
-    cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
-    cell.font = header_font
-    cell.fill = header_fill
-    cell.alignment = header_alignment
-
-for row_idx, row_data in enumerate(json_data, 2):
-    for col_idx, col_name in enumerate(testplan_columns, 1):
-        value = row_data.get(col_name, '')
-        cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = cell_alignment
-
-ws_tp.freeze_panes = 'A2'
-for col_idx in range(1, len(testplan_columns) + 1):
-    max_length = len(str(ws_tp.cell(row=1, column=col_idx).value or ''))
-    for row_idx in range(2, len(json_data) + 2):
-        cell_value = str(ws_tp.cell(row=row_idx, column=col_idx).value or '')
-        for line in cell_value.split(chr(10)):
-            max_length = max(max_length, len(line))
-    adjusted_width = min(max_length + 4, 60)
-    adjusted_width = max(adjusted_width, 12)
-    ws_tp.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
-
-ws_md = wb.create_sheet('MetaData')
-for col_idx, col_name in enumerate(metadata_columns, 1):
-    cell = ws_md.cell(row=1, column=col_idx, value=col_name)
-    cell.font = header_font
-    cell.fill = header_fill
-    cell.alignment = header_alignment
-
-for row_idx, row_data in enumerate(json_data, 2):
-    for col_idx, col_name in enumerate(metadata_columns, 1):
-        value = row_data.get(col_name, '')
-        cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = cell_alignment
-
-ws_md.freeze_panes = 'A2'
-for col_idx in range(1, len(metadata_columns) + 1):
-    max_length = len(str(ws_md.cell(row=1, column=col_idx).value or ''))
-    for row_idx in range(2, len(json_data) + 2):
-        cell_value = str(ws_md.cell(row=row_idx, column=col_idx).value or '')
-        for line in cell_value.split(chr(10)):
-            max_length = max(max_length, len(line))
-    adjusted_width = min(max_length + 4, 60)
-    adjusted_width = max(adjusted_width, 12)
-    ws_md.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
-
-ws_md.sheet_state = 'veryHidden'
-
-wb.save(filename)
-print(f'Generated: {filename}')
-print(f'Size: {os.path.getsize(filename)} bytes')
-
-wb2 = openpyxl.load_workbook(filename)
-print(f'Sheets: {wb2.sheetnames}')
-print(f'TestPlan rows: {wb2[\"TestPlan\"].max_row - 1}')
-print(f'MetaData rows: {wb2[\"MetaData\"].max_row - 1}')
-print('VALIDATION=PASSED')
-wb2.close()
-"
-
-      - name: Commit generated Excel
-        run: |
-          cd Test_Output/PCIE/TestPlan
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          cd Test_Output/PCIE/TestPlan/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add *.xlsx
-          git commit -m 'Added generated TestPlan Excel'
+          git rm -f excel_generator.py || true
+          git rm -f excel_b64.txt || true
+          git commit -m "Added generated TestPlan Excel"
           git push
