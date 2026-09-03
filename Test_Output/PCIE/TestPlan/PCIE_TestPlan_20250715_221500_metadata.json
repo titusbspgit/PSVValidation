@@ -1,0 +1,24 @@
+{
+  "IP_NAME": "PCIE",
+  "total_testcases": 4,
+  "generation_timestamp_IST": "2025-07-15T22:15:00+05:30",
+  "source_repository": "titusbspgit/PSVValidation",
+  "source_branch": "main",
+  "source_subdirectory": "TestRepo/PCIE",
+  "output_directory": "Test_Output/PCIE/TestPlan/",
+  "filename_rule": "PCIE_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx",
+  "testcases": [
+    {"index": 1, "folder_name": "pcie_device_enumerate_test", "feature": "Device Enumeration"},
+    {"index": 2, "folder_name": "pcie_dma_write_test", "feature": "DMA Write and Read"},
+    {"index": 3, "folder_name": "pcie_mem_wr_rd_test", "feature": "Memory Write and Read"},
+    {"index": 4, "folder_name": "pcie_reg_wr_rd_test", "feature": "Register Write and Read"}
+  ],
+  "register_spec_file": "DWC_pcie_dbi_cpcie_dsp.txt",
+  "pipeline_agents": [
+    "Agent 1: Folder Discovery",
+    "Agent 2: Token Extraction",
+    "Agent 3: Macro Resolution",
+    "Agent 4: Register Mapping",
+    "Agent 5: Testcase Detail Generation"
+  ]
+}
