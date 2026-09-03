@@ -1,49 +1,29 @@
 name: Generate PCIE TestPlan Excel
-
 on:
-  workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434_generator.py'
-      - '.github/workflows/generate_pcie_testplan.yml'
-
-permissions:
-  contents: write
+      - 'Test_Output/PCIE/TestPlan/generate_pcie_testplan.py'
+      - 'Test_Output/PCIE/TestPlan/PCIE_TestPlan_*_data.json'
+  workflow_dispatch:
 
 jobs:
-  generate-excel:
+  generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install openpyxl
-
-      - name: Generate Excel workbook
-        run: python Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434_generator.py
-
-      - name: Verify generated file
+      - run: pip install openpyxl
+      - name: Generate Excel
+        run: python Test_Output/PCIE/TestPlan/generate_pcie_testplan.py
+      - name: Commit Excel
         run: |
-          ls -la Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx
-          python -c "
-from openpyxl import load_workbook
-wb = load_workbook('Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx')
-print('Sheets:', wb.sheetnames)
-print('TestPlan rows:', wb['TestPlan'].max_row - 1)
-print('MetaData rows:', wb['MetaData'].max_row - 1)
-print('VALIDATION PASSED')
-"
-
-      - name: Commit and push Excel file
-        run: |
-          git config user.name "github-actions[bot]"
+          cd Test_Output/PCIE/TestPlan
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/PCIE/TestPlan/PCIE_TestPlan_20260903_112434.xlsx
-          git diff --cached --quiet || git commit -m "Added generated TestPlan Excel - PCIE_TestPlan_20260903_112434.xlsx"
+          git add *.xlsx
+          git commit -m "Auto-generated PCIE TestPlan Excel workbook" || echo "No changes"
           git push
