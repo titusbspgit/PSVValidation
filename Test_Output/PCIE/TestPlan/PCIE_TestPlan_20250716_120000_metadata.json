@@ -1,0 +1,19 @@
+{
+  "ip_name": "PCIE",
+  "timestamp_ist": "2025-07-16T12:00:00+05:30",
+  "timezone": "IST (GMT+05:30)",
+  "source_repository": "titusbspgit/PSVValidation",
+  "source_branch": "main",
+  "source_subdirectory": "TestRepo/PCIE",
+  "testcase_count": 4,
+  "testcases": [
+    "pcie_device_enumerate_test",
+    "pcie_dma_write_test",
+    "pcie_mem_wr_rd_test",
+    "pcie_reg_wr_rd_test"
+  ],
+  "fields_per_testcase": 20,
+  "output_filename_rule": "PCIE_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx",
+  "generated_by": "Agent 5 - Testcase Detail Generator",
+  "spec_document": "DWC_pcie_dbi_cpcie_dsp.txt"
+}
