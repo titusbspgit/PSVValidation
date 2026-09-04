@@ -5,8 +5,8 @@
  * test_define.inc
  * Test Case: pcie_mem_wr_rd_test
  * Purpose:   PCIe memory write and read-back verification across the PCIe slave
- *            memory space for dual-mode controllers in x4 configuration with
- *            cache coherency programming and disable phases.
+ *            memory space for both RC and EP modes with cache coherency programming,
+ *            BAR programming, and synchronization handshake.
  */
 
 /* Headers */
@@ -18,7 +18,7 @@
 /*
  * Macros: Compile-time configuration defines.
  * Define one of: DM0_RC, DM1_RC, DM0_EP, DM1_EP to select controller mode.
- * Define DM0 or DM1 for port selection.
+ * Define DM0 or DM1 to select port for link polling.
  * Define DEBUG_DISPLAY to enable verbose debug logging.
  *
  * These are expected to be defined externally (e.g., via compiler flags).
