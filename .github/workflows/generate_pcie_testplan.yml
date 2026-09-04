@@ -1,9 +1,10 @@
 name: Generate PCIE TestPlan XLSX
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/PCIE/TestPlan/generate_final_xlsx.py'
+      - 'Test_Output/PCIE/TestPlan/generate_PCIE_TestPlan_20250710.py'
 
 jobs:
   generate-xlsx:
@@ -11,19 +12,27 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: pip install openpyxl
+
       - name: Generate XLSX
-        run: python Test_Output/PCIE/TestPlan/generate_final_xlsx.py
-      - name: Commit and push XLSX
         run: |
           cd Test_Output/PCIE/TestPlan
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.xlsx
-          git commit -m "Added generated TestPlan Excel" || echo "No changes"
+          python3 generate_PCIE_TestPlan_20250710.py
+          ls -la *.xlsx
+
+      - name: Commit and Push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Test_Output/PCIE/TestPlan/PCIE_TestPlan_20250710_033000.xlsx
+          git commit -m 'Added generated PCIE TestPlan Excel workbook'
           git push
