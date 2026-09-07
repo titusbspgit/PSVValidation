@@ -1,0 +1,75 @@
+Test Case ID,Test Case Name,Test Case Folder,Description,Pre-conditions,Test Steps,Expected Results,Registers Accessed,Register Fields Exercised,Register Offsets,Access Types,Pass/Fail Criteria,Notes
+GPIO_TC_001,GPIO Register Default Value Check,gpio_reg_wr_rd_test,"After reset, read all GPIO registers in addr_array and verify each register's read value (masked with 0xFFFFFFFE) matches the expected default value from default_value_array. Registers with read_mask=0x00000000 or skip_rst_array=1 are skipped.","1. System reset completed (hreset_n deasserted)
+2. GPIO block is accessible via AHB bus
+3. No prior register writes have been performed","1. Iterate through addr_array[0..48] (49 registers: gp0_gpio_8 through gp0_gpio_39, gpio_intr_raw_stclr1, gp0_intr1_intr_en1, gp0_intr1_intr_sts1, and group registers)
+2. For each register, check skip_rst_array[i]; if 1, skip the register
+3. Check read_mask_array[i]; if 0x00000000, skip (register not readable)
+4. Call read_reg(addr_array[i]) to read the register value
+5. Mask the read value with 0xFFFFFFFE (clear bit 0)
+6. Compare masked read value against default_value_array[i]
+7. If mismatch, increment def_fail_cnt and log error with address, expected, and actual values","1. All readable, non-skipped registers return their expected default values after masking
+2. def_fail_cnt == 0 at end of test
+3. gp0_gpio_8 through gp0_gpio_39: default = 0x00100000 (io_ctrl=1, all others=0) after masking with 0xFFFFFFFE
+4. gp0_intr1_intr_en1 (0x84): default = 0x00000000
+5. gp0_intr1_intr_sts1 (0x88): default = 0x00000000","gp0_gpio_8 (0x00), gp0_gpio_9 (0x04), gp0_gpio_10 (0x08), gp0_gpio_11 (0x0C), gp0_gpio_12 (0x10), gp0_gpio_13 (0x14), gp0_gpio_14 (0x18), gp0_gpio_15 (0x1C), gp0_gpio_16 (0x20), gp0_gpio_17 (0x24), gp0_gpio_18 (0x28), gp0_gpio_19 (0x2C), gp0_gpio_20 (0x30), gp0_gpio_21 (0x34), gp0_gpio_22 (0x38), gp0_gpio_23 (0x3C), gp0_gpio_24 (0x40), gp0_gpio_25 (0x44), gp0_gpio_26 (0x48), gp0_gpio_27 (0x4C), gp0_gpio_28 (0x50), gp0_gpio_29 (0x54), gp0_gpio_30 (0x58), gp0_gpio_31 (0x5C), gp0_gpio_32 (0x60), gp0_gpio_33 (0x64), gp0_gpio_34 (0x68), gp0_gpio_35 (0x6C), gp0_gpio_36 (0x70), gp0_gpio_37 (0x74), gp0_gpio_38 (0x78), gp0_gpio_39 (0x7C), gpio_intr_raw_stclr1 (0x80), gp0_intr1_intr_en1 (0x84), gp0_intr1_intr_sts1 (0x88), gp0_intr2_intr_en1 (0x8C), gp0_intr2_intr_sts1 (0x90), gpio_io_ctrl_group1 (0x94), gpio_io_ctrl_group2 (0x98), gpio_io_ctrl_group3 (0x9C), gpio_io_ctrl_group4 (0xA0), gpio_dout_group1 (0xA4), gpio_dout_group2 (0xA8), gpio_dout_group3 (0xAC), gpio_dout_group4 (0xB0), gpio_din_group1 (0xB4), gpio_din_group2 (0xB8), gpio_din_group3 (0xBC), gpio_din_group4 (0xC0)","data_in[0](RO), intr_raw_sts[1](RO), intr_clr[16](WO), pedge_intr_en[17](RW), nedge_intr_en[18](RW), level_sel[19](RW), io_ctrl[20](RW2), dout[21](RW2), G8-G39_intr_en[0-31](RW), G8-G39_intr_sts[0-31](RO), G8-G39_intr_raw_stclr[0-31](VRRW)","0x00-0x7C (per-GPIO), 0x80, 0x84, 0x88, 0x8C, 0x90, 0x94, 0x98, 0x9C, 0xA0, 0xA4, 0xA8, 0xAC, 0xB0, 0xB4, 0xB8, 0xBC, 0xC0",Read (all 49 registers via read_reg),def_fail_cnt == 0 → PASS; def_fail_cnt > 0 → FAIL,"Registers at skip_rst_array indices 37-48 are skipped for default value check. Bit 0 is masked out (0xFFFFFFFE) before comparison due to data_in reflecting live pin state. soft_reset_chk() is disabled (#ifdef 0). SOFT_RST_REG_ADDRESS excluded per instructions."
+GPIO_TC_002,GPIO Register Write-Read Verification,gpio_reg_wr_rd_test,"Write 6 different data patterns to all writable GPIO registers and read back to verify the written values. Registers with write_mask=0x00000000 or skip_array=1 are skipped. Expected readback = (write_data & read_mask & write_mask) | (~write_mask & read_mask & default_value).","1. System reset completed
+2. GPIO block accessible
+3. Default value check (TC_001) completed","1. For each of 6 data patterns: 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0xF5F5F5F5, 0xA5A5A5A5, 0xFFFF0000:
+   a. WRITE PHASE: Iterate addr_array[0..48]; skip if skip_array[i]==1 or write_mask_array[i]==0x00000000; write_reg(addr, data_wr & write_mask_array[i])
+   b. READ PHASE: Iterate addr_array[0..48]; skip if skip_array[i]==1 or write_mask==0 or read_mask==0; read_reg(addr) & read_mask_array[i]
+   c. Compute expected: (data_wr & read_mask & write_mask) | (~write_mask & read_mask & default_value)
+   d. Compare read value with expected; if mismatch, increment wr_fail_cnt
+2. Repeat for all 6 patterns","1. All writable, readable, non-skipped registers return expected computed values for each pattern
+2. wr_fail_cnt == 0 at end of test
+3. RO fields (data_in, intr_raw_sts) retain default values regardless of write pattern
+4. RW fields (pedge_intr_en, nedge_intr_en, level_sel) accept written values
+5. RW2 fields (io_ctrl, dout) accept written values with hardware feedback
+6. WO fields (intr_clr) are not readable","gp0_gpio_8 (0x00), gp0_gpio_9 (0x04), gp0_gpio_10 (0x08), gp0_gpio_11 (0x0C), gp0_gpio_12 (0x10), gp0_gpio_13 (0x14), gp0_gpio_14 (0x18), gp0_gpio_15 (0x1C), gp0_gpio_16 (0x20), gp0_gpio_17 (0x24), gp0_gpio_18 (0x28), gp0_gpio_19 (0x2C), gp0_gpio_20 (0x30), gp0_gpio_21 (0x34), gp0_gpio_22 (0x38), gp0_gpio_23 (0x3C), gp0_gpio_24 (0x40), gp0_gpio_25 (0x44), gp0_gpio_26 (0x48), gp0_gpio_27 (0x4C), gp0_gpio_28 (0x50), gp0_gpio_29 (0x54), gp0_gpio_30 (0x58), gp0_gpio_31 (0x5C), gp0_gpio_32 (0x60), gp0_gpio_33 (0x64), gp0_gpio_34 (0x68), gp0_gpio_35 (0x6C), gp0_gpio_36 (0x70), gp0_gpio_37 (0x74), gp0_gpio_38 (0x78), gp0_gpio_39 (0x7C), gpio_intr_raw_stclr1 (0x80), gp0_intr1_intr_en1 (0x84), gp0_intr1_intr_sts1 (0x88), gp0_intr2_intr_en1 (0x8C), gp0_intr2_intr_sts1 (0x90), gpio_io_ctrl_group1 (0x94), gpio_io_ctrl_group2 (0x98), gpio_io_ctrl_group3 (0x9C), gpio_io_ctrl_group4 (0xA0), gpio_dout_group1 (0xA4), gpio_dout_group2 (0xA8), gpio_dout_group3 (0xAC), gpio_dout_group4 (0xB0), gpio_din_group1 (0xB4), gpio_din_group2 (0xB8), gpio_din_group3 (0xBC), gpio_din_group4 (0xC0)","data_in[0](RO), intr_raw_sts[1](RO), intr_clr[16](WO), pedge_intr_en[17](RW), nedge_intr_en[18](RW), level_sel[19](RW), io_ctrl[20](RW2), dout[21](RW2), G8-G39_intr_en[0-31](RW), G8-G39_intr_sts[0-31](RO), G8-G39_intr_raw_stclr[0-31](VRRW)","0x00-0x7C (per-GPIO), 0x80, 0x84, 0x88, 0x8C, 0x90, 0x94, 0x98, 0x9C, 0xA0, 0xA4, 0xA8, 0xAC, 0xB0, 0xB4, 0xB8, 0xBC, 0xC0","Write then Read (all 49 registers via write_reg and read_reg, 6 patterns)",wr_fail_cnt == 0 → PASS; wr_fail_cnt > 0 → FAIL,"Registers at skip_array index 32 and indices 37-44 are skipped (VRRW group registers). 6 data patterns cover all-1s, alternating bits, mixed patterns, and half-word boundary. SOFT_RST_REG_ADDRESS excluded per instructions."
+GPIO_TC_003,GPIO Active-High Level Interrupt Test,test_gpio_level_sel_intr_en,"Test level-triggered interrupt generation with level_sel=1 (active high) for all 32 GPIO pins (GPIO_8 through GPIO_39). For each pin: configure input mode with level interrupt enabled and level_sel=1, enable group interrupt, trigger interrupt via SRAM write, verify interrupt in ISR by checking per-pin raw status and group status, clear interrupt, verify clear, and clear sysreg status.","1. System reset completed
+2. GIC initialized and IRQ 87 (GPIO0) or IRQ 88 (GPIO1) enabled
+3. SRAM at 0xA0243ffc accessible for interrupt triggering
+4. Sysreg interrupt enabled (MIZAR_LSS_SYSREG_INTR_EN1 written)","For each GPIO pin i (0 to 31, representing GPIO_8 to GPIO_39):
+1. write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00180000) — Set input mode (io_ctrl=1, bit20) and level_sel=1 (bit19), enabling level interrupt on high
+2. wait_on(50)
+3. write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 1<<i) — Enable group interrupt for this pin
+4. wait_on(10)
+5. write_reg(0xA0243ffc, 0xFFFFFFFF) — Write to SRAM to trigger interrupt
+6. Set int_pend=1; wait in polling loop until ISR clears int_pend
+7. IN ISR (Default_IRQHandler):
+   a. write_reg(0xA0243ffc, 0xFFFFFFFF)
+   b. read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4)) — Check intr_raw_sts (bit 1)
+   c. Verify (rdata & 0x2) != 0 (raw interrupt raised)
+   d. read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) — Check group interrupt status bit i
+   e. Verify (rdata_grp & (1<<i)) != 0
+   f. write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00110000) — Clear interrupt (intr_clr=1, bit16)
+   g. wait_on(20)
+   h. read_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4)) — Verify cleared (expect 0x100001)
+   i. write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 0x00000000) — Disable group interrupt
+   j. read_reg(MIZAR_GPIO_GP0_INTR1_INTR_STS1) — Verify group status cleared (expect 0x0)
+   k. write_reg(MIZAR_LSS_SYSREG_RAW_STCR1, sysreg_clear_value) — Clear sysreg status
+   l. read_reg(MIZAR_LSS_SYSREG_RAW_STCR1) — Verify sysreg cleared
+   m. GIC_ClearIRQ(87/88)","1. For each of 32 GPIO pins:
+   a. Per-pin intr_raw_sts (bit 1) is set when level=high detected → (rdata & 0x2) != 0
+   b. Group interrupt status bit is set → (rdata_grp & (1<<i)) != 0
+   c. After interrupt clear: register reads 0x100001 (io_ctrl=1 in bit20, data_in=1 in bit0)
+   d. After disabling group interrupt: gp0_intr1_intr_sts1 == 0x0
+   e. Sysreg status cleared successfully
+2. test_err == 0 at end of all 32 pins","gp0_gpio_8 to gp0_gpio_39 (0x00-0x7C), gp0_intr1_intr_en1 (0x84), gp0_intr1_intr_sts1 (0x88), MIZAR_LSS_SYSREG_INTR_EN1 (external), MIZAR_LSS_SYSREG_RAW_STCR1 (external), 0xA0243ffc (SRAM)","Per-GPIO: data_in[0](RO), intr_raw_sts[1](RO), intr_clr[16](WO), level_sel[19](RW), io_ctrl[20](RW2); gp0_intr1_intr_en1: G8-G39_intr_en[0-31](RW); gp0_intr1_intr_sts1: G8-G39_intr_sts[0-31](RO)","0x00-0x7C (per-GPIO via base+i*4), 0x84, 0x88, external sysreg, 0xA0243ffc","Write (GPIO config, intr_en, SRAM, intr_clr, sysreg_clr), Read (GPIO status, group_sts, sysreg_sts)",test_err == 0 → PASS; test_err > 0 → FAIL,"Active-high level: 0x00180000 = bit19(level_sel=1) + bit20(io_ctrl=1/input mode). Interrupt is level-triggered: stays asserted as long as pin level matches level_sel. MIZAR_LSS_SYSREG_INTR_EN1 and MIZAR_LSS_SYSREG_RAW_STCR1 are external to GPIO register block (LSS SYSREG). 0xA0243ffc is SRAM used for interrupt triggering mechanism."
+GPIO_TC_004,GPIO Active-Low Level Interrupt Test,test_gpio_level_sel_intr_en,"Test level-triggered interrupt generation with level_sel=0 (active low) for all 32 GPIO pins (GPIO_8 through GPIO_39). For each pin: configure input mode with level interrupt enabled and level_sel=0, enable group interrupt, trigger interrupt via SRAM write with inverted pin mask, verify interrupt in ISR, clear interrupt, verify clear, and clear sysreg status.","1. System reset completed
+2. GIC initialized and IRQ 87 (GPIO0) or IRQ 88 (GPIO1) enabled
+3. Active-high level interrupt test (TC_003) completed
+4. SRAM at 0xA0243ffc accessible
+5. Sysreg interrupt enabled","For each GPIO pin i (0 to 31, representing GPIO_8 to GPIO_39):
+1. write_reg(MIZAR_GPIO_GP0_GPIO_8 + (i*4), 0x00100000) — Set input mode (io_ctrl=1, bit20) with level_sel=0 (bit19=0), enabling level interrupt on low
+2. wait_on(50)
+3. write_reg(MIZAR_GPIO_GP0_INTR1_INTR_EN1, 1<<i) — Enable group interrupt for this pin
+4. wait_on(10)
+5. write_reg(0xA0243ffc, ~(1<<i)) — Write inverted mask to SRAM to trigger low-level interrupt
+6. Set int_pend=1; wait in polling loop until ISR clears int_pend
+7. IN ISR (Default_IRQHandler): Same sequence as TC_003 steps 7a-7m","1. For each of 32 GPIO pins:
+   a. Per-pin intr_raw_sts (bit 1) is set when level=low detected → (rdata & 0x2) != 0
+   b. Group interrupt status bit is set → (rdata_grp & (1<<i)) != 0
+   c. After interrupt clear: register reads 0x100001
+   d. After disabling group interrupt: gp0_intr1_intr_sts1 == 0x0
+   e. Sysreg status cleared successfully
+2. test_err == 0 at end of all 32 pins","gp0_gpio_8 to gp0_gpio_39 (0x00-0x7C), gp0_intr1_intr_en1 (0x84), gp0_intr1_intr_sts1 (0x88), MIZAR_LSS_SYSREG_INTR_EN1 (external), MIZAR_LSS_SYSREG_RAW_STCR1 (external), 0xA0243ffc (SRAM)","Per-GPIO: data_in[0](RO), intr_raw_sts[1](RO), intr_clr[16](WO), level_sel[19](RW), io_ctrl[20](RW2); gp0_intr1_intr_en1: G8-G39_intr_en[0-31](RW); gp0_intr1_intr_sts1: G8-G39_intr_sts[0-31](RO)","0x00-0x7C (per-GPIO via base+i*4), 0x84, 0x88, external sysreg, 0xA0243ffc","Write (GPIO config, intr_en, SRAM, intr_clr, sysreg_clr), Read (GPIO status, group_sts, sysreg_sts)",test_err == 0 → PASS; test_err > 0 → FAIL,"Active-low level: 0x00100000 = bit20(io_ctrl=1/input mode) only, bit19(level_sel)=0. SRAM write uses ~(1<<i) to drive the specific pin low while others remain high. ISR handling is identical to TC_003. MIZAR_LSS_SYSREG_INTR_EN1 and MIZAR_LSS_SYSREG_RAW_STCR1 are external to GPIO register block. 0xA0243ffc is SRAM used for interrupt triggering mechanism."
