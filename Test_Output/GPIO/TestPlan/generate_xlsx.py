@@ -2,6 +2,7 @@
 """Auto-generated script to create GPIO TestPlan XLSX workbook.
 Run: python3 generate_xlsx.py
 Requires: pip install openpyxl
+Triggered: Auto-trigger for GitHub Actions workflow
 """
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
