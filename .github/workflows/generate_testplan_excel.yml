@@ -1,0 +1,47 @@
+name: Generate GPIO TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/GPIO/TestPlan/generate_excel.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel workbook
+        run: python Test_Output/GPIO/TestPlan/generate_excel.py
+
+      - name: Get generated filename
+        id: get_filename
+        run: |
+          XLSX_FILE=$(ls -t Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx 2>/dev/null | head -1)
+          echo "xlsx_file=$XLSX_FILE" >> $GITHUB_OUTPUT
+          echo "Found: $XLSX_FILE"
+
+      - name: Commit and push Excel file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/GPIO/TestPlan/GPIO_TestPlan_*.xlsx
+          git commit -m "Added generated TestPlan Excel"
+          git push
+
+      - name: Cleanup generator script
+        run: |
+          git rm Test_Output/GPIO/TestPlan/generate_excel.py
+          git commit -m "Cleanup: remove temporary generator script"
+          git push
