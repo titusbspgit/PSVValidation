@@ -1,0 +1,32 @@
+name: Generate GPIO TestPlan Excel
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate Excel
+        run: |
+          cd Test_Output/GPIO/TestCode/GPIO_TestCode_20250615_131530
+          python run_generator.py
+
+      - name: Commit Excel
+        run: |
+          cd Test_Output/GPIO/TestCode/GPIO_TestCode_20250615_131530
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add GPIO_TestPlan_20250615_131530.xlsx
+          git commit -m "Added generated TestPlan Excel - GPIO_TestPlan_20250615_131530"
+          git push
