@@ -28,9 +28,8 @@ jobs:
 
       - name: Commit and push
         run: |
-          cd Test_Output/MIPI/TestPlan
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add *.xlsx
-          git commit -m 'Added generated TestPlan Excel' || echo 'No changes'
+          git add 'Test_Output/MIPI/TestPlan/*.xlsx'
+          git commit -m 'Added generated TestPlan Excel' || echo 'No changes to commit'
           git push
