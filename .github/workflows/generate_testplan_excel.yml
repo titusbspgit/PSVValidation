@@ -1,11 +1,15 @@
 name: Generate MIPI_DSI TestPlan Excel
 
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/generate_testplan_excel.yml'
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
