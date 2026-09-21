@@ -1,6 +1,9 @@
 name: Generate Ethernet3 TestPlan Excel
 
 on:
+  push:
+    paths:
+      - '.github/workflows/generate_ethernet3_testplan.yml'
   workflow_dispatch:
 
 permissions:
