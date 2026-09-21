@@ -6,14 +6,17 @@
 
 /*
  * Test Case: mipi_dsi_subsys_reg_wr_rd_test
- * Description: This testcase performs register write-read verification on MIPI DSI
- * subsystem registers. It uses an array-driven approach where register addresses
- * are stored in addr_array[] and iterated over. For each register, the test first
- * reads the register to check the reset default value (chk_rst_val), then performs
- * a write followed by a read-back to verify the written value (chk_rd_wr). The
+ * Description: This testcase performs register write-read verification on MIPI
+ * DSI subsystem registers. It uses an array-driven approach where register
+ * addresses are stored in addr_array[] and iterated over. For each register,
+ * the test first reads the register via read_reg() to check the reset default
+ * value (chk_rst_val), then performs a write via write_reg() followed by a
+ * read-back via read_reg() to verify the written value (chk_rd_wr). The
  * registers under test are: MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,
  * MIZAR_MIPI_DSI_SUBSYS_LOW_PWR, MIZAR_MIPI_DSI_SUBSYS_DBITE,
  * MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV, and MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW.
+ * Each register undergoes read_modify_write operations with corresponding
+ * default value, read mask, and write mask validation.
  */
 
 typedef struct {
@@ -83,6 +86,87 @@ int mipi_dsi_subsys_reg_wr_rd_test_init(const TestsItem *cfg)
 }
 
 /*
+ * Function: chk_rst_val
+ * Description: Reads each register and verifies the reset default value.
+ * Parameters:
+ *   err1 - Pointer to reset value error counter.
+ */
+static void chk_rst_val(unsigned int *err1)
+{
+    uint32_t read_val;
+    uint32_t i;
+
+    LOGT("chk_rst_val: checking reset default values for %u registers",
+         (unsigned int)NUM_REGS);
+
+    for (i = 0U; i < NUM_REGS; i++) {
+        read_val = readl_reg(addr_array[i]);
+        g_ctx.checks_total++;
+        if ((read_val & rd_mask_array[i]) != (default_val_array[i] & rd_mask_array[i])) {
+            LOGE("Reset value check FAILED for register[%u] addr=0x%lx: "
+                 "read=0x%lx expected=0x%lx mask=0x%lx",
+                 (unsigned int)i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)(read_val & rd_mask_array[i]),
+                 (unsigned long)(default_val_array[i] & rd_mask_array[i]),
+                 (unsigned long)rd_mask_array[i]);
+            (*err1)++;
+            g_ctx.errors++;
+        } else {
+            LOGT("Reset value check PASSED for register[%u] addr=0x%lx: "
+                 "value=0x%lx",
+                 (unsigned int)i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)(read_val & rd_mask_array[i]));
+            g_ctx.checks_passed++;
+        }
+    }
+}
+
+/*
+ * Function: chk_rd_wr
+ * Description: Writes a test value to each register and reads back to verify.
+ * Parameters:
+ *   err2    - Pointer to write-read error counter.
+ *   data_wr - Test data value to write.
+ */
+static void chk_rd_wr(unsigned int *err2, uint32_t data_wr)
+{
+    uint32_t read_val;
+    uint32_t i;
+
+    LOGT("chk_rd_wr: performing write-read verification for %u registers with data_wr=0x%lx",
+         (unsigned int)NUM_REGS,
+         (unsigned long)data_wr);
+
+    for (i = 0U; i < NUM_REGS; i++) {
+        writel_reg(addr_array[i], data_wr & wr_mask_array[i]);
+        read_val = readl_reg(addr_array[i]);
+        g_ctx.checks_total++;
+        if ((read_val & rd_mask_array[i]) != (data_wr & wr_mask_array[i] & rd_mask_array[i])) {
+            LOGE("Write-read check FAILED for register[%u] addr=0x%lx: "
+                 "written=0x%lx read=0x%lx rd_mask=0x%lx wr_mask=0x%lx",
+                 (unsigned int)i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)(data_wr & wr_mask_array[i]),
+                 (unsigned long)(read_val & rd_mask_array[i]),
+                 (unsigned long)rd_mask_array[i],
+                 (unsigned long)wr_mask_array[i]);
+            (*err2)++;
+            g_ctx.errors++;
+        } else {
+            LOGT("Write-read check PASSED for register[%u] addr=0x%lx: "
+                 "written=0x%lx read=0x%lx",
+                 (unsigned int)i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)(data_wr & wr_mask_array[i]),
+                 (unsigned long)(read_val & rd_mask_array[i]));
+            g_ctx.checks_passed++;
+        }
+    }
+}
+
+/*
  * Function: mipi_dsi_subsys_reg_wr_rd_test_run
  * Description: Executes the main testcase flow for mipi_dsi_subsys_reg_wr_rd_test.
  * Parameters:
@@ -93,11 +177,9 @@ int mipi_dsi_subsys_reg_wr_rd_test_init(const TestsItem *cfg)
  */
 int mipi_dsi_subsys_reg_wr_rd_test_run(const TestsItem *cfg, TestOutput *out)
 {
-    uint32_t read_val;
-    uint32_t data_wr = MIPI_DSI_SUBSYS_REG_TEST_WRITE_VAL;
-    uint32_t err1 = 0U;  /* Reset value check errors */
-    uint32_t err2 = 0U;  /* Write-read check errors */
-    uint32_t i;
+    unsigned int err1 = 0U;
+    unsigned int err2 = 0U;
+    uint32_t data_wr = MIPI_DSI_SUBSYS_REG_TEST_DATA;
 
     (void)cfg;
 
@@ -108,70 +190,28 @@ int mipi_dsi_subsys_reg_wr_rd_test_run(const TestsItem *cfg, TestOutput *out)
 
     out->status = 0;
 
-    LOGT("mipi_dsi_subsys_reg_wr_rd_test run: starting register write-read verification");
+    LOGT("mipi_dsi_subsys_reg_wr_rd_test run: starting subsystem register write-read verification");
 
-    /* Phase 1: Reset value verification (chk_rst_val) */
-    LOGT("Phase 1: Checking reset default values for %u registers", (unsigned int)NUM_REGS);
+    /* Step 1-2: Initialize addr_array and check reset default values */
+    LOGT("Step 1-2: Check reset default values for all registers in addr_array");
+    chk_rst_val(&err1);
 
-    for (i = 0U; i < NUM_REGS; i++) {
-        read_val = readl_reg(addr_array[i]);
-        g_ctx.checks_total++;
-        if ((read_val & rd_mask_array[i]) != (default_val_array[i] & rd_mask_array[i])) {
-            LOGE("Reset value check FAILED for register[%u] addr=0x%lx expected=0x%lx read=0x%lx mask=0x%lx",
-                 (unsigned int)i,
-                 (unsigned long)addr_array[i],
-                 (unsigned long)(default_val_array[i] & rd_mask_array[i]),
-                 (unsigned long)(read_val & rd_mask_array[i]),
-                 (unsigned long)rd_mask_array[i]);
-            err1++;
-            g_ctx.errors++;
-        } else {
-            LOGT("Reset value check PASSED for register[%u] addr=0x%lx value=0x%lx",
-                 (unsigned int)i,
-                 (unsigned long)addr_array[i],
-                 (unsigned long)(read_val & rd_mask_array[i]));
-            g_ctx.checks_passed++;
-        }
-    }
+    /* Step 3-4: Write test value and read back for verification */
+    LOGT("Step 3-4: Write test data and verify read-back for all registers in addr_array");
+    chk_rd_wr(&err2, data_wr);
 
-    /* Phase 2: Write-read verification (chk_rd_wr) */
-    LOGT("Phase 2: Performing write-read verification for %u registers", (unsigned int)NUM_REGS);
+    /* Step 5: Report results */
+    LOGT("Step 5: Reset value errors (err1)=%u, Write-read errors (err2)=%u",
+         err1, err2);
 
-    for (i = 0U; i < NUM_REGS; i++) {
-        writel_reg(addr_array[i], data_wr & wr_mask_array[i]);
-        read_val = readl_reg(addr_array[i]);
-        g_ctx.checks_total++;
-        if ((read_val & rd_mask_array[i]) != (data_wr & wr_mask_array[i] & rd_mask_array[i])) {
-            LOGE("Write-read check FAILED for register[%u] addr=0x%lx written=0x%lx read=0x%lx rd_mask=0x%lx wr_mask=0x%lx",
-                 (unsigned int)i,
-                 (unsigned long)addr_array[i],
-                 (unsigned long)(data_wr & wr_mask_array[i]),
-                 (unsigned long)(read_val & rd_mask_array[i]),
-                 (unsigned long)rd_mask_array[i],
-                 (unsigned long)wr_mask_array[i]);
-            err2++;
-            g_ctx.errors++;
-        } else {
-            LOGT("Write-read check PASSED for register[%u] addr=0x%lx written=0x%lx read=0x%lx",
-                 (unsigned int)i,
-                 (unsigned long)addr_array[i],
-                 (unsigned long)(data_wr & wr_mask_array[i]),
-                 (unsigned long)(read_val & rd_mask_array[i]));
-            g_ctx.checks_passed++;
-        }
-    }
-
-    /* Update final status */
     g_ctx.checks_failed = g_ctx.errors;
 
-    LOGT("Reset value errors (err1): %u", (unsigned int)err1);
-    LOGT("Write-read errors (err2): %u", (unsigned int)err2);
+    out->status = ((err1 == 0U) && (err2 == 0U)) ? 0 : -1;
 
-    out->status = (g_ctx.errors == 0U) ? 0 : -1;
-
-    LOGT("Run complete: %s errors=%u checks_passed=%u checks_total=%u checks_failed=%u",
+    LOGT("Run complete: %s err1=%u err2=%u checks_passed=%u checks_total=%u checks_failed=%u",
          (out->status == 0) ? "PASS" : "FAIL",
-         g_ctx.errors,
+         err1,
+         err2,
          g_ctx.checks_passed,
          g_ctx.checks_total,
          g_ctx.checks_failed);

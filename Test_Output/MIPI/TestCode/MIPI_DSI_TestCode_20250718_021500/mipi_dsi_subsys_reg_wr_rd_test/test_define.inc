@@ -4,7 +4,8 @@
 /*
  * Test Case: mipi_dsi_subsys_reg_wr_rd_test
  * Purpose: Supporting definitions for MIPI DSI subsystem register write-read
- *          verification with array-driven reset value and write-read checks.
+ *          verification using array-driven iteration with reset-value and
+ *          write-read phases.
  */
 
 #include "test.h"
@@ -45,8 +46,9 @@
 /* ========================================================================== */
 /* Default Value Macros                                                       */
 /* ========================================================================== */
-/* MANUAL_REVIEW: Default values must be filled in from the SoC/IP register    */
-/* specification for each register's power-on reset value.                      */
+/* MANUAL_REVIEW: Default values are not provided in the Meta TestPlan JSON.   */
+/* The macro names are derived from the validation criteria. Actual values     */
+/* must be filled in from the SoC/IP specification.                             */
 
 #ifndef MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_DEFAULT_VAL
 #define MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_DEFAULT_VAL  0x0UL  /* MANUAL_REVIEW: Set actual default */
@@ -71,8 +73,8 @@
 /* ========================================================================== */
 /* Read Mask Macros                                                           */
 /* ========================================================================== */
-/* MANUAL_REVIEW: Read masks define which bits are readable for each register.  */
-/* Set to 0xFFFFFFFFUL if all bits are readable.                                */
+/* MANUAL_REVIEW: Read masks define which bits are readable. Actual values     */
+/* must be filled in from the SoC/IP specification.                             */
 
 #ifndef MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_RD_MASK
 #define MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_RD_MASK  0xFFFFFFFFUL  /* MANUAL_REVIEW: Set actual mask */
@@ -97,8 +99,8 @@
 /* ========================================================================== */
 /* Write Mask Macros                                                          */
 /* ========================================================================== */
-/* MANUAL_REVIEW: Write masks define which bits are writable for each register. */
-/* Set to 0xFFFFFFFFUL if all bits are writable.                                */
+/* MANUAL_REVIEW: Write masks define which bits are writable. Actual values    */
+/* must be filled in from the SoC/IP specification.                             */
 
 #ifndef MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_WR_MASK
 #define MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_WR_MASK  0xFFFFFFFFUL  /* MANUAL_REVIEW: Set actual mask */
@@ -121,9 +123,9 @@
 #endif
 
 /* ========================================================================== */
-/* Test Configuration Macros                                                  */
+/* Test Data Value                                                            */
 /* ========================================================================== */
 
-#ifndef MIPI_DSI_SUBSYS_REG_TEST_WRITE_VAL
-#define MIPI_DSI_SUBSYS_REG_TEST_WRITE_VAL               0xA5A5A5A5UL  /* MANUAL_REVIEW: Set actual test value */
+#ifndef MIPI_DSI_SUBSYS_REG_TEST_DATA
+#define MIPI_DSI_SUBSYS_REG_TEST_DATA                    0xA5A5A5A5UL  /* MANUAL_REVIEW: Set actual test data */
 #endif
