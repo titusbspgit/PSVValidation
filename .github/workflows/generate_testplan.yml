@@ -1,31 +1,35 @@
-name: Generate TestPlan Excel
+name: Generate MIPI_DSI TestPlan Excel
+
 on:
   push:
     paths:
-      - '.github/scripts/generate_excel.py'
+      - 'Test_Output/MIPI/TestPlan/generate_excel.py'
+
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
+
+      - name: Install openpyxl
         run: pip install openpyxl
+
       - name: Generate Excel
-        run: python .github/scripts/generate_excel.py
-      - name: Commit and push
+        run: python Test_Output/MIPI/TestPlan/generate_excel.py
+
+      - name: Commit and Push Excel
         run: |
+          cd Test_Output/MIPI/TestPlan
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 'Test_Output/Ethernet/Ethernet3/TestPlan/*.xlsx'
+          git add *.xlsx
           git commit -m 'Added generated TestPlan Excel'
-          git push
-      - name: Cleanup generator files
-        run: |
-          git rm .github/scripts/generate_excel.py
-          git rm .github/workflows/generate_testplan.yml
-          git commit -m 'Cleanup: removed TestPlan generator scripts'
           git push
