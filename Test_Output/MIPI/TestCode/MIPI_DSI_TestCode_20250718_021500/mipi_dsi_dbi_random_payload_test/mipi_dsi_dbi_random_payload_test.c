@@ -8,10 +8,10 @@
  * Test Case: mipi_dsi_dbi_random_payload_test
  * Description: This testcase performs a MIPI DSI DBI random payload transfer
  * using DMA. It configures the DSI host PHY interface, packet handling, clock
- * manager, and DPI control. DMAC interrupts are enabled. The DMA channel is
- * programmed and executed via debug instruction registers. The test polls
- * DMAC masked interrupt status for DMA completion, then clears the DMA
- * interrupt. The payload data used for the DBI write memory command is random.
+ * manager, and DPI control. DMAC interrupts are enabled, the DMA channel is
+ * programmed with debug instruction registers for random payload, then executed.
+ * The test polls DMAC masked interrupt status for completion, then clears the
+ * DMA interrupt.
  */
 
 typedef struct {
@@ -94,7 +94,7 @@ int mipi_dsi_dbi_random_payload_test_run(const TestsItem *cfg, TestOutput *out)
     LOGT("Step 5: Enable DMA controller interrupts via MIZAR_MIPI_DSI_DMAC_INTEN");
     writel_reg(MIZAR_MIPI_DSI_DMAC_INTEN, MIPI_DSI_DMAC_INTEN_ENABLE_VAL);
 
-    /* Step 6: Write to MIZAR_MIPI_DSI_DMAC_DBGINST0 with DMA channel instruction byte 0 (random payload) */
+    /* Step 6: Write to MIZAR_MIPI_DSI_DMAC_DBGINST0 with DMA channel instruction byte 0 for random payload */
     LOGT("Step 6: Program DMA channel instruction byte 0 via MIZAR_MIPI_DSI_DMAC_DBGINST0 (random payload)");
     writel_reg(MIZAR_MIPI_DSI_DMAC_DBGINST0,
               (DSI_WRITE_MEMORY_START | ((uint32_t)DMA_SAR << 8U) | ((uint32_t)DMA_DAR << 16U)));
@@ -110,22 +110,29 @@ int mipi_dsi_dbi_random_payload_test_run(const TestsItem *cfg, TestOutput *out)
     /* Step 9: Poll MIZAR_MIPI_DSI_DMAC_INTMIS in a loop to wait for DMA transfer completion */
     LOGT("Step 9: Poll MIZAR_MIPI_DSI_DMAC_INTMIS for DMA transfer completion");
     poll_count = 0U;
-    g_ctx.checks_total++;
-    do {
-        read_val = readl_reg(MIZAR_MIPI_DSI_DMAC_INTMIS);
+    read_val = readl_reg(MIZAR_MIPI_DSI_DMAC_INTMIS);
+    while ((read_val & MIPI_DSI_DMAC_INTMIS_DONE_MASK) == 0U) {
         poll_count++;
-        if (poll_count > MIPI_DSI_POLL_MAX_RETRIES) {
-            LOGE("DMA transfer completion poll TIMEOUT after %u retries",
+        if (poll_count >= MIPI_DSI_POLL_MAX_RETRIES) {
+            LOGE("DMA transfer completion poll timeout after %u retries",
                  (unsigned int)MIPI_DSI_POLL_MAX_RETRIES);
             g_ctx.errors++;
             break;
         }
-    } while (read_val == 0U);
+        read_val = readl_reg(MIZAR_MIPI_DSI_DMAC_INTMIS);
+    }
 
-    if (g_ctx.errors == 0U) {
+    g_ctx.checks_total++;
+    if ((read_val & MIPI_DSI_DMAC_INTMIS_DONE_MASK) != 0U) {
         LOGT("DMA transfer completion verified via INTMIS: read=0x%lx polls=%u",
-             (unsigned long)read_val, (unsigned int)poll_count);
+             (unsigned long)read_val,
+             (unsigned int)poll_count);
         g_ctx.checks_passed++;
+    } else {
+        LOGE("DMA transfer did not complete: INTMIS read=0x%lx polls=%u",
+             (unsigned long)read_val,
+             (unsigned int)poll_count);
+        g_ctx.errors++;
     }
 
     /* Step 10: Write to MIZAR_MIPI_DSI_DMAC_INTCLR to clear the DMA interrupt */

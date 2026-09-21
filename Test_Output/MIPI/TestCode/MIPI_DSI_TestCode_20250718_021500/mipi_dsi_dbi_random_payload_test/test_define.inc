@@ -39,7 +39,7 @@
 #endif
 
 #ifndef MIZAR_MIPI_DSI_DMAC_INTEN
-#define MIZAR_MIPI_DSI_DMAC_INTEN              0x0UL  /* MANUAL_REVIEW: Set actual address */
+#define MIZAR_MIPI_DSI_DMAC_INTEN               0x0UL  /* MANUAL_REVIEW: Set actual address */
 #endif
 
 #ifndef MIZAR_MIPI_DSI_DMAC_DBGINST0
@@ -113,10 +113,18 @@
 #define MIPI_DSI_DMAC_DBGCMD_EXECUTE                    0x0UL  /* MANUAL_REVIEW: Set actual value */
 #endif
 
+#ifndef MIPI_DSI_DMAC_INTMIS_DONE_MASK
+#define MIPI_DSI_DMAC_INTMIS_DONE_MASK                  0x1UL  /* MANUAL_REVIEW: Set actual mask */
+#endif
+
 #ifndef MIPI_DSI_DMAC_INTCLR_VAL
 #define MIPI_DSI_DMAC_INTCLR_VAL                        0x1UL  /* MANUAL_REVIEW: Set actual value */
 #endif
 
+/* ========================================================================== */
+/* Polling Configuration                                                      */
+/* ========================================================================== */
+
 #ifndef MIPI_DSI_POLL_MAX_RETRIES
-#define MIPI_DSI_POLL_MAX_RETRIES                       1000U  /* MANUAL_REVIEW: Set actual value */
+#define MIPI_DSI_POLL_MAX_RETRIES                       1000U  /* MANUAL_REVIEW: Set actual timeout count */
 #endif
