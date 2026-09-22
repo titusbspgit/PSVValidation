@@ -4,19 +4,16 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/generate_usb_testplan.yml'
-
-permissions:
-  contents: write
+      - 'Test_Output/USB/TestPlan/generate_usb_testplan.py'
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,12 +24,14 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Excel TestPlan
-        run: python .github/scripts/generate_usb_testplan.py
-
-      - name: Commit and push generated file
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "Test_Output/USB/TestCode/"
-          git diff --cached --quiet || git commit -m "Added generated TestPlan Excel"
+          cd Test_Output/USB/TestPlan
+          python generate_usb_testplan.py
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Test_Output/USB/TestPlan/*.xlsx
+          git commit -m 'Added generated USB TestPlan Excel workbook' || echo 'No changes to commit'
           git push
