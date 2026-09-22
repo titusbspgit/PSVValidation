@@ -3,11 +3,14 @@ name: Generate USB TestPlan Excel
 on:
   push:
     paths:
-      - '.github/scripts/generate_usb_testplan.py'
+      - 'Test_Output/USB/TestPlan/generate_excel.py'
+  workflow_dispatch:
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,12 +24,20 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Excel TestPlan
-        run: python .github/scripts/generate_usb_testplan.py
-
-      - name: Commit and push generated Excel
+        id: generate
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/USB/TestPlan/*.xlsx
-          git commit -m "Added generated TestPlan Excel"
+          cd Test_Output/USB/TestPlan
+          python generate_excel.py | tee output.log
+          FILENAME=$(grep 'GENERATED:' output.log | cut -d: -f2)
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          VALIDATION=$(grep 'VALIDATION:' output.log | cut -d: -f2)
+          echo "validation=$VALIDATION" >> $GITHUB_OUTPUT
+
+      - name: Commit and push Excel file
+        if: steps.generate.outputs.validation == 'PASSED'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add 'Test_Output/USB/TestPlan/${{ steps.generate.outputs.filename }}'
+          git commit -m 'Added generated TestPlan Excel: ${{ steps.generate.outputs.filename }}'
           git push
