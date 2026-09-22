@@ -1,0 +1,32 @@
+name: Generate USB TestPlan Excel
+
+on:
+  push:
+    paths:
+      - '.github/scripts/generate_usb_testplan.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel TestPlan
+        run: python .github/scripts/generate_usb_testplan.py
+
+      - name: Commit and push generated file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/USB/TestCode/"
+          git commit -m "Added generated TestPlan Excel"
+          git push
