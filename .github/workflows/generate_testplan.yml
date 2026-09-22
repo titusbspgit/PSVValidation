@@ -3,9 +3,9 @@ name: Generate MIPI_DSI TestPlan Excel
 on:
   push:
     branches:
-      - agent7-excel-generation
+      - main
     paths:
-      - '.github/scripts/generate_testplan_excel.py'
+      - '.github/workflows/generate_testplan.yml'
   workflow_dispatch:
 
 jobs:
@@ -28,11 +28,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install openpyxl
-
-      - name: Checkout script from agent7 branch
-        run: |
-          git fetch origin agent7-excel-generation
-          git checkout origin/agent7-excel-generation -- .github/scripts/generate_testplan_excel.py
 
       - name: Generate Excel TestPlan
         run: python .github/scripts/generate_testplan_excel.py
