@@ -2,6 +2,7 @@
 """USB TestPlan Excel Generator - Agent 7
 Generates USB_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx with TestPlan and MetaData sheets.
 Run: python3 generate_excel.py
+Triggered: 2026-09-23T12:54:30+05:30
 """
 import datetime
 import os
