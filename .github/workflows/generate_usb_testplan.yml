@@ -1,6 +1,7 @@
 name: Generate USB TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'Test_Output/USB/TestPlan/generate_excel.py'
