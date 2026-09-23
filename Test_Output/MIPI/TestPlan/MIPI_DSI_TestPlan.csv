@@ -1,0 +1,123 @@
+Test Plan: MIPI_DSI
+Generated: IST (GMT+05:30)
+IP Name: MIPI_DSI
+Repository: titusbspgit/PSVValidation
+Branch: main
+Source Directory: TestRepo/mipi/mipi_dsi
+
+=== TESTCASE SUMMARY ===
+
+S.No,Testcase Folder,Testcase Name,Source Files,Description,Test Type,Registers Accessed,Register Operations Summary
+1,mipi_dsi_basic_test,mipi_dsi_basic_test,program.c,"DBI basic test with DMA transfer - Configures PHY interface (4 lanes), sets up DBI mode with partitioning enabled, loads random data and write commands into SRAM, triggers DMA transfer on 2 channels (data + command), validates interrupt-driven completion",Functional - DBI DMA Transfer,"PHY_IF_CFG (0xA4), PCKHDL_CFG (0x2C), CLKMGR_CFG (0x08), dpi_control (0x24), interrupt_enable (0x18), interrupt_mask (0x14), interrupt_raw (0x10), DMAC_INTEN, DMAC_DBGINST0, DMAC_DBGINST1, DMAC_DBGCMD, DMAC_INTMIS, DMAC_INTCLR","13 write_reg calls, 2 read_reg calls"
+2,mipi_dsi_dbi_random_payload_test,mipi_dsi_dbi_random_payload_test,program.c,"DBI random payload test - Configures PHY interface (4 lanes), sets up DBI mode without partitioning, iterates 10 times with random pixel counts (0-8192 in multiples of 8), performs DMA transfers with random payloads, polls DMAC interrupt status for completion",Functional - DBI Random Payload Stress,"PHY_IF_CFG (0xA4), PCKHDL_CFG (0x2C), CLKMGR_CFG (0x08), dpi_control (0x24), DMAC_INTEN, DMAC_DBGINST0, DMAC_DBGINST1, DMAC_DBGCMD, DMAC_INTMIS, DMAC_INTCLR","10+ write_reg calls per iteration (x10 iterations), 2+ read_reg calls per iteration (polling)"
+3,mipi_dsi_subsys_reg_wr_rd_test,mipi_dsi_subsys_reg_wr_rd_test,"program.c, test_define.c","Subsystem register write/read test - Checks default reset values of 5 subsystem registers, then performs write/read verification with 6 data patterns (0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000) using read/write masks",Register Read/Write Verification,"data_fifo_threshold_val (0x00), low_pwr (0x04), dbite (0x08), dbi_fdiv (0x0C), interrupt_raw (0x10)","Multiple write_reg and read_reg calls per register per pattern (5 regs x 6 patterns = 30 write+read cycles)"
+
+=== DETAILED REGISTER ACCESS LOG ===
+
+S.No,Testcase,Operation,Macro Name,Resolved Register Name,Register Block,Offset,Data/Value Written,Field Details,Access Type,Description
+1,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_INTEN,DMAC_INTEN,SUBSYS,DMAC,0x3,,RW,Enable DMAC interrupts for channel 0 and channel 1
+2,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE,interrupt_enable,SUBSYS,0x18,MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR (bit 1),gdma_intr [1],RW,Enable GDMA interrupt at subsystem level
+3,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,PHY_IF_CFG,HOST,0xA4,"n_lanes=3 (bits 1:0), phy_stop_wait_time=0x40 (bits 15:8)","n_lanes [1:0], phy_stop_wait_time [15:8]",RW,Configure PHY interface - 4 data lanes and stop wait time
+4,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,PCKHDL_CFG,HOST,0x2C,0x3D,"eotp_tx_en [0], eotp_rx_en [1], bta_en [2], ecc_rx_en [3], crc_rx_en [4], eotp_tx_lp_en [5]",RW,Configure packet handling - enable EoTp TX/RX and BTA and ECC and CRC
+5,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,CLKMGR_CFG,HOST,0x08,0x107,"tx_esc_clk_division [7:0]=0x07, to_clk_division [15:8]=0x01",RW,Configure clock manager - TX escape clock division and timeout clock division
+6,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,dpi_control,SUBSYS,0x24,0x0,dbi_dpi_en [0]=0,RW,Disable DPI mode (enable DBI mode)
+7,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DMAC_DBGINST0,SUBSYS,DMAC,0x00A00000,,RW,DMAC debug instruction 0 - channel 0 GO command
+8,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DMAC_DBGINST1,SUBSYS,DMAC,ch0_desc_addr_act,,RW,DMAC debug instruction 1 - channel 0 descriptor address
+9,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DMAC_DBGCMD,SUBSYS,DMAC,0x0,,RW,Execute DMAC debug command for channel 0
+10,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DMAC_DBGINST0,SUBSYS,DMAC,0x01A00000,,RW,DMAC debug instruction 0 - channel 1 GO command
+11,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DMAC_DBGINST1,SUBSYS,DMAC,ch1_desc_addr_act,,RW,DMAC debug instruction 1 - channel 1 descriptor address
+12,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DMAC_DBGCMD,SUBSYS,DMAC,0x0,,RW,Execute DMAC debug command for channel 1
+13,mipi_dsi_basic_test,READ,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK,interrupt_mask,SUBSYS,0x14,N/A,"dsi_intr [0], gdma_intr [1], fifo_full_cmnd [2], ...",RO (MSKSTS0),Read masked interrupt status to identify interrupt source
+14,mipi_dsi_basic_test,READ,MIZAR_MIPI_DSI_DMAC_INTMIS,DMAC_INTMIS,SUBSYS,DMAC,N/A,,RO,Read DMAC masked interrupt status
+15,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_DMAC_INTCLR,DMAC_INTCLR,SUBSYS,DMAC,ch_mask_st,,WO,Clear DMAC interrupt
+16,mipi_dsi_basic_test,WRITE,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,interrupt_raw,SUBSYS,0x10,dsi_subsys_mask_st,"dsi_intr [0], gdma_intr [1], ...",RAWSTCR0,Clear subsystem-level interrupt
+17,mipi_dsi_dbi_random_payload_test,WRITE,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,PHY_IF_CFG,HOST,0xA4,"n_lanes=3, phy_stop_wait_time=0x40","n_lanes [1:0], phy_stop_wait_time [15:8]",RW,Configure PHY interface - 4 data lanes and stop wait time
+18,mipi_dsi_dbi_random_payload_test,WRITE,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,PCKHDL_CFG,HOST,0x2C,0x3D,"eotp_tx_en [0], eotp_rx_en [1], bta_en [2], ecc_rx_en [3], crc_rx_en [4], eotp_tx_lp_en [5]",RW,Configure packet handling
+19,mipi_dsi_dbi_random_payload_test,WRITE,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,CLKMGR_CFG,HOST,0x08,0x107,"tx_esc_clk_division [7:0]=0x07, to_clk_division [15:8]=0x01",RW,Configure clock manager
+20,mipi_dsi_dbi_random_payload_test,WRITE,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,dpi_control,SUBSYS,0x24,0x0,dbi_dpi_en [0]=0,RW,Disable DPI mode (enable DBI mode)
+21,mipi_dsi_dbi_random_payload_test,WRITE,MIZAR_MIPI_DSI_DMAC_INTEN,DMAC_INTEN,SUBSYS,DMAC,0x3,,RW,Enable DMAC interrupts for both channels
+22,mipi_dsi_dbi_random_payload_test,WRITE (loop x10),MIZAR_MIPI_DSI_DMAC_DBGINST0,DMAC_DBGINST0,SUBSYS,DMAC,"0x00A00000, 0x01A00000",,RW,DMAC debug instruction - start DMA channels (per iteration)
+23,mipi_dsi_dbi_random_payload_test,WRITE (loop x10),MIZAR_MIPI_DSI_DMAC_DBGINST1,DMAC_DBGINST1,SUBSYS,DMAC,descriptor addresses,,RW,DMAC debug instruction - descriptor addresses (per iteration)
+24,mipi_dsi_dbi_random_payload_test,WRITE (loop x10),MIZAR_MIPI_DSI_DMAC_DBGCMD,DMAC_DBGCMD,SUBSYS,DMAC,0x0,,RW,Execute DMAC debug command (per iteration)
+25,mipi_dsi_dbi_random_payload_test,READ (poll loop),MIZAR_MIPI_DSI_DMAC_INTMIS,DMAC_INTMIS,SUBSYS,DMAC,N/A (expect 0x3),,RO,Poll DMAC masked interrupt status until both channels complete
+26,mipi_dsi_dbi_random_payload_test,WRITE (loop x10),MIZAR_MIPI_DSI_DMAC_INTCLR,DMAC_INTCLR,SUBSYS,DMAC,rd_data,,WO,Clear DMAC interrupt after completion
+27,mipi_dsi_subsys_reg_wr_rd_test,READ (default check),MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,data_fifo_threshold_val,SUBSYS,0x00,"Default: upper_thrsh_val=0x7D0, lower_thrsh_val=0x10","upper_thrsh_val [21:11], lower_thrsh_val [10:0]",RW,Read and verify default reset value
+28,mipi_dsi_subsys_reg_wr_rd_test,READ (default check),MIZAR_MIPI_DSI_SUBSYS_LOW_PWR,low_pwr,SUBSYS,0x04,Default: 0x00000000,"dbipld_mem_slp [0], dbipld_mem_sd [1], dbiread_mem_slp [2], dbiread_mem_sd [3], genericpld_mem_slp [4], genericpld_mem_sd [5], genericread_mem_slp [6], genericread_mem_sd [7], slp_cmnd_mem [8], sd_cmnd_mem [9], slp_data_mem [10], sd_data_mem [11], slp_wrdata_mem [12], sd_wrdata_mem [13], dpipixel_mem_slp [14], dpipixel_mem_sd [15], slp_data_dmac [16], sd_data_dmac [17], slp_pt_dmac [18], sd_pt_dmac [19]",RW,Read and verify default reset value
+29,mipi_dsi_subsys_reg_wr_rd_test,READ (default check),MIZAR_MIPI_DSI_SUBSYS_DBITE,dbite,SUBSYS,0x08,Default: 0x00000000,sts [0],RO,Read and verify default reset value (read-only register)
+30,mipi_dsi_subsys_reg_wr_rd_test,READ (default check),MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV,dbi_fdiv,SUBSYS,0x0C,"Default: sel_1_i=0x2, sel_2_i=0, reg_reprogram_i=0, clk_en_i=1, ovrd_i=0","sel_1_i [8:0], sel_2_i [9], reg_reprogram_i [10], clk_en_i [11], ovrd_i [12]",RW,Read and verify default reset value
+31,mipi_dsi_subsys_reg_wr_rd_test,READ (default check),MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,interrupt_raw,SUBSYS,0x10,"Default: mixed (fifo_empty bits=1, others=0)","dsi_intr [0], gdma_intr [1], fifo_full_cmnd [2], fifo_empty_cmnd [3], fifo_full_data [4], fifo_empty_data [5], fifo_full_pixdata [6], fifo_empty_pixdata [7], ..., dmac_abort [20]",RAWSTCR0,Read and verify default reset value (skip_array=1 for write test)
+32,mipi_dsi_subsys_reg_wr_rd_test,WRITE/READ (6 patterns),MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,data_fifo_threshold_val,SUBSYS,0x00,"0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000","upper_thrsh_val [21:11], lower_thrsh_val [10:0]",RW,Write 6 patterns and read back with mask verification
+33,mipi_dsi_subsys_reg_wr_rd_test,WRITE/READ (6 patterns),MIZAR_MIPI_DSI_SUBSYS_LOW_PWR,low_pwr,SUBSYS,0x04,"0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000",All 20 RW fields,RW,Write 6 patterns and read back with mask verification
+34,mipi_dsi_subsys_reg_wr_rd_test,SKIP WRITE (RO),MIZAR_MIPI_DSI_SUBSYS_DBITE,dbite,SUBSYS,0x08,N/A (write_mask=0x0),sts [0],RO,Skipped for write - register is read-only
+35,mipi_dsi_subsys_reg_wr_rd_test,WRITE/READ (6 patterns),MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV,dbi_fdiv,SUBSYS,0x0C,"0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000","sel_1_i [8:0], sel_2_i [9], reg_reprogram_i [10], clk_en_i [11], ovrd_i [12]",RW,Write 6 patterns and read back with mask verification
+36,mipi_dsi_subsys_reg_wr_rd_test,SKIP (skip_array=1),MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,interrupt_raw,SUBSYS,0x10,N/A,All interrupt fields,RAWSTCR0,Skipped for write/read test - present in skip_array
+
+=== MACRO RESOLUTION TABLE ===
+
+S.No,Macro Name,Resolved Value,Source,Register Block,Register Name,Notes
+1,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,Base + 0xA4,DWC_mipi_dsi_host.txt,HOST,PHY_IF_CFG,PHY interface configuration
+2,MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME,Field mask bits 15:8,DWC_mipi_dsi_host.txt,HOST,PHY_IF_CFG.phy_stop_wait_time,Field-level mask macro
+3,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,Base + 0x2C,DWC_mipi_dsi_host.txt,HOST,PCKHDL_CFG,Packet handling configuration
+4,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,Base + 0x08,DWC_mipi_dsi_host.txt,HOST,CLKMGR_CFG,Clock manager configuration
+5,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,Base + 0x24,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dpi_control,DPI/DBI control
+6,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE,Base + 0x18,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_enable,Interrupt enable register
+7,MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR,Bit 1,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_enable.gdma_intr,GDMA interrupt enable bit
+8,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK,Base + 0x14,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_mask,Interrupt mask status
+9,MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR,Bit 1,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_mask.gdma_intr,GDMA interrupt mask bit
+10,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,Base + 0x10,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_raw,Raw interrupt status/clear
+11,MIZAR_MIPI_DSI_DMAC_INTEN,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_INTEN,DMAC interrupt enable
+12,MIZAR_MIPI_DSI_DMAC_DBGINST0,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_DBGINST0,DMAC debug instruction register 0
+13,MIZAR_MIPI_DSI_DMAC_DBGINST1,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_DBGINST1,DMAC debug instruction register 1
+14,MIZAR_MIPI_DSI_DMAC_DBGCMD,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_DBGCMD,DMAC debug command
+15,MIZAR_MIPI_DSI_DMAC_INTMIS,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_INTMIS,DMAC masked interrupt status
+16,MIZAR_MIPI_DSI_DMAC_INTCLR,DMAC Base + offset,SUBSYS DMAC,SUBSYS,DMAC_INTCLR,DMAC interrupt clear
+17,MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,Base + 0x00,mipi_dsi_subsys_autoreg.pdf,SUBSYS,data_fifo_threshold_val,Data FIFO threshold values
+18,MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_DEFAULT_VAL,0x003E8010,mipi_dsi_subsys_autoreg.pdf,SUBSYS,data_fifo_threshold_val,Default: upper=0x7D0 lower=0x10
+19,MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_READ_MASK,0x003FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,data_fifo_threshold_val,Read mask (bits 21:0)
+20,MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_WRITE_MASK,0x003FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,data_fifo_threshold_val,Write mask (bits 21:0)
+21,MIZAR_MIPI_DSI_SUBSYS_LOW_PWR,Base + 0x04,mipi_dsi_subsys_autoreg.pdf,SUBSYS,low_pwr,Low power memory control
+22,MIPI_DSI_SUBSYS_LOW_PWR_DEFAULT_VAL,0x00000000,mipi_dsi_subsys_autoreg.pdf,SUBSYS,low_pwr,Default: all zeros
+23,MIPI_DSI_SUBSYS_LOW_PWR_READ_MASK,0x000FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,low_pwr,Read mask (bits 19:0)
+24,MIPI_DSI_SUBSYS_LOW_PWR_WRITE_MASK,0x000FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,low_pwr,Write mask (bits 19:0)
+25,MIZAR_MIPI_DSI_SUBSYS_DBITE,Base + 0x08,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbite,DBI TE status
+26,MIPI_DSI_SUBSYS_DBITE_DEFAULT_VAL,0x00000000,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbite,Default: 0
+27,MIPI_DSI_SUBSYS_DBITE_READ_MASK,0x00000001,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbite,Read mask (bit 0)
+28,MIPI_DSI_SUBSYS_DBITE_WRITE_MASK,0x00000000,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbite,Write mask: 0 (read-only)
+29,MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV,Base + 0x0C,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbi_fdiv,DBI frequency divider
+30,MIPI_DSI_SUBSYS_DBI_FDIV_DEFAULT_VAL,0x00000802,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbi_fdiv,Default: sel_1_i=2 clk_en_i=1
+31,MIPI_DSI_SUBSYS_DBI_FDIV_READ_MASK,0x00001FFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbi_fdiv,Read mask (bits 12:0)
+32,MIPI_DSI_SUBSYS_DBI_FDIV_WRITE_MASK,0x00001FFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,dbi_fdiv,Write mask (bits 12:0)
+33,MIPI_DSI_SUBSYS_INTERRUPT_RAW_DEFAULT_VAL,0x00000AA8,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_raw,Default: fifo_empty bits set
+34,MIPI_DSI_SUBSYS_INTERRUPT_RAW_READ_MASK,0x001FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_raw,Read mask (bits 20:0)
+35,MIPI_DSI_SUBSYS_INTERRUPT_RAW_WRITE_MASK,0x001FFFFF,mipi_dsi_subsys_autoreg.pdf,SUBSYS,interrupt_raw,Write mask (bits 20:0)
+36,SOFT_RST_REG_ADDRESS,SKIPPED,N/A,N/A,N/A,Skipped as per instruction
+
+=== REGISTER SPECIFICATION MAPPING ===
+
+--- DSI HOST Registers (from DWC_mipi_dsi_host_autoreg.xls / DWC_mipi_dsi_host.txt) ---
+
+S.No,Register Name,Offset (Hex),Width,Key Fields,Access,Reset Value,Used In Testcases
+1,VERSION,0x00,32,version [31:0],RO,0x30313531,Not directly accessed
+2,PWR_UP,0x04,32,shutdownz [0],RW,0x0,Not directly accessed (via phy_init)
+3,CLKMGR_CFG,0x08,32,"tx_esc_clk_division [7:0], to_clk_division [15:8]",RW,0x0,"mipi_dsi_basic_test, mipi_dsi_dbi_random_payload_test"
+4,DBI_VCID,0x1C,32,dbi_vcid [1:0],RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+5,DBI_CFG,0x20,32,"in_dbi_conf [3:0], out_dbi_conf [11:8], lut_size_conf [17:16]",RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+6,DBI_PARTITIONING_EN,0x24,32,partitioning_en [0],RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+7,DBI_CMDSIZE,0x28,32,"wr_cmd_size [15:0], allowed_cmd_size [31:16]",RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+8,PCKHDL_CFG,0x2C,32,"eotp_tx_en [0], eotp_rx_en [1], bta_en [2], ecc_rx_en [3], crc_rx_en [4], eotp_tx_lp_en [5]",RW,0x0,"mipi_dsi_basic_test, mipi_dsi_dbi_random_payload_test"
+9,GEN_VCID,0x30,32,"gen_vcid_rx [1:0], gen_vcid_tear_auto [9:8], gen_vcid_tx_auto [17:16]",RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+10,MODE_CFG,0x34,32,cmd_video_mode [0],RW,0x1,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+11,CMD_MODE_CFG,0x68,32,"tear_fx_en [0], ack_rqst_en [1], gen_sw_0p_tx [8], ..., max_rd_pkt_size [24]",RW,0x0,"mipi_dsi_basic_test (via dbi_config), mipi_dsi_dbi_random_payload_test (via dbi_config)"
+12,PHY_IF_CFG,0xA4,32,"n_lanes [1:0], phy_stop_wait_time [15:8]",RW,"n_lanes=3, others=0","mipi_dsi_basic_test, mipi_dsi_dbi_random_payload_test"
+
+--- DSI SUBSYS Registers (from mipi_dsi_subsys_autoreg.pdf) ---
+
+S.No,Register Name,Offset (Hex),Width,Key Fields,Access,Reset Value,Used In Testcases
+1,data_fifo_threshold_val,0x00,32,"upper_thrsh_val [21:11], lower_thrsh_val [10:0]",RW,"upper=0x7D0, lower=0x10",mipi_dsi_subsys_reg_wr_rd_test
+2,low_pwr,0x04,32,"dbipld_mem_slp [0], dbipld_mem_sd [1], ..., sd_pt_dmac [19]",RW,0x0,mipi_dsi_subsys_reg_wr_rd_test
+3,dbite,0x08,32,sts [0],RO,0x0,mipi_dsi_subsys_reg_wr_rd_test
+4,dbi_fdiv,0x0C,32,"sel_1_i [8:0], sel_2_i [9], reg_reprogram_i [10], clk_en_i [11], ovrd_i [12]",RW,"sel_1_i=2, clk_en_i=1",mipi_dsi_subsys_reg_wr_rd_test
+5,interrupt_raw,0x10,32,"dsi_intr [0], gdma_intr [1], fifo_full_cmnd [2], ..., dmac_abort [20]",RAWSTCR0,"fifo_empty bits=1, others=0","mipi_dsi_basic_test, mipi_dsi_subsys_reg_wr_rd_test"
+6,interrupt_mask,0x14,32,"dsi_intr [0], gdma_intr [1], ..., dmac_abort [20]",MSKSTS0,0x0,mipi_dsi_basic_test
+7,interrupt_enable,0x18,32,"dsi_intr [0], gdma_intr [1], ..., dmac_abort [20]",INTREN0,0x0,mipi_dsi_basic_test
+8,dpi_control,0x24,32,"dbi_dpi_en [0], dpi_shutdown [1], dpi_colorm [2], dpi_updatecfg [3], edpi_halt [4], vtg_enable [5]",RW,"dbi_dpi_en=1, dpi_colorm=1","mipi_dsi_basic_test, mipi_dsi_dbi_random_payload_test"
