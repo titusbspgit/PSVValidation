@@ -1,0 +1,52 @@
+name: Generate MIPI_DSI TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/MIPI/TestPlan/generate_testplan.py'
+  workflow_dispatch:
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel TestPlan
+        id: generate
+        run: |
+          cd Test_Output/MIPI/TestPlan
+          python generate_testplan.py | tee output.log
+          FILENAME=$(grep 'GENERATED_FILE=' output.log | cut -d= -f2)
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "Generated: $FILENAME"
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          cd Test_Output/MIPI/TestPlan
+          FILENAME=$(grep 'GENERATED_FILE=' output.log | cut -d= -f2)
+          git add "$FILENAME"
+          rm -f output.log
+          git add -u output.log || true
+          git commit -m "Added generated MIPI_DSI TestPlan Excel: $FILENAME"
+          git push
+
+      - name: Cleanup generator script
+        run: |
+          git rm Test_Output/MIPI/TestPlan/generate_testplan.py
+          git rm .github/workflows/generate_mipi_dsi_testplan.yml
+          git commit -m "Cleanup: removed generator script and workflow after Excel generation"
+          git push
