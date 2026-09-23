@@ -1,0 +1,181 @@
+Test Plan: MIPI_DSI - Auto-Generated
+IP Name: MIPI_DSI
+Generated On (IST): 2025-06-22 19:55:00
+Source Repository: titusbspgit/PSVValidation
+Branch: main
+Source Directory: TestRepo/mipi/mipi_dsi
+
+========================================
+TEST CASE INDEX,TEST CASE FOLDER,TEST CASE NAME,TEST DESCRIPTION,TEST CATEGORY,PRECONDITIONS,TEST STEPS,REGISTER NAME,REGISTER ADDRESS (HEX),REGISTER OFFSET (HEX),FIELD NAME,FIELD BITS,ACCESS TYPE,OPERATION (R/W),WRITE VALUE (HEX),EXPECTED VALUE / DESCRIPTION,PASS/FAIL CRITERIA,NOTES
+1,mipi_dsi_basic_test,MIPI DSI Basic DBI Write Memory Test,"This test validates the basic DBI (Display Bus Interface) write memory operation through the MIPI DSI host. It configures the DSI host PHY interface, sets up DBI parameters, programs DMA descriptors for data and command channels, loads random data payload and write commands into SRAM, triggers DMA transfers, and verifies completion via interrupt handling.",Functional - DBI Data Transfer,"1. DSI Host must be in reset state initially.
+2. GIC (Generic Interrupt Controller) must be available.
+3. PHY must be ready for initialization.
+4. RAM_BASE memory region must be accessible.","Step 1: Enable GIC IRQ for DSI interrupt (DSI_INTR_NO).
+Step 2: Initialize interrupt pending flags (int_pend=1, int_pend1=0x3).
+Step 3: Set PHY stop wait time to 0x40 and number of lanes to 3.
+Step 4: Write DMAC interrupt enable register (MIZAR_MIPI_DSI_DMAC_INTEN) with 0x3.
+Step 5: Write DSI Subsystem Interrupt Enable register with GDMA_INTR bit.
+Step 6: Configure PHY_IF_CFG register with n_lanes=3 and phy_stop_wait_time=0x40.
+Step 7: Write PCKHDL_CFG register with 0x3D (enable eotp_tx, eotp_rx, bta, ecc_rx, crc_rx, eotp_tx_lp).
+Step 8: Write CLKMGR_CFG register with 0x107 (tx_esc_clk_division=0x07, to_clk_division=0x01).
+Step 9: Write DPI_CONTROL register with 0 to enable DBI mode.
+Step 10: Initialize PHY via phy_init().
+Step 11: Configure DBI parameters (vcid=0x3, lut_size=0x1, out_dbi_conf=0xB, in_dbi_conf=0x0, partitioning_en=0x1).
+Step 12: Configure DBI command size (allowed_cmd_size=0x7, wr_cmd_size based on 40 pixels).
+Step 13: Configure CMD_MODE_CFG (tear_fx_en=1, all others=0).
+Step 14: Set generic_vc_id=0x2.
+Step 15: Program DPI clock based on 16.012400ns period.
+Step 16: Call dbi_config() to apply all DBI settings.
+Step 17: Set up DMA descriptors for CH0 (data) and CH1 (command).
+Step 18: Load random data into data descriptor address.
+Step 19: Load write command (DSI_WRITE_MEMORY_START) into command descriptor address.
+Step 20: Trigger DMA CH0 via DMAC_DBGINST0/DBGINST1/DBGCMD sequence.
+Step 21: Trigger DMA CH1 via DMAC_DBGINST0/DBGINST1/DBGCMD sequence.
+Step 22: Wait for both DMA channel interrupts to complete (int_pend1 becomes 0).
+Step 23: Wait additional 10000 cycles for transfer completion.
+Step 24: Call finish(err0) - pass if err0==0.","Multiple (see detailed register rows below)","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","err0 must be 0 at finish. All DMA interrupts must be received and cleared correctly. No unexpected interrupts should occur.","Interrupt-driven test. Uses Default_IRQHandler for interrupt servicing."
+,,,,,,,PHY_IF_CFG,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,0xA4,n_lanes,1:0,RW,W,0x03 (in composite),"Configures number of active data lanes to 4 (value 3 = 4 lanes)","Read-back should match written value in bits [1:0]","Part of composite write with phy_stop_wait_time"
+,,,,,,,PHY_IF_CFG,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,0xA4,phy_stop_wait_time,15:8,RW,W,0x40 (in composite),"Minimum time PHY stays in StopState before HS transmission request","Read-back should match 0x40 in bits [15:8]","Composite value written: 0x4003"
+,,,,,,,PCKHDL_CFG,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,0x2C,"eotp_tx_en, eotp_rx_en, bta_en, ecc_rx_en, crc_rx_en, eotp_tx_lp_en","5:0",RW,W,0x3D,"Enable EoTp TX/RX, BTA, ECC RX, CRC RX, EoTp TX LP","Read-back should be 0x3D","Enables packet handling features"
+,,,,,,,CLKMGR_CFG,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,0x08,"tx_esc_clk_division, to_clk_division","15:0",RW,W,0x0107,"TX Escape clock division=0x07, Timeout clock division=0x01","Read-back should be 0x0107","Clock manager configuration"
+,,,,,,,DPI_CONTROL,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,0x24 (subsys),dbi_dpi_en,0,RW,W,0x00,"Disable DPI mode (enable DBI mode)","Read-back should be 0x0","Subsystem register - selects DBI interface"
+,,,,,,,DMAC_INTEN,MIZAR_MIPI_DSI_DMAC_INTEN,N/A (DMAC),N/A,N/A,RW,W,0x03,"Enable interrupts for DMA CH0 and CH1","Both channel interrupts enabled","DMAC register"
+,,,,,,,INTERRUPT_ENABLE,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE,0x18 (subsys),gdma_intr,1,RW,W,GDMA_INTR bit,"Enable GDMA interrupt at subsystem level","GDMA interrupt enabled","Subsystem interrupt enable"
+,,,,,,,DMAC_DBGINST0,MIZAR_MIPI_DSI_DMAC_DBGINST0,N/A (DMAC),N/A,N/A,RW,W,0x00A00000 / 0x01A00000,"DMA debug instruction for CH0 and CH1 trigger","DMA channels start execution","Triggers DMA program execution"
+,,,,,,,DMAC_DBGINST1,MIZAR_MIPI_DSI_DMAC_DBGINST1,N/A (DMAC),N/A,N/A,RW,W,ch0/ch1_desc_addr_act,"DMA descriptor start address for each channel","Points to descriptor memory","Contains descriptor base address"
+,,,,,,,DMAC_DBGCMD,MIZAR_MIPI_DSI_DMAC_DBGCMD,N/A (DMAC),N/A,N/A,RW,W,0x00,"Execute the debug instruction","DMA transfer initiated","Triggers the loaded instruction"
+,,,,,,,INTERRUPT_MASK,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK,0x14 (subsys),gdma_intr,1,RO,R,N/A,"Read to check which subsystem interrupt is active","Should show GDMA_INTR bit set","Read in ISR"
+,,,,,,,DMAC_INTMIS,MIZAR_MIPI_DSI_DMAC_INTMIS,N/A (DMAC),N/A,N/A,RO,R,N/A,"Read masked interrupt status of DMA channels","Should show active channel interrupt bits","Read in ISR to identify which channel completed"
+,,,,,,,DMAC_INTCLR,MIZAR_MIPI_DSI_DMAC_INTCLR,N/A (DMAC),N/A,N/A,WO,W,ch_mask_st,"Clear the DMA channel interrupt","Interrupt cleared after write","Write in ISR with the mask value read"
+,,,,,,,INTERRUPT_RAW,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,0x10 (subsys),"dsi_intr, gdma_intr, etc.","20:0",RW,W,dsi_subsys_mask_st,"Clear subsystem level interrupt","Subsystem interrupt cleared","Write in ISR"
+2,mipi_dsi_dbi_random_payload_test,MIPI DSI DBI Random Payload Test,"This test validates the DBI write memory operation with randomized payload sizes. It iterates 10 times, each time generating a random pixel count (multiples of 8, up to 8192), reconfiguring the DBI command size, programming DMA descriptors, loading random data, and verifying DMA completion by polling the DMAC interrupt status register. This stress-tests the DSI host's ability to handle variable-length DBI transfers.",Functional - DBI Random Payload Stress Test,"1. DSI Host must be in reset state initially.
+2. PHY must be ready for initialization.
+3. RAM_BASE memory region must be accessible.
+4. Random number generator (rand()) must be available.","Step 1: Set PHY stop wait time to 0x40 and number of lanes to 3.
+Step 2: Configure PHY_IF_CFG register with n_lanes=3 and phy_stop_wait_time=0x40.
+Step 3: Write PCKHDL_CFG register with 0x3D.
+Step 4: Write CLKMGR_CFG register with 0x107.
+Step 5: Write DPI_CONTROL register with 0 to enable DBI mode.
+Step 6: Initialize PHY via phy_init().
+Step 7: Configure DBI parameters (vcid=0x3, lut_size=0x1, out_dbi_conf=0xB, in_dbi_conf=0x0, partitioning_en=0x0).
+Step 8: Configure DBI command size (allowed_cmd_size=0x25).
+Step 9: Configure CMD_MODE_CFG (tear_fx_en=1, all others=0).
+Step 10: Set generic_vc_id=0x2.
+Step 11: Program DPI clock based on 16.012400ns period.
+Step 12: Call dbi_config() to apply all DBI settings.
+Step 13: Enable DMAC interrupts (DMAC_INTEN=0x3).
+Step 14: BEGIN LOOP (10 iterations):
+Step 15:   Generate random pixel count = (rand() % 1024) * 8.
+Step 16:   Calculate wr_cmd_size and num_bytes from pixel count.
+Step 17:   Reconfigure DBI via dbi_config().
+Step 18:   Set up DMA descriptors for CH0 (data) and CH1 (command).
+Step 19:   Load random data into data descriptor.
+Step 20:   Load write command (DSI_WRITE_MEMORY_START) into command descriptor.
+Step 21:   Trigger DMA CH0 via DMAC_DBGINST0/DBGINST1/DBGCMD.
+Step 22:   Trigger DMA CH1 via DMAC_DBGINST0/DBGINST1/DBGCMD.
+Step 23:   Poll DMAC_INTMIS until both channels complete (value==0x3).
+Step 24:   Clear DMA interrupts via DMAC_INTCLR.
+Step 25:   Wait 100000 cycles.
+Step 26: END LOOP.
+Step 27: Call finish(0) - always passes if no hang.","Multiple (see detailed register rows below)","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Test passes (finish(0)) if all 10 iterations complete without hanging. DMA transfers for all random payload sizes must complete. DMAC_INTMIS must eventually read 0x3 for each iteration.","Polling-based (no ISR). Random payload sizes stress-test variable-length DBI transfers."
+,,,,,,,PHY_IF_CFG,MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,0xA4,"n_lanes, phy_stop_wait_time","15:0",RW,W,0x4003,"n_lanes=3 (4 lanes), phy_stop_wait_time=0x40","Read-back should be 0x4003","Same as basic test"
+,,,,,,,PCKHDL_CFG,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,0x2C,"eotp_tx_en through eotp_tx_lp_en","5:0",RW,W,0x3D,"Enable packet handling features","Read-back should be 0x3D",""
+,,,,,,,CLKMGR_CFG,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,0x08,"tx_esc_clk_division, to_clk_division","15:0",RW,W,0x0107,"Clock manager configuration","Read-back should be 0x0107",""
+,,,,,,,DPI_CONTROL,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,0x24 (subsys),dbi_dpi_en,0,RW,W,0x00,"Enable DBI mode","Read-back should be 0x0","Subsystem register"
+,,,,,,,DMAC_INTEN,MIZAR_MIPI_DSI_DMAC_INTEN,N/A (DMAC),N/A,N/A,RW,W,0x03,"Enable DMA CH0 and CH1 interrupts","Both channel interrupts enabled","Set once before loop"
+,,,,,,,DMAC_DBGINST0,MIZAR_MIPI_DSI_DMAC_DBGINST0,N/A (DMAC),N/A,N/A,RW,W,0x00A00000 / 0x01A00000,"DMA debug instruction for CH0/CH1","DMA channels triggered","Written each iteration"
+,,,,,,,DMAC_DBGINST1,MIZAR_MIPI_DSI_DMAC_DBGINST1,N/A (DMAC),N/A,N/A,RW,W,ch0/ch1_desc_addr_act,"Descriptor start address","Points to descriptor memory","Written each iteration"
+,,,,,,,DMAC_DBGCMD,MIZAR_MIPI_DSI_DMAC_DBGCMD,N/A (DMAC),N/A,N/A,RW,W,0x00,"Execute debug instruction","DMA transfer initiated","Written each iteration"
+,,,,,,,DMAC_INTMIS,MIZAR_MIPI_DSI_DMAC_INTMIS,N/A (DMAC),N/A,N/A,RO,R,N/A,"Poll until value equals 0x3 (both channels done)","Must eventually read 0x3","Polled in loop until both channels complete"
+,,,,,,,DMAC_INTCLR,MIZAR_MIPI_DSI_DMAC_INTCLR,N/A (DMAC),N/A,N/A,WO,W,0x03,"Clear both channel interrupts","Interrupts cleared","Written after polling confirms 0x3"
+3,mipi_dsi_subsys_reg_wr_rd_test,MIPI DSI Subsystem Register Write/Read Test,"This test validates the register default values and read/write functionality of the MIPI DSI Subsystem registers. It performs two phases: (1) Default Value Check - reads all registers and compares against expected reset values; (2) Write/Read Check - writes 6 different test patterns (0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000) to all writable registers and reads back to verify, respecting read/write masks. Registers in the skip_array are excluded from write/read testing.",Register Access - Default Value and Write/Read Verification,"1. DSI Subsystem must be out of reset (hreset_n deasserted).
+2. All subsystem registers must be accessible via AHB bus.
+3. test_define.c arrays must be properly initialized.","Step 1: Call chk_rst_val() to verify default register values.
+Step 2: For each register in addr_array (5 registers defined):
+Step 2a:   Skip if read_mask_array[i] == 0x00000000 (not readable).
+Step 2b:   Read register value via read_reg(addr).
+Step 2c:   Compare with default_value_array[i].
+Step 2d:   If mismatch, increment def_fail_cnt and print error.
+Step 3: Call chk_rd_wr() to verify write/read functionality.
+Step 4: For each of 6 test patterns (0xFFFFFFFF, 0xAAAAAAAA, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xFFFF0000):
+Step 4a:   WRITE PHASE: For each register in addr_array:
+Step 4a-i:     Skip if skip_array[i]==1.
+Step 4a-ii:    Skip if write_mask_array[i]==0x00000000 (not writable).
+Step 4a-iii:   Write test pattern via write_reg(addr, data_wr).
+Step 4b:   READ PHASE: For each register in addr_array:
+Step 4b-i:     Skip if skip_array[i]==1.
+Step 4b-ii:    Skip if write_mask_array[i]==0x00000000.
+Step 4b-iii:   Skip if read_mask_array[i]==0x00000000.
+Step 4b-iv:    Read register via read_reg(addr).
+Step 4b-v:     Calculate expected: exp = (data_wr & read_mask & write_mask) | (~write_mask & read_mask & default_value).
+Step 4b-vi:    Compare read value with expected.
+Step 4b-vii:   If mismatch, increment wr_fail_cnt and print error.
+Step 5: If def_fail_cnt > 0 OR wr_fail_cnt > 0, call finish(1) [FAIL].
+Step 6: Otherwise call finish(0) [PASS].","Multiple (see detailed register rows below)","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","Multiple","def_fail_cnt must be 0 (all default values match). wr_fail_cnt must be 0 (all write/read patterns match with masking). finish(0) called for PASS.","Uses test_define.c arrays. SOFT_RST_REG_ADDRESS macro is IGNORED per instructions. soft_reset_chk() is commented out in source."
+,,,,,,,DATA_FIFO_THRESHOLD_VAL,MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,0x00 (subsys),upper_thrsh_val,21:11,RW,R/W,"Default: upper=0x7D0 lower=0x10","Default read: upper_thrsh_val=0x7D0 (bits 21:11), lower_thrsh_val=0x10 (bits 10:0). Write/Read with 6 patterns masked by read_mask and write_mask.","Default value and all 6 pattern write/read must match expected","MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL_DEFAULT_VAL / READ_MASK / WRITE_MASK from header"
+,,,,,,,DATA_FIFO_THRESHOLD_VAL,MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,0x00 (subsys),lower_thrsh_val,10:0,RW,R/W,"Default: 0x10","See above","See above",""
+,,,,,,,LOW_PWR,MIZAR_MIPI_DSI_SUBSYS_LOW_PWR,0x04 (subsys),"dbipld_mem_slp, dbipld_mem_sd, dbiread_mem_slp, dbiread_mem_sd, genericpld_mem_slp, genericpld_mem_sd, genericread_mem_slp, genericread_mem_sd, slp_cmnd_mem, sd_cmnd_mem, slp_data_mem, sd_data_mem, slp_wrdata_mem, sd_wrdata_mem, dpipixel_mem_slp, dpipixel_mem_sd, slp_data_dmac, sd_data_dmac, slp_pt_dmac, sd_pt_dmac","19:0",RW,R/W,"Default: all 0","Default read: 0x00000000. Write/Read with 6 patterns masked.","Default value and all 6 pattern write/read must match expected","MIPI_DSI_SUBSYS_LOW_PWR_DEFAULT_VAL / READ_MASK / WRITE_MASK from header. Controls memory sleep/shutdown for various FIFOs."
+,,,,,,,DBITE,MIZAR_MIPI_DSI_SUBSYS_DBITE,0x08 (subsys),sts,0,RO,R,"Default: 0","Default read: 0x00000000. Read-only register - write has no effect.","Default value must match. Write patterns skipped if write_mask is 0.","MIPI_DSI_SUBSYS_DBITE_DEFAULT_VAL / READ_MASK / WRITE_MASK from header. DBI Tearing Effect status."
+,,,,,,,DBI_FDIV,MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV,0x0C (subsys),"sel_1_i, sel_2_i, reg_reprogram_i, clk_en_i, ovrd_i","12:0",RW,R/W,"Default: sel_1_i=0x2, sel_2_i=0, reg_reprogram_i=0, clk_en_i=1, ovrd_i=0","Default read: 0x00000802 (clk_en_i=1 at bit11, sel_1_i=2 at bits 8:0). Write/Read with 6 patterns masked.","Default value and all 6 pattern write/read must match expected","MIPI_DSI_SUBSYS_DBI_FDIV_DEFAULT_VAL / READ_MASK / WRITE_MASK from header. DBI frequency divider control."
+,,,,,,,INTERRUPT_RAW,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,0x10 (subsys),"dsi_intr, gdma_intr, fifo_full_cmnd, fifo_empty_cmnd, fifo_full_data, fifo_empty_data, fifo_full_pixdata, fifo_empty_pixdata, fifo_alm_full_cmnd, fifo_alm_empty_cmnd, fifo_alm_full_data, fifo_alm_empty_data, fifo_alm_full_pixdata, fifo_alm_empty_pixdata, dbi_data_wr_flush_done, dbi_data_rd_flush_done, dbi_pixdata_wr_flush_done, dbi_pixdata_rd_flush_done, cmnd_dpi_wr_flush_done, cmnd_dpi_rd_flush_done, dmac_abort","20:0",RAWSTCR0,R/W,"Default: mixed (fifo_empty bits=1 others=0)","Default read per MIPI_DSI_SUBSYS_INTERRUPT_RAW_DEFAULT_VAL. SKIPPED for write/read (skip_array[4]=1).","Default value must match. Write/Read SKIPPED per skip_array.","MIPI_DSI_SUBSYS_INTERRUPT_RAW_DEFAULT_VAL / READ_MASK / WRITE_MASK from header. skip_array[4]=1 so write/read is skipped for this register."
+
+========================================
+SUMMARY
+========================================
+Total Test Cases: 3
+Test Case 1: mipi_dsi_basic_test - Functional DBI Write Memory with Interrupt Handling
+Test Case 2: mipi_dsi_dbi_random_payload_test - DBI Random Payload Stress Test with Polling
+Test Case 3: mipi_dsi_subsys_reg_wr_rd_test - Subsystem Register Default Value and Write/Read Verification
+
+DSI HOST Registers Referenced:
+- VERSION (0x00) - RO - IP Version
+- PWR_UP (0x04) - RW - Power Up Control
+- CLKMGR_CFG (0x08) - RW - Clock Manager Configuration
+- DPI_VCID (0x0C) - RW - DPI Virtual Channel ID
+- DPI_COLOR_CODING (0x10) - RW - DPI Color Coding
+- DPI_CFG_POL (0x14) - RW - DPI Config Polarity
+- DPI_LP_CMD_TIM (0x18) - RW - DPI LP Command Timing
+- DBI_VCID (0x1C) - RW - DBI Virtual Channel ID
+- DBI_CFG (0x20) - RW - DBI Configuration
+- DBI_PARTITIONING_EN (0x24) - RW - DBI Partitioning Enable
+- DBI_CMDSIZE (0x28) - RW - DBI Command Size
+- PCKHDL_CFG (0x2C) - RW - Packet Handling Configuration
+- GEN_VCID (0x30) - RW - Generic Virtual Channel ID
+- MODE_CFG (0x34) - RW - Mode Configuration
+- VID_MODE_CFG (0x38) - RW - Video Mode Configuration
+- CMD_MODE_CFG (0x68) - RW - Command Mode Configuration
+- GEN_HDR (0x6C) - RW - Generic Header
+- GEN_PLD_DATA (0x70) - RW - Generic Payload Data
+- CMD_PKT_STATUS (0x74) - RO - Command Packet Status
+- TO_CNT_CFG (0x78) - RW - Timeout Counter Configuration
+- PHY_IF_CFG (0xA4) - RW - PHY Interface Configuration
+- PHY_RSTZ (0xA0) - RW - PHY Reset Control
+- PHY_STATUS (0xB0) - RO - PHY Status
+- PHY_TST_CTRL0 (0xB4) - RW - PHY Test Control 0
+- PHY_TST_CTRL1 (0xB8) - RW - PHY Test Control 1
+- INT_ST0 (0xBC) - RO - Interrupt Status 0
+- INT_ST1 (0xC0) - RO - Interrupt Status 1
+- INT_MSK0 (0xC4) - RW - Interrupt Mask 0
+- INT_MSK1 (0xC8) - RW - Interrupt Mask 1
+
+DSI SUBSYSTEM Registers Referenced:
+- DATA_FIFO_THRESHOLD_VAL (0x00) - RW - Data FIFO Threshold
+- LOW_PWR (0x04) - RW - Low Power Memory Control
+- DBITE (0x08) - RO - DBI Tearing Effect Status
+- DBI_FDIV (0x0C) - RW - DBI Frequency Divider
+- INTERRUPT_RAW (0x10) - RAWSTCR0 - Raw Interrupt Status
+- INTERRUPT_MASK (0x14) - MSKSTS0 - Interrupt Mask Status
+- INTERRUPT_ENABLE (0x18) - INTREN0 - Interrupt Enable
+- CMND_FIFO_THRESHOLD_VAL (0x1C) - RW - Command FIFO Threshold
+- PIXDATA_FIFO_THRESHOLD_VAL (0x20) - RW - Pixel Data FIFO Threshold
+- DPI_CONTROL (0x24) - RW - DPI/DBI Control
+
+Macro SOFT_RST_REG_ADDRESS: IGNORED per user instruction.
+
+Test Patterns Used (Test Case 3):
+1. 0xFFFFFFFF (All ones)
+2. 0xAAAAAAAA (Alternating 10)
+3. 0x55555555 (Alternating 01)
+4. 0x00000000 (All zeros)
+5. 0xA5A5A5A5 (Walking pattern)
+6. 0xFFFF0000 (Upper half ones)
