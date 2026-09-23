@@ -1,0 +1,54 @@
+name: Generate MIPI_DSI TestPlan Excel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate Excel workbook
+        working-directory: Test_Output/MIPI/TestPlan
+        run: python generate_excel.py
+
+      - name: Commit Excel and cleanup script
+        working-directory: Test_Output/MIPI/TestPlan
+        run: |
+          # Find the generated xlsx file
+          XLSX_FILE=$(ls -1 MIPI_DSI_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated"
+            exit 1
+          fi
+          echo "Generated: $XLSX_FILE"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add the xlsx file
+          git add "$XLSX_FILE"
+          
+          # Remove the generator script and b64 file
+          git rm -f generate_excel.py || true
+          rm -f *.b64
+          
+          # Commit and push
+          git commit -m "Added generated TestPlan Excel: $XLSX_FILE"
+          git push
+          
+          echo "SUCCESS: $XLSX_FILE committed and pushed"
