@@ -4,8 +4,8 @@
 /*
  * Test Case: mipi_dsi_dbi_random_payload_test
  * Purpose:   MIPI DSI DBI random payload DMA transfer.
- *            Defines register addresses, bit field macros, and polling
- *            constants for the testcase.
+ *            Defines register addresses, polling constants, and expected
+ *            completion value for the testcase.
  */
 
 #include "test.h"
@@ -64,9 +64,13 @@
 #endif
 
 /* ======================================================================== */
-/* Polling Constants                                                        */
+/* Polling and Validation Constants                                         */
 /* ======================================================================== */
 
 #ifndef MIPI_DSI_POLL_TIMEOUT
 #define MIPI_DSI_POLL_TIMEOUT                  1000U
+#endif
+
+#ifndef MIPI_DSI_DMA_COMPLETION_EXPECTED
+#define MIPI_DSI_DMA_COMPLETION_EXPECTED        0x3U
 #endif
