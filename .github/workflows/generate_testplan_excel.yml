@@ -9,6 +9,8 @@ permissions:
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Kolkata
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +27,7 @@ jobs:
         working-directory: Test_Output/MIPI/TestPlan
         run: python generate_excel.py
 
-      - name: Commit Excel and cleanup script
+      - name: Commit Excel and cleanup scripts
         working-directory: Test_Output/MIPI/TestPlan
         run: |
           # Find the generated xlsx file
@@ -43,8 +45,9 @@ jobs:
           # Add the xlsx file
           git add "$XLSX_FILE"
           
-          # Remove the generator script and b64 file
+          # Remove all generator/helper scripts
           git rm -f generate_excel.py || true
+          git rm -f run_generator.py || true
           rm -f *.b64
           
           # Commit and push
