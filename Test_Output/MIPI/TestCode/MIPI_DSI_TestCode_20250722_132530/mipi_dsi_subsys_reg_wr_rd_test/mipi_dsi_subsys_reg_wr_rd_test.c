@@ -7,166 +7,135 @@
 /*
  * Testcase: mipi_dsi_subsys_reg_wr_rd_test
  * Description: Performs register write-read verification on a set of MIPI DSI
- *              subsystem registers. Reads default (reset) values and compares
+ *              subsystem registers. Reads default reset values and compares
  *              against expected defaults. For writable registers, writes test
  *              data patterns, reads back, and compares using write masks.
  *              MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW is read-only and skipped
  *              during write operations.
  */
 
-/* ======================================================================== */
-/* Test Data Arrays                                                         */
-/* ======================================================================== */
-
-#define NUM_REGS      5U
-#define NUM_PATTERNS  5U
-
-/* Register addresses under test */
-static const uint32_t addr_array[NUM_REGS] = {
-    MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL,
-    MIZAR_MIPI_DSI_SUBSYS_LOW_PWR,
-    MIZAR_MIPI_DSI_SUBSYS_DBITE,
-    MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV,
-    MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW
-};
-
-/* Register names for logging */
-static const char *reg_names[NUM_REGS] = {
-    "MIZAR_MIPI_DSI_SUBSYS_DATA_FIFO_THRESHOLD_VAL",
-    "MIZAR_MIPI_DSI_SUBSYS_LOW_PWR",
-    "MIZAR_MIPI_DSI_SUBSYS_DBITE",
-    "MIZAR_MIPI_DSI_SUBSYS_DBI_FDIV",
-    "MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW"
-};
-
-/* Expected default (reset) values */
-// MANUAL_REVIEW: Replace 0x0UL placeholders with actual reset values from register spec.
-static const uint32_t rst_val_array[NUM_REGS] = {
-    0x0UL,  /* DATA_FIFO_THRESHOLD_VAL */
-    0x0UL,  /* LOW_PWR */
-    0x0UL,  /* DBITE */
-    0x0UL,  /* DBI_FDIV */
-    0x0UL   /* INTERRUPT_RAW */
-};
-
-/* Read masks */
-// MANUAL_REVIEW: Replace 0xFFFFFFFFUL placeholders with actual read masks from register spec.
-static const uint32_t rd_mask_array[NUM_REGS] = {
-    0xFFFFFFFFUL,  /* DATA_FIFO_THRESHOLD_VAL */
-    0xFFFFFFFFUL,  /* LOW_PWR */
-    0xFFFFFFFFUL,  /* DBITE */
-    0xFFFFFFFFUL,  /* DBI_FDIV */
-    0xFFFFFFFFUL   /* INTERRUPT_RAW */
-};
-
-/* Write masks */
-// MANUAL_REVIEW: Replace 0xFFFFFFFFUL placeholders with actual write masks from register spec.
-static const uint32_t wr_mask_array[NUM_REGS] = {
-    0xFFFFFFFFUL,  /* DATA_FIFO_THRESHOLD_VAL */
-    0xFFFFFFFFUL,  /* LOW_PWR */
-    0xFFFFFFFFUL,  /* DBITE */
-    0xFFFFFFFFUL,  /* DBI_FDIV */
-    0x00000000UL   /* INTERRUPT_RAW (read-only) */
-};
-
-/* Skip flags: 1 = skip write-read verification (read-only register) */
-static const uint32_t skip_array[NUM_REGS] = {
-    0U,  /* DATA_FIFO_THRESHOLD_VAL */
-    0U,  /* LOW_PWR */
-    0U,  /* DBITE */
-    0U,  /* DBI_FDIV */
-    1U   /* INTERRUPT_RAW (read-only, skip write) */
-};
-
-/* Test data patterns */
-static const uint32_t data_patterns[NUM_PATTERNS] = {
-    0x00000000UL,
-    0xFFFFFFFFUL,
-    0x55555555UL,
-    0xAAAAAAAAUL,
-    0xA5A5A5A5UL
-};
-
 typedef struct {
     unsigned int errors;
+    unsigned int checks_total;
+    unsigned int checks_passed;
+    unsigned int checks_failed;
 } mipi_dsi_subsys_reg_wr_rd_test_ctx_t;
 
 static mipi_dsi_subsys_reg_wr_rd_test_ctx_t g_ctx;
 
-/* ======================================================================== */
-/* chk_rst_val - Verify default reset values                                */
-/* ======================================================================== */
-static void chk_rst_val(void)
+/*
+ * Function: chk_rst_val
+ * Description: Verifies default reset values for all registers in addr_array.
+ * Parameters:
+ *   None (uses global arrays from test_define.inc).
+ * Returns:
+ *   Number of mismatches detected.
+ */
+static unsigned int chk_rst_val(void)
 {
-    uint32_t rd_data;
+    unsigned int i;
+    uint32_t rd_val;
     uint32_t expected;
-    uint32_t i;
+    unsigned int mismatch_count = 0U;
 
-    LOGT("--- chk_rst_val: Verify default reset values ---");
+    LOGT("chk_rst_val: verifying default reset values for %u registers",
+         MIPI_DSI_SUBSYS_REG_COUNT);
 
-    for (i = 0U; i < NUM_REGS; i++) {
-        rd_data = readl_reg(addr_array[i]);
+    for (i = 0U; i < MIPI_DSI_SUBSYS_REG_COUNT; i++) {
+        rd_val = readl_reg(addr_array[i]);
         expected = rst_val_array[i] & rd_mask_array[i];
-        rd_data = rd_data & rd_mask_array[i];
+        rd_val = rd_val & rd_mask_array[i];
 
-        if (rd_data == expected) {
-            LOGT("[%s] Default value check: Read=0x%lx Expected=0x%lx PASS",
-                 reg_names[i], (unsigned long)rd_data, (unsigned long)expected);
-        } else {
-            LOGE("[%s] Default value MISMATCH: Read=0x%lx Expected=0x%lx FAIL",
-                 reg_names[i], (unsigned long)rd_data, (unsigned long)expected);
+        g_ctx.checks_total++;
+
+        if (rd_val != expected) {
+            LOGE("chk_rst_val FAIL: reg[%u] addr=0x%lx expected=0x%lx actual=0x%lx",
+                 i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)expected,
+                 (unsigned long)rd_val);
             g_ctx.errors++;
+            g_ctx.checks_failed++;
+            mismatch_count++;
+        } else {
+            LOGT("chk_rst_val PASS: reg[%u] addr=0x%lx value=0x%lx",
+                 i,
+                 (unsigned long)addr_array[i],
+                 (unsigned long)rd_val);
+            g_ctx.checks_passed++;
         }
     }
+
+    return mismatch_count;
 }
 
-/* ======================================================================== */
-/* chk_rd_wr - Verify write-read for writable registers                     */
-/* ======================================================================== */
-static void chk_rd_wr(void)
+/*
+ * Function: chk_rd_wr
+ * Description: Writes test data patterns to writable registers and verifies
+ *              read-back values using write masks. Skips read-only registers.
+ * Parameters:
+ *   None (uses global arrays from test_define.inc).
+ * Returns:
+ *   Number of mismatches detected.
+ */
+static unsigned int chk_rd_wr(void)
 {
-    uint32_t rd_data;
-    uint32_t data_wr;
+    unsigned int i;
+    unsigned int p;
+    uint32_t rd_val;
     uint32_t expected;
-    uint32_t i;
-    uint32_t p;
+    unsigned int mismatch_count = 0U;
 
-    LOGT("--- chk_rd_wr: Verify write-read patterns ---");
+    LOGT("chk_rd_wr: verifying write-read for %u registers with %u patterns",
+         MIPI_DSI_SUBSYS_REG_COUNT,
+         MIPI_DSI_SUBSYS_PATTERN_COUNT);
 
-    for (p = 0U; p < NUM_PATTERNS; p++) {
-        LOGT("Test pattern [%lu]: 0x%lx",
-             (unsigned long)p, (unsigned long)data_patterns[p]);
+    for (p = 0U; p < MIPI_DSI_SUBSYS_PATTERN_COUNT; p++) {
+        LOGT("chk_rd_wr: pattern[%u] = 0x%lx",
+             p, (unsigned long)data_patterns[p]);
 
-        for (i = 0U; i < NUM_REGS; i++) {
-            if (skip_array[i] == 1U) {
-                LOGT("  [%s] SKIPPED (read-only register)", reg_names[i]);
+        for (i = 0U; i < MIPI_DSI_SUBSYS_REG_COUNT; i++) {
+            if (skip_array[i] != 0U) {
+                LOGT("chk_rd_wr: SKIP reg[%u] addr=0x%lx (read-only)",
+                     i, (unsigned long)addr_array[i]);
                 continue;
             }
 
-            data_wr = data_patterns[p];
-            writel_reg(addr_array[i], data_wr);
+            writel_reg(addr_array[i], data_patterns[p]);
 
-            rd_data = readl_reg(addr_array[i]);
-            expected = data_wr & wr_mask_array[i];
-            rd_data = rd_data & wr_mask_array[i];
+            rd_val = readl_reg(addr_array[i]);
+            expected = data_patterns[p] & wr_mask_array[i];
+            rd_val = rd_val & wr_mask_array[i];
 
-            if (rd_data == expected) {
-                LOGT("  [%s] Write-Read check: Written=0x%lx Read=0x%lx Expected=0x%lx PASS",
-                     reg_names[i], (unsigned long)data_wr,
-                     (unsigned long)rd_data, (unsigned long)expected);
-            } else {
-                LOGE("  [%s] Write-Read MISMATCH: Written=0x%lx Read=0x%lx Expected=0x%lx FAIL",
-                     reg_names[i], (unsigned long)data_wr,
-                     (unsigned long)rd_data, (unsigned long)expected);
+            g_ctx.checks_total++;
+
+            if (rd_val != expected) {
+                LOGE("chk_rd_wr FAIL: reg[%u] addr=0x%lx pattern=0x%lx expected=0x%lx actual=0x%lx",
+                     i,
+                     (unsigned long)addr_array[i],
+                     (unsigned long)data_patterns[p],
+                     (unsigned long)expected,
+                     (unsigned long)rd_val);
                 g_ctx.errors++;
+                g_ctx.checks_failed++;
+                mismatch_count++;
+            } else {
+                LOGT("chk_rd_wr PASS: reg[%u] addr=0x%lx pattern=0x%lx readback=0x%lx",
+                     i,
+                     (unsigned long)addr_array[i],
+                     (unsigned long)data_patterns[p],
+                     (unsigned long)rd_val);
+                g_ctx.checks_passed++;
             }
         }
     }
+
+    return mismatch_count;
 }
 
 /*
  * Function: mipi_dsi_subsys_reg_wr_rd_test_init
- * Description: Performs testcase initialization and pre-condition setup.
+ * Description: Performs testcase initialization and pre-condition setup for mipi_dsi_subsys_reg_wr_rd_test.
  * Parameters:
  *   cfg - Test configuration input.
  * Returns:
@@ -178,7 +147,10 @@ int mipi_dsi_subsys_reg_wr_rd_test_init(const TestsItem *cfg)
 
     g_ctx = (mipi_dsi_subsys_reg_wr_rd_test_ctx_t){0};
 
-    LOGT("mipi_dsi_subsys_reg_wr_rd_test init: subsystem register write-read verification");
+    LOGT("mipi_dsi_subsys_reg_wr_rd_test init: register write-read verification");
+    LOGT("Registers under test: %u, Data patterns: %u",
+         MIPI_DSI_SUBSYS_REG_COUNT,
+         MIPI_DSI_SUBSYS_PATTERN_COUNT);
 
     return 0;
 }
@@ -194,6 +166,9 @@ int mipi_dsi_subsys_reg_wr_rd_test_init(const TestsItem *cfg)
  */
 int mipi_dsi_subsys_reg_wr_rd_test_run(const TestsItem *cfg, TestOutput *out)
 {
+    unsigned int rst_mismatches;
+    unsigned int wr_rd_mismatches;
+
     (void)cfg;
 
     if (out == 0) {
@@ -203,28 +178,38 @@ int mipi_dsi_subsys_reg_wr_rd_test_run(const TestsItem *cfg, TestOutput *out)
 
     out->status = 0;
 
-    LOGT("mipi_dsi_subsys_reg_wr_rd_test run: starting register write-read verification");
+    LOGT("mipi_dsi_subsys_reg_wr_rd_test run: starting register verification");
 
-    /* Steps 1-2: Initialize arrays and verify default reset values */
-    LOGT("Steps 1-2: Initialize register arrays and verify default reset values");
-    chk_rst_val();
+    /* Step 1-2: Arrays are initialized in test_define.inc */
+    LOGT("Step 1-2: Register arrays initialized in test_define.inc");
 
-    /* Steps 3-5: Write-read verification for writable registers */
-    LOGT("Steps 3-5: Write-read verification with multiple test data patterns");
-    chk_rd_wr();
+    /* Step 3: Execute chk_rst_val to verify default reset values */
+    LOGT("Step 3: Verify default reset values");
+    rst_mismatches = chk_rst_val();
+    LOGT("chk_rst_val complete: mismatches=%u", rst_mismatches);
+
+    /* Step 4-5: Execute chk_rd_wr to verify write-read for writable registers */
+    LOGT("Step 4-5: Verify write-read patterns (skip read-only registers)");
+    wr_rd_mismatches = chk_rd_wr();
+    LOGT("chk_rd_wr complete: mismatches=%u", wr_rd_mismatches);
+
+    g_ctx.checks_failed = g_ctx.errors;
 
     out->status = (g_ctx.errors == 0U) ? 0 : -1;
 
-    LOGT("Run complete: %s errors=%u",
+    LOGT("Run complete: %s errors=%u checks_passed=%u checks_total=%u checks_failed=%u",
          (out->status == 0) ? "PASS" : "FAIL",
-         g_ctx.errors);
+         g_ctx.errors,
+         g_ctx.checks_passed,
+         g_ctx.checks_total,
+         g_ctx.checks_failed);
 
     return out->status;
 }
 
 /*
  * Function: mipi_dsi_subsys_reg_wr_rd_test_teardown
- * Description: Performs testcase validation, cleanup, and final status handling.
+ * Description: Performs testcase validation, cleanup, and final status handling for mipi_dsi_subsys_reg_wr_rd_test.
  * Parameters:
  *   cfg - Test configuration input.
  * Returns:
@@ -234,6 +219,7 @@ int mipi_dsi_subsys_reg_wr_rd_test_teardown(const TestsItem *cfg)
 {
     (void)cfg;
 
-    LOGT("mipi_dsi_subsys_reg_wr_rd_test teardown: errors=%u", g_ctx.errors);
+    LOGT("mipi_dsi_subsys_reg_wr_rd_test teardown: errors=%u checks_total=%u",
+         g_ctx.errors, g_ctx.checks_total);
     return g_ctx.errors == 0U ? 0 : -1;
 }
