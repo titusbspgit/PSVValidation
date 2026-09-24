@@ -3,11 +3,15 @@ name: Generate MIPI_DSI TestPlan Excel
 on:
   push:
     paths:
+      - 'Test_Output/MIPI/TestPlan/gen_xlsx.py'
       - 'Test_Output/MIPI/TestPlan/generate_excel.py'
+  workflow_dispatch:
 
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,8 +28,12 @@ jobs:
         id: generate
         run: |
           cd Test_Output/MIPI/TestPlan
-          python generate_excel.py | tee output.log
-          FILENAME=$(grep 'GENERATED_FILE=' output.log | cut -d= -f2)
+          if [ -f gen_xlsx.py ]; then
+            python gen_xlsx.py | tee output.log
+          elif [ -f generate_excel.py ]; then
+            python generate_excel.py | tee output.log
+          fi
+          FILENAME=$(grep 'FILENAME=' output.log | head -1 | cut -d= -f2)
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
           echo "Generated: $FILENAME"
 
@@ -35,6 +43,7 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           FILENAME=${{ steps.generate.outputs.filename }}
           git add "Test_Output/MIPI/TestPlan/$FILENAME"
+          git rm -f Test_Output/MIPI/TestPlan/gen_xlsx.py || true
           git rm -f Test_Output/MIPI/TestPlan/generate_excel.py || true
           git commit -m "Added generated TestPlan Excel: $FILENAME"
           git push
