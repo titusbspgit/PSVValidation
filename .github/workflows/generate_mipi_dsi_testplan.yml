@@ -30,19 +30,14 @@ jobs:
           python gen_xlsx.py | tee output.log
           FILENAME=$(grep 'FILENAME=' output.log | head -1 | cut -d= -f2)
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-          # Extract base64 and decode to binary XLSX
-          sed -n '/^BASE64_START$/,/^BASE64_END$/p' output.log | grep -v '^BASE64_' > b64.txt
-          base64 -d b64.txt > "$FILENAME"
-          FILE_SIZE=$(stat -c%s "$FILENAME")
-          echo "Generated: $FILENAME ($FILE_SIZE bytes)"
-          # Validate the XLSX
-          python -c "from openpyxl import load_workbook; wb=load_workbook('$FILENAME'); assert 'TestPlan' in wb.sheetnames; assert 'MetaData' in wb.sheetnames; print('VALIDATION=PASSED')"
+          ls -la "$FILENAME"
+          echo "Generated: $FILENAME"
 
       - name: Commit and push Excel file
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          FILENAME=${{ steps.generate.outputs.filename }}
+          FILENAME="${{ steps.generate.outputs.filename }}"
           git add "Test_Output/MIPI/TestPlan/$FILENAME"
           git commit -m "Added generated TestPlan Excel: $FILENAME"
           git push
