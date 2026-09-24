@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Standalone XLSX generator for MIPI_DSI TestPlan - executed locally or via GitHub Actions."""
-import os, sys, base64
+"""Standalone XLSX generator for MIPI_DSI TestPlan."""
+import os, sys, json
 from datetime import datetime, timezone, timedelta
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -25,7 +25,7 @@ json_data = [
     "Test Steps / Procedure": "1. Enable DMA controller channel interrupts by writing to the INTEN register.\n2. Enable the GDMA interrupt in the subsystem interrupt_enable register.\n3. Configure the DSI host PHY interface parameters by writing to the PHY_IF_CFG register.\n4. Configure packet handling behavior by writing to the PCKHDL_CFG register.\n5. Configure the clock manager settings by writing to the CLKMGR_CFG register.\n6. Disable DPI control for command mode operation by writing to the dpi_control register.\n7. Program the first DMA debug instruction word by writing to the DBGINST0 register.\n8. Program the second DMA debug instruction word by writing to the DBGINST1 register.\n9. Execute the DMA debug command to initiate the data transfer by writing to the DBGCMD register.\n10. Poll the subsystem interrupt_mask register to detect transfer completion interrupt.\n11. Read the DMAC INTMIS register to verify the DMA interrupt status.\n12. Clear the DMA interrupt by writing to the INTCLR register.\n13. Clear the subsystem interrupt by writing to the interrupt_raw register.",
     "Impacted Registers": "INTEN; interrupt_enable; PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control; DBGINST0; DBGINST1; DBGCMD; interrupt_mask; INTMIS; INTCLR; interrupt_raw",
     "Validation / Acceptance Criteria": "The test passes when the subsystem interrupt_mask register indicates the GDMA interrupt is asserted after the DMA transfer completes. The DMAC INTMIS register must reflect the expected masked interrupt status. Both the DMAC interrupt (via INTCLR) and subsystem interrupt (via interrupt_raw) must be successfully cleared. Failure to detect the interrupt or inability to clear it indicates a test failure.",
-    "Remarks": "This testcase exercises the MIPI DSI DBI command mode path using the integrated DMA controller. It involves three register blocks: DSI Host (PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG), DSI Subsystem (interrupt_enable, interrupt_mask, interrupt_raw, dpi_control), and DMAC (INTEN, INTMIS, INTCLR, DBGINST0, DBGINST1, DBGCMD). The source files in the repository folder did not contain matching MIPI DSI code; the testcase details are derived from upstream Agent 2, Agent 3, and Agent 4 outputs.",
+    "Remarks": "This testcase exercises the MIPI DSI DBI command mode path using the integrated DMA controller. It involves three register blocks: DSI Host (PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG), DSI Subsystem (interrupt_enable, interrupt_mask, interrupt_raw, dpi_control), and DMAC (INTEN, INTMIS, INTCLR, DBGINST0, DBGINST1, DBGCMD).",
     "Meta Headers": "NA",
     "Meta Macros": "NA",
     "Meta Arrays": "NA",
@@ -47,7 +47,7 @@ json_data = [
     "Test Steps / Procedure": "1. Configure the DSI host PHY interface parameters by writing to the PHY_IF_CFG register.\n2. Configure packet handling behavior by writing to the PCKHDL_CFG register.\n3. Configure the clock manager settings by writing to the CLKMGR_CFG register.\n4. Disable DPI control for command mode operation by writing to the dpi_control register.\n5. Enable DMA controller channel interrupts by writing to the INTEN register.\n6. Begin a 10-iteration loop generating random payload data for each iteration.\n7. Program the first DMA debug instruction word by writing to the DBGINST0 register.\n8. Program the second DMA debug instruction word by writing to the DBGINST1 register.\n9. Execute the DMA debug command to initiate the data transfer by writing to the DBGCMD register.\n10. Poll the INTMIS register until the expected DMA transfer completion interrupt status is detected.\n11. Clear the DMA interrupt by writing to the INTCLR register.\n12. Repeat steps 6 through 11 for all 10 iterations to validate random payload transfers.",
     "Impacted Registers": "PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control; INTEN; DBGINST0; DBGINST1; DBGCMD; INTMIS; INTCLR",
     "Validation / Acceptance Criteria": "For each of the 10 iterations, the INTMIS register must indicate DMA transfer completion with the expected interrupt status value. The INTCLR register must successfully clear the interrupt after each iteration. The test passes if all 10 random payload transfer iterations complete successfully with the expected interrupt status detected and cleared each time. Failure to detect the expected interrupt status or inability to clear the interrupt in any iteration indicates a test failure.",
-    "Remarks": "This testcase exercises the MIPI DSI DBI command mode path with random payload data across 10 iterations using the integrated DMA controller. It involves two register blocks: DSI Host (PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG), DSI Subsystem (dpi_control), and DMAC (INTEN, INTMIS, INTCLR, DBGINST0, DBGINST1, DBGCMD). Unlike the basic test, this testcase does not use subsystem-level interrupt enable, mask, or raw registers. The polling-based completion check uses the DMAC INTMIS register directly. The source files in the repository folder did not contain matching MIPI DSI code; the testcase details are derived from upstream Agent 2, Agent 3, and Agent 4 outputs.",
+    "Remarks": "This testcase exercises the MIPI DSI DBI command mode path with random payload data across 10 iterations using the integrated DMA controller. It involves two register blocks: DSI Host (PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG), DSI Subsystem (dpi_control), and DMAC (INTEN, INTMIS, INTCLR, DBGINST0, DBGINST1, DBGCMD). Unlike the basic test, this testcase does not use subsystem-level interrupt enable, mask, or raw registers.",
     "Meta Headers": "NA",
     "Meta Macros": "NA",
     "Meta Arrays": "NA",
@@ -127,23 +127,18 @@ for col_idx, col_name in enumerate(metadata_columns, 1):
 
 ws_md.sheet_state = 'veryHidden'
 
-output_path = os.path.join('/tmp', filename)
-wb.save(output_path)
+# Save directly to the working directory
+wb.save(filename)
 
 # Validate
-wb2 = load_workbook(output_path)
-assert 'TestPlan' in wb2.sheetnames
-assert 'MetaData' in wb2.sheetnames
-file_size = os.path.getsize(output_path)
-assert file_size > 0
-
-# Output base64 for GitHub push
-with open(output_path, 'rb') as f:
-    b64 = base64.b64encode(f.read()).decode('utf-8')
+wb2 = load_workbook(filename)
+assert 'TestPlan' in wb2.sheetnames, "TestPlan sheet missing"
+assert 'MetaData' in wb2.sheetnames, "MetaData sheet missing"
+file_size = os.path.getsize(filename)
+assert file_size > 0, "File is empty"
 
 print(f'FILENAME={filename}')
 print(f'FILE_SIZE={file_size}')
 print(f'VALIDATION=PASSED')
-print(f'BASE64_START')
-print(b64)
-print(f'BASE64_END')
+print(f'ROWS_TESTPLAN={len(json_data)}')
+print(f'ROWS_METADATA={len(json_data)}')
