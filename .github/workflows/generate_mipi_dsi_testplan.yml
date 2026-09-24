@@ -1,9 +1,7 @@
 name: Generate MIPI_DSI TestPlan Excel
 
 on:
-  push:
-    paths:
-      - '.github/scripts/generate_mipi_dsi_testplan.py'
+  workflow_dispatch:
 
 jobs:
   generate-excel:
@@ -22,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel TestPlan
+      - name: Generate TestPlan Excel
         run: python .github/scripts/generate_mipi_dsi_testplan.py
 
       - name: Commit and push generated Excel
@@ -30,5 +28,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/MIPI/TestPlan/*.xlsx
-          git commit -m "Added generated MIPI_DSI TestPlan Excel"
+          git commit -m "Added generated TestPlan Excel for MIPI_DSI"
           git push
