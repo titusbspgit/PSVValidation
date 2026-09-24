@@ -1,0 +1,40 @@
+name: Generate MIPI_DSI TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate XLSX
+        id: gen
+        run: |
+          cd Test_Output/MIPI/TestPlan
+          python gen_xlsx.py > output.log 2>&1
+          FILENAME=$(grep 'FILENAME=' output.log | cut -d= -f2)
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          # Extract base64 content
+          sed -n '/BASE64_START/,/BASE64_END/p' output.log | grep -v 'BASE64_' > b64.txt
+          base64 -d b64.txt > "$FILENAME"
+          ls -la "$FILENAME"
+
+      - name: Commit and push XLSX
+        run: |
+          cd Test_Output/MIPI/TestPlan
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.gen.outputs.filename }}"
+          git commit -m "Added generated TestPlan Excel: ${{ steps.gen.outputs.filename }}"
+          git push
