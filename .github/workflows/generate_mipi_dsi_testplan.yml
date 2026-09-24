@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'Test_Output/MIPI/TestPlan/gen_xlsx.py'
-      - 'Test_Output/MIPI/TestPlan/generate_excel.py'
   workflow_dispatch:
 
 jobs:
@@ -28,14 +27,16 @@ jobs:
         id: generate
         run: |
           cd Test_Output/MIPI/TestPlan
-          if [ -f gen_xlsx.py ]; then
-            python gen_xlsx.py | tee output.log
-          elif [ -f generate_excel.py ]; then
-            python generate_excel.py | tee output.log
-          fi
+          python gen_xlsx.py | tee output.log
           FILENAME=$(grep 'FILENAME=' output.log | head -1 | cut -d= -f2)
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-          echo "Generated: $FILENAME"
+          # Extract base64 and decode to binary XLSX
+          sed -n '/^BASE64_START$/,/^BASE64_END$/p' output.log | grep -v '^BASE64_' > b64.txt
+          base64 -d b64.txt > "$FILENAME"
+          FILE_SIZE=$(stat -c%s "$FILENAME")
+          echo "Generated: $FILENAME ($FILE_SIZE bytes)"
+          # Validate the XLSX
+          python -c "from openpyxl import load_workbook; wb=load_workbook('$FILENAME'); assert 'TestPlan' in wb.sheetnames; assert 'MetaData' in wb.sheetnames; print('VALIDATION=PASSED')"
 
       - name: Commit and push Excel file
         run: |
@@ -43,7 +44,5 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           FILENAME=${{ steps.generate.outputs.filename }}
           git add "Test_Output/MIPI/TestPlan/$FILENAME"
-          git rm -f Test_Output/MIPI/TestPlan/gen_xlsx.py || true
-          git rm -f Test_Output/MIPI/TestPlan/generate_excel.py || true
           git commit -m "Added generated TestPlan Excel: $FILENAME"
           git push
