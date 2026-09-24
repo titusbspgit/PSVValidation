@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Standalone XLSX generator for MIPI_DSI TestPlan."""
+"""Standalone XLSX generator for MIPI_DSI TestPlan. Auto-triggered by GitHub Actions."""
+# Trigger: 2026-09-24T14:25:00 IST
 import os, sys, json
 from datetime import datetime, timezone, timedelta
 from openpyxl import Workbook, load_workbook
