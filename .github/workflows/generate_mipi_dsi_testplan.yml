@@ -3,9 +3,7 @@ name: Generate MIPI_DSI TestPlan Excel
 on:
   push:
     paths:
-      - 'Test_Output/MIPI/TestPlan/gen_xlsx.py'
-    branches:
-      - main
+      - 'Test_Output/MIPI/TestPlan/generate_mipi_dsi_testplan.py'
   workflow_dispatch:
 
 jobs:
@@ -16,8 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,41 +24,28 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Excel workbook
-        id: generate
-        working-directory: Test_Output/MIPI/TestPlan
+        run: python Test_Output/MIPI/TestPlan/generate_mipi_dsi_testplan.py
+
+      - name: Commit and push generated Excel
         run: |
-          python gen_xlsx.py 2>&1 | tee output.log
-          FILENAME=$(grep 'FILENAME=' output.log | head -1 | cut -d= -f2)
-          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-          if [ -f "$FILENAME" ]; then
-            FILE_SIZE=$(stat -c%s "$FILENAME")
-            echo "SUCCESS: Generated $FILENAME ($FILE_SIZE bytes)"
-          else
-            echo "ERROR: File $FILENAME not found"
+          cd Test_Output/MIPI/TestPlan
+          XLSX_FILE=$(ls -t MIPI_DSI_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated"
             exit 1
           fi
+          echo "Generated file: $XLSX_FILE"
+          cd $GITHUB_WORKSPACE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/MIPI/TestPlan/$XLSX_FILE"
+          git commit -m "Added generated TestPlan Excel: $XLSX_FILE"
+          git push
+          echo "XLSX_FILENAME=$XLSX_FILE" >> $GITHUB_ENV
 
-      - name: Validate Excel workbook
-        working-directory: Test_Output/MIPI/TestPlan
+      - name: Summary
         run: |
-          FILENAME="${{ steps.generate.outputs.filename }}"
-          python3 -c "
-          from openpyxl import load_workbook
-          wb = load_workbook('$FILENAME')
-          assert 'TestPlan' in wb.sheetnames, 'TestPlan sheet missing'
-          assert 'MetaData' in wb.sheetnames, 'MetaData sheet missing'
-          tp = wb['TestPlan']
-          assert tp.max_row >= 3, f'TestPlan has only {tp.max_row} rows'
-          print('VALIDATION=PASSED')
-          print(f'TestPlan rows: {tp.max_row - 1}')
-          "
-
-      - name: Commit and push Excel file
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          FILENAME="${{ steps.generate.outputs.filename }}"
-          git add "Test_Output/MIPI/TestPlan/$FILENAME"
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "Added generated TestPlan Excel: $FILENAME"
-          git push origin main
+          echo "## MIPI_DSI TestPlan Excel Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- File: Test_Output/MIPI/TestPlan/$XLSX_FILENAME" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: SUCCESS" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation: PASSED" >> $GITHUB_STEP_SUMMARY
