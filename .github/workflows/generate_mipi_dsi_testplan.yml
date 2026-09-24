@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'Test_Output/MIPI/TestPlan/gen_xlsx.py'
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -14,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,13 +29,33 @@ jobs:
 
       - name: Generate Excel workbook
         id: generate
+        working-directory: Test_Output/MIPI/TestPlan
         run: |
-          cd Test_Output/MIPI/TestPlan
-          python gen_xlsx.py | tee output.log
+          python gen_xlsx.py 2>&1 | tee output.log
           FILENAME=$(grep 'FILENAME=' output.log | head -1 | cut -d= -f2)
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-          ls -la "$FILENAME"
-          echo "Generated: $FILENAME"
+          if [ -f "$FILENAME" ]; then
+            FILE_SIZE=$(stat -c%s "$FILENAME")
+            echo "SUCCESS: Generated $FILENAME ($FILE_SIZE bytes)"
+          else
+            echo "ERROR: File $FILENAME not found"
+            exit 1
+          fi
+
+      - name: Validate Excel workbook
+        working-directory: Test_Output/MIPI/TestPlan
+        run: |
+          FILENAME="${{ steps.generate.outputs.filename }}"
+          python3 -c "
+          from openpyxl import load_workbook
+          wb = load_workbook('$FILENAME')
+          assert 'TestPlan' in wb.sheetnames, 'TestPlan sheet missing'
+          assert 'MetaData' in wb.sheetnames, 'MetaData sheet missing'
+          tp = wb['TestPlan']
+          assert tp.max_row >= 3, f'TestPlan has only {tp.max_row} rows'
+          print('VALIDATION=PASSED')
+          print(f'TestPlan rows: {tp.max_row - 1}')
+          "
 
       - name: Commit and push Excel file
         run: |
@@ -39,5 +63,6 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           FILENAME="${{ steps.generate.outputs.filename }}"
           git add "Test_Output/MIPI/TestPlan/$FILENAME"
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "Added generated TestPlan Excel: $FILENAME"
-          git push
+          git push origin main
