@@ -1,0 +1,162 @@
+Test Plan: MIPI_DSI
+Generated: 2025-05-24 12:00:00 IST
+IP Name: MIPI_DSI
+
+========================================
+TEST CASE 1: mipi_dsi_basic_test
+========================================
+Description: Basic MIPI DSI DBI write test with DMA transfer. Configures DSI host PHY, DBI interface, enables GDMA interrupts, programs DMA descriptors for data and command channels, triggers DMA transfer, and verifies completion via interrupt.
+
+Step No,Operation,Register/Macro Name,Resolved Register Name,Register Block,Offset,Data Value,Mask/Field,Field Description,Comments
+1,WRITE,MIZAR_MIPI_DSI_DMAC_INTEN,INTEN,DMA330 (DMAC),0x20,0x3,event_irq_select[31:0],Event interrupt select - enable IRQ for CH0 and CH1,Enable DMAC interrupts for channel 0 and channel 1
+2,WRITE,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE,interrupt_enable,DSI Subsystem,0x18,MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR (bit 1),gdma_intr[1],GDMA interrupt enable,Enable GDMA interrupt at subsystem level
+3,WRITE (set_data_mask),MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,PHY_IF_CFG,DSI Host,0xA4,n_lanes=3 | phy_stop_wait_time=0x40,n_lanes[1:0]=3; phy_stop_wait_time[15:8]=0x40,Configure number of active data lanes and PHY stop wait time,"PHY_IF_CFG: n_lanes=3 (4 lanes), phy_stop_wait_time=0x40"
+4,WRITE,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,PCKHDL_CFG,DSI Host,0x2C,0x3D,eotp_tx_en[0]=1; eotp_rx_en[1]=0; bta_en[2]=1; ecc_rx_en[3]=1; crc_rx_en[4]=1; eotp_tx_lp_en[5]=1,Packet handling configuration,"Enable EoTp TX, BTA, ECC RX, CRC RX, EoTp TX LP"
+5,WRITE,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,CLKMGR_CFG,DSI Host,0x08,0x107,tx_esc_clk_division[7:0]=0x07; to_clk_division[15:8]=0x01,Clock manager configuration,"TX escape clock division=7, timeout clock division=1"
+6,WRITE,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,dpi_control,DSI Subsystem,0x24,0x0,dbi_dpi_en[0]=0,DPI control - disable DPI (enable DBI mode),Set DBI mode by writing 0 to DPI control
+7,FUNCTION CALL,phy_init(),--,--,--,--,--,PHY initialization sequence,Initialize the D-PHY (internal function)
+8,CONFIG (software),dbi_vcid,--,--,--,0x3,--,DBI Virtual Channel ID,Set DBI VCID to 3
+9,CONFIG (software),load_cmd_or_data_to_sram,--,--,--,1,--,Load command/data to SRAM flag,Enable loading command and data into LSS SRAM for data integrity
+10,CONFIG (software),lut_size_conf,--,--,--,0x1,--,DBI_CFG LUT size configuration,LUT size config = 1
+11,CONFIG (software),out_dbi_conf,--,--,--,0xB,--,DBI_CFG output DBI configuration,Output DBI conf = 0xB
+12,CONFIG (software),in_dbi_conf,--,--,--,0x0,--,DBI_CFG input DBI configuration,Input DBI conf = 0x0
+13,CONFIG (software),partitioning_en,--,--,--,0x1,--,DBI_PARTITIONING_EN,Enable partitioning
+14,CONFIG (software),allowed_cmd_size,--,--,--,0x7,--,DBI_CMDSIZE allowed_cmd_size[31:16],Allowed command size = 7
+15,CONFIG (software),wr_cmd_size,--,--,--,193 (then recalculated),--,DBI_CMDSIZE wr_cmd_size[15:0],Write command size = 192+1 then recalculated from pixel_to_bytes_wr_cmd_size(40)
+16,CONFIG (software),num_of_pixel,--,--,--,40,--,Number of pixels for DBI transfer,40 pixels
+17,CONFIG (software),CMD_MODE_CFG fields,--,--,--,"max_rd_pkt_size=0x0, dcs_lw_tx=0x0, dcs_sr_0p_tx=0x0, dcs_sw_1p_tx=0x0, dcs_sw_0p_tx=0x0, gen_lw_tx=0x0, gen_sr_2p_tx=0x0, gen_sr_1p_tx=0x0, gen_sr_0p_tx=0x0, gen_sw_2p_tx=0x0, gen_sw_1p_tx=0x0, gen_sw_0p_tx=0x0, ack_rqst_en=0x0, tear_fx_en=0x1",--,CMD_MODE_CFG register fields,"All generic/DCS TX types=0, tear_fx_en=1, ack_rqst_en=0"
+18,CONFIG (software),generic_vc_id,--,--,--,0x2,--,Generic Virtual Channel ID,Generic VC ID = 2
+19,FUNCTION CALL,program_dpi_clock(),--,--,--,dpi_clk_freq derived from 16.012400ns period,--,Program DPI clock frequency,DPI clock period ~16.012400ns
+20,FUNCTION CALL,dbi_config(),--,--,--,--,--,DBI configuration sequence,"Configures DBI_VCID, DBI_CFG, DBI_PARTITIONING_EN, DBI_CMDSIZE, CMD_MODE_CFG, GEN_VCID registers"
+21,DMA DESCRIPTOR SETUP,ch0 (data) - DMAMOV SAR,--,--,--,RAM_BASE + 0x10000,--,Source address for data channel,Data source in RAM
+22,DMA DESCRIPTOR SETUP,ch0 (data) - DMAMOV DAR,--,--,--,0x10000000000,--,Destination address for data channel,Data destination (DSI TX FIFO mapped address)
+23,DMA DESCRIPTOR SETUP,ch0 (data) - program_data_num_bytes,--,--,--,num_bytes (from pixel calculation),--,Number of bytes to transfer on data channel,Byte count derived from 40 pixels
+24,DMA DESCRIPTOR SETUP,ch1 (cmd) - DMAMOV SAR,--,--,--,RAM_BASE + 0x0000,--,Source address for command channel,Command source in RAM
+25,DMA DESCRIPTOR SETUP,ch1 (cmd) - DMAMOV DAR,--,--,--,0x10000008000,--,Destination address for command channel,Command destination (DSI CMD FIFO mapped address)
+26,DMA DESCRIPTOR SETUP,ch1 (cmd) - program_data_num_bytes,--,--,--,4,--,Number of bytes to transfer on command channel,4 bytes for command
+27,FUNCTION CALL,load_rand_data(),--,--,--,--,--,Load random data to SRAM,Load random payload data into data descriptor source address
+28,FUNCTION CALL,load_wr_command(),--,--,--,"cmd_addr=RAM_BASE+0x0000, num_bytes, DSI_WRITE_MEMORY_START",--,Load write command to SRAM,Load DCS Write Memory Start command
+29,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DBGINST0,DMA330 (DMAC),0xD08,0x00A00000,"debug_thread[0]=0; channel_number[10:8]=0; instruction_0[23:16]=0xA0; instruction_1[31:24]=0x00",DMAC debug instruction 0 - CH0 GO,Execute DMAGO for channel 0 (data)
+30,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DBGINST1,DMA330 (DMAC),0xD0C,ch0_desc_addr_act,"instruction2-5: address of CH0 descriptor",DMAC debug instruction 1 - CH0 descriptor address,Descriptor start address for channel 0
+31,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DBGCMD,DMA330 (DMAC),0xD04,0x0,dbgcmd[1:0]=0,DMAC debug command - execute,Trigger execution of debug instruction for CH0
+32,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DBGINST0,DMA330 (DMAC),0xD08,0x01A00000,"debug_thread[0]=0; channel_number[10:8]=1; instruction_0[23:16]=0xA0; instruction_1[31:24]=0x00",DMAC debug instruction 0 - CH1 GO,Execute DMAGO for channel 1 (command)
+33,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DBGINST1,DMA330 (DMAC),0xD0C,ch1_desc_addr_act,"instruction2-5: address of CH1 descriptor",DMAC debug instruction 1 - CH1 descriptor address,Descriptor start address for channel 1
+34,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DBGCMD,DMA330 (DMAC),0xD04,0x0,dbgcmd[1:0]=0,DMAC debug command - execute,Trigger execution of debug instruction for CH1
+35,POLL/WAIT,int_pend1,--,--,--,Wait until int_pend1 == 0,--,Wait for both DMA channel interrupts,Poll with wait_on(10) until both CH0 and CH1 interrupts received
+36,WAIT,wait_on(10000),--,--,--,10000 cycles,--,Final wait,Wait 10000 cycles for transfer completion
+37,VERIFY,finish(err0),--,--,--,err0 == 0 means PASS,--,Test result,Test passes if err0 is 0 (no unexpected interrupts)
+
+--- ISR: Default_IRQHandler ---
+ISR Step 1,READ,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK,interrupt_mask,DSI Subsystem,0x14,--,Read masked interrupt status,Read subsystem interrupt mask status
+ISR Step 2,CHECK,MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR,interrupt_mask,DSI Subsystem,0x14,bit 1,gdma_intr[1],Check if GDMA interrupt is active,Verify GDMA interrupt source
+ISR Step 3,READ,MIZAR_MIPI_DSI_DMAC_INTMIS,INTMIS,DMA330 (DMAC),0x28,--,irq_status[31:0],Read DMAC masked interrupt status,Identify which DMA channel(s) completed
+ISR Step 4,WRITE,MIZAR_MIPI_DSI_DMAC_INTCLR,INTCLR,DMA330 (DMAC),0x2C,ch_mask_st,irq_clr[31:0],Clear DMAC interrupt,Clear the active DMAC channel interrupt(s)
+ISR Step 5,WRITE,MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,interrupt_raw,DSI Subsystem,0x10,dsi_subsys_mask_st,Write to clear subsystem interrupt,Clear interrupt at DSI subsystem level
+ISR Step 6,FUNCTION CALL,GIC_ClearIRQ(DSI_INTR_NO),--,--,--,--,--,Clear GIC IRQ,Clear DSI interrupt at GIC level
+
+========================================
+TEST CASE 2: mipi_dsi_dbi_random_payload_test
+========================================
+Description: MIPI DSI DBI random payload test. Iterates 10 times with random pixel counts (multiples of 8 up to 8192), configures DBI for each iteration, programs DMA descriptors, triggers DMA transfer, polls for completion via DMAC interrupt status register, and clears interrupts.
+
+Step No,Operation,Register/Macro Name,Resolved Register Name,Register Block,Offset,Data Value,Mask/Field,Field Description,Comments
+1,CONFIG (software),phy_stop_wait_time,--,--,--,0x40,--,PHY stop wait time,Set to 0x40
+2,CONFIG (software),n_lanes,--,--,--,3,--,Number of lanes,4 data lanes (n_lanes=3)
+3,WRITE (set_data_mask),MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,PHY_IF_CFG,DSI Host,0xA4,n_lanes=3 | phy_stop_wait_time=0x40,n_lanes[1:0]=3; phy_stop_wait_time[15:8]=0x40,Configure PHY interface,"PHY_IF_CFG: n_lanes=3, phy_stop_wait_time=0x40"
+4,WRITE,MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,PCKHDL_CFG,DSI Host,0x2C,0x3D,eotp_tx_en[0]=1; bta_en[2]=1; ecc_rx_en[3]=1; crc_rx_en[4]=1; eotp_tx_lp_en[5]=1,Packet handling configuration,"Enable EoTp TX, BTA, ECC RX, CRC RX, EoTp TX LP"
+5,WRITE,MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,CLKMGR_CFG,DSI Host,0x08,0x107,tx_esc_clk_division[7:0]=0x07; to_clk_division[15:8]=0x01,Clock manager configuration,"TX escape clock division=7, timeout clock division=1"
+6,WRITE,MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,dpi_control,DSI Subsystem,0x24,0x0,dbi_dpi_en[0]=0,DPI control - disable DPI (enable DBI mode),Set DBI mode
+7,FUNCTION CALL,phy_init(),--,--,--,--,--,PHY initialization sequence,Initialize the D-PHY
+8,CONFIG (software),dbi_vcid,--,--,--,0x3,--,DBI Virtual Channel ID,Set DBI VCID to 3
+9,CONFIG (software),load_cmd_or_data_to_sram,--,--,--,1,--,Load command/data to SRAM flag,Enable SRAM loading for data integrity
+10,CONFIG (software),lut_size_conf,--,--,--,0x1,--,DBI_CFG LUT size,LUT size config = 1
+11,CONFIG (software),out_dbi_conf,--,--,--,0xB,--,DBI_CFG output config,Output DBI conf = 0xB
+12,CONFIG (software),in_dbi_conf,--,--,--,0x0,--,DBI_CFG input config,Input DBI conf = 0x0
+13,CONFIG (software),partitioning_en,--,--,--,0x0,--,DBI_PARTITIONING_EN,Partitioning disabled (auto partitioning by host)
+14,CONFIG (software),allowed_cmd_size,--,--,--,0x25,--,DBI_CMDSIZE allowed_cmd_size[31:16],Allowed command size = 0x25
+15,CONFIG (software),wr_cmd_size initial,--,--,--,193,--,DBI_CMDSIZE wr_cmd_size[15:0],Initial write command size = 192+1
+16,CONFIG (software),num_of_pixel initial,--,--,--,40,--,Number of pixels,Initial 40 pixels (recalculated per iteration)
+17,CONFIG (software),CMD_MODE_CFG fields,--,--,--,"All gen/dcs TX types=0, tear_fx_en=1, ack_rqst_en=0",--,CMD_MODE_CFG register fields,Same as basic test
+18,CONFIG (software),generic_vc_id,--,--,--,0x2,--,Generic Virtual Channel ID,Generic VC ID = 2
+19,FUNCTION CALL,program_dpi_clock(),--,--,--,dpi_clk_freq from 16.012400ns,--,Program DPI clock,DPI clock period ~16.012400ns
+20,FUNCTION CALL,dbi_config(),--,--,--,--,--,Initial DBI configuration,Configure DBI registers
+21,WRITE,MIZAR_MIPI_DSI_DMAC_INTEN,INTEN,DMA330 (DMAC),0x20,0x3,event_irq_select[31:0],Enable DMAC interrupts for CH0 and CH1,Enable DMAC interrupt for both channels
+
+--- LOOP START: 10 iterations (i=0 to 9) ---
+22,COMPUTE,num_of_pixel = ((rand() % 1024)) * 8,--,--,--,Random (0 to 8184 in steps of 8),--,Random pixel count per iteration,Random number of pixels (multiple of 8)
+23,COMPUTE,pixel_to_bytes_wr_cmd_size(num_of_pixel),--,--,--,"wr_cmd_size, num_bytes derived",--,Calculate byte count and write command size,Convert pixel count to byte count
+24,FUNCTION CALL,dbi_config(),--,--,--,--,--,Reconfigure DBI for new wr_cmd_size,Update DBI configuration with new payload size
+25,DMA DESCRIPTOR SETUP,ch0 (data) - DMAMOV SAR,--,--,--,RAM_BASE + 0x10000 + (itter * 0x1000),--,Source address for data channel,Data source offset per descriptor
+26,DMA DESCRIPTOR SETUP,ch0 (data) - DMAMOV DAR,--,--,--,0x10000000000,--,Destination address for data channel,DSI TX data FIFO
+27,DMA DESCRIPTOR SETUP,ch0 (data) - program_data_num_bytes,--,--,--,ceil(num_bytes/8)*8,--,Byte count (8-byte aligned),Data transfer length aligned to 8 bytes
+28,DMA DESCRIPTOR SETUP,ch1 (cmd) - DMAMOV SAR,--,--,--,RAM_BASE + 0x0000,--,Source address for command channel,Command source in RAM
+29,DMA DESCRIPTOR SETUP,ch1 (cmd) - DMAMOV DAR,--,--,--,0x10000008000,--,Destination address for command channel,DSI CMD FIFO
+30,DMA DESCRIPTOR SETUP,ch1 (cmd) - program_data_num_bytes,--,--,--,4,--,Command byte count,4 bytes for command
+31,FUNCTION CALL,load_rand_data(),--,--,--,--,--,Load random data,Load random payload data for current iteration
+32,FUNCTION CALL,load_wr_command(),--,--,--,"cmd_addr, num_bytes, DSI_WRITE_MEMORY_START",--,Load write command,Load DCS Write Memory Start command
+33,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DBGINST0,DMA330 (DMAC),0xD08,0x00A00000,"channel_number=0, instruction=DMAGO",DMAC debug instruction 0 - CH0 GO,Execute DMAGO for channel 0
+34,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DBGINST1,DMA330 (DMAC),0xD0C,ch0_desc_addr_act,CH0 descriptor address,DMAC debug instruction 1 - CH0 address,CH0 descriptor start address
+35,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DBGCMD,DMA330 (DMAC),0xD04,0x0,dbgcmd=0,Execute debug command,Trigger CH0 DMA
+36,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST0,DBGINST0,DMA330 (DMAC),0xD08,0x01A00000,"channel_number=1, instruction=DMAGO",DMAC debug instruction 0 - CH1 GO,Execute DMAGO for channel 1
+37,WRITE,MIZAR_MIPI_DSI_DMAC_DBGINST1,DBGINST1,DMA330 (DMAC),0xD0C,ch1_desc_addr_act,CH1 descriptor address,DMAC debug instruction 1 - CH1 address,CH1 descriptor start address
+38,WRITE,MIZAR_MIPI_DSI_DMAC_DBGCMD,DBGCMD,DMA330 (DMAC),0xD04,0x0,dbgcmd=0,Execute debug command,Trigger CH1 DMA
+39,READ/POLL,MIZAR_MIPI_DSI_DMAC_INTMIS,INTMIS,DMA330 (DMAC),0x28,Poll until rd_data == 0x3,irq_status[31:0],Poll DMAC masked interrupt status,Wait until both CH0 and CH1 interrupts are set (0x3)
+40,WRITE,MIZAR_MIPI_DSI_DMAC_INTCLR,INTCLR,DMA330 (DMAC),0x2C,rd_data (0x3),irq_clr[31:0],Clear DMAC interrupts,Clear both channel interrupts
+41,WAIT,wait_on(100000),--,--,--,100000 cycles,--,Inter-iteration wait,Wait 100000 cycles before next iteration
+--- LOOP END ---
+42,VERIFY,finish(0),--,--,--,0 = PASS,--,Test result,Test always finishes with 0 (pass) if loop completes
+
+========================================
+REGISTER SUMMARY TABLE
+========================================
+Register Name,Block,Offset (Hex),Width,Access,Key Fields,Description
+INTEN,DMA330 (DMAC),0x20,32,RW,event_irq_select[31:0],Event interrupt select register
+INTMIS,DMA330 (DMAC),0x28,32,RO,irq_status[31:0],Masked interrupt status register
+INTCLR,DMA330 (DMAC),0x2C,32,WO,irq_clr[31:0],Interrupt clear register
+DBGINST0,DMA330 (DMAC),0xD08,32,WO,"debug_thread[0], channel_number[10:8], instruction_0[23:16], instruction_1[31:24]",Debug instruction register 0
+DBGINST1,DMA330 (DMAC),0xD0C,32,WO,"instruction2[7:0], instruction3[15:8], instruction4[23:16], instruction5[31:24]",Debug instruction register 1
+DBGCMD,DMA330 (DMAC),0xD04,32,WO,dbgcmd[1:0],Debug command register
+PHY_IF_CFG,DSI Host,0xA4,32,RW,"n_lanes[1:0], phy_stop_wait_time[15:8]",PHY interface configuration
+PCKHDL_CFG,DSI Host,0x2C,32,RW,"eotp_tx_en[0], eotp_rx_en[1], bta_en[2], ecc_rx_en[3], crc_rx_en[4], eotp_tx_lp_en[5]",Packet handling configuration
+CLKMGR_CFG,DSI Host,0x08,32,RW,"tx_esc_clk_division[7:0], to_clk_division[15:8]",Clock manager configuration
+DBI_VCID,DSI Host,0x1C,32,RW,dbi_vcid[1:0],DBI virtual channel ID
+DBI_CFG,DSI Host,0x20,32,RW,"in_dbi_conf[3:0], out_dbi_conf[11:8], lut_size_conf[17:16]",DBI configuration
+DBI_PARTITIONING_EN,DSI Host,0x24,32,RW,partitioning_en[0],DBI partitioning enable
+DBI_CMDSIZE,DSI Host,0x28,32,RW,"wr_cmd_size[15:0], allowed_cmd_size[31:16]",DBI command size
+CMD_MODE_CFG,DSI Host,0x68,32,RW,"tear_fx_en[0], ack_rqst_en[1], gen_sw_0p_tx[8]...max_rd_pkt_size[24]",Command mode configuration
+GEN_VCID,DSI Host,0x30,32,RW,"gen_vcid_rx[1:0], gen_vcid_tear_auto[9:8], gen_vcid_tx_auto[17:16]",Generic virtual channel ID
+interrupt_enable,DSI Subsystem,0x18,32,RW,"dsi_intr[0], gdma_intr[1], fifo_full_cmnd[2]...",Subsystem interrupt enable
+interrupt_mask,DSI Subsystem,0x14,32,RO (masked status),"dsi_intr[0], gdma_intr[1]...",Subsystem interrupt mask/status
+interrupt_raw,DSI Subsystem,0x10,32,RW (write-to-clear),"dsi_intr[0], gdma_intr[1]...",Subsystem raw interrupt status
+dpi_control,DSI Subsystem,0x24,32,RW,"dbi_dpi_en[0], dpi_shutdown[1], dpi_colorm[2]...",DPI/DBI control
+PHY_RSTZ,DSI Host,0xA0,32,RW,"phy_shutdownz[0], phy_rstz[1], phy_enableclk[2], phy_forcepll[3]",PHY reset control
+PHY_STATUS,DSI Host,0xB0,32,RO,"phy_lock[0], phy_stopstateclklane[2], phy_stopstate0lane[4]...",PHY status
+MODE_CFG,DSI Host,0x34,32,RW,cmd_video_mode[0],Mode configuration (cmd vs video)
+PWR_UP,DSI Host,0x04,32,RW,shutdownz[0],Power up control
+
+========================================
+MACRO RESOLUTION TABLE (Ignored: SOFT_RST_REG_ADDRESS)
+========================================
+Macro Name,Resolved To,Block,Register,Offset
+MIZAR_MIPI_DSI_DMAC_INTEN,INTEN,DMA330 (DMAC),INTEN,0x20
+MIZAR_MIPI_DSI_DMAC_INTMIS,INTMIS,DMA330 (DMAC),INTMIS,0x28
+MIZAR_MIPI_DSI_DMAC_INTCLR,INTCLR,DMA330 (DMAC),INTCLR,0x2C
+MIZAR_MIPI_DSI_DMAC_DBGINST0,DBGINST0,DMA330 (DMAC),DBGINST0,0xD08
+MIZAR_MIPI_DSI_DMAC_DBGINST1,DBGINST1,DMA330 (DMAC),DBGINST1,0xD0C
+MIZAR_MIPI_DSI_DMAC_DBGCMD,DBGCMD,DMA330 (DMAC),DBGCMD,0xD04
+MIZAR_MIPI_DSI_HOST_PHY_IF_CFG,PHY_IF_CFG,DSI Host,PHY_IF_CFG,0xA4
+MIZAR_MIPI_DSI_HOST_PCKHDL_CFG,PCKHDL_CFG,DSI Host,PCKHDL_CFG,0x2C
+MIZAR_MIPI_DSI_HOST_CLKMGR_CFG,CLKMGR_CFG,DSI Host,CLKMGR_CFG,0x08
+MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL,dpi_control,DSI Subsystem,dpi_control,0x24
+MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE,interrupt_enable,DSI Subsystem,interrupt_enable,0x18
+MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK,interrupt_mask,DSI Subsystem,interrupt_mask,0x14
+MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW,interrupt_raw,DSI Subsystem,interrupt_raw,0x10
+MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME,Field mask for phy_stop_wait_time,DSI Host,PHY_IF_CFG,bits [15:8]
+MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR,Bit mask for gdma_intr,DSI Subsystem,interrupt_enable,bit 1
+MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR,Bit mask for gdma_intr,DSI Subsystem,interrupt_mask,bit 1
+DSI_INTR_NO,DSI Interrupt Number (GIC),--,--,--
+DSI_WRITE_MEMORY_START,DCS Write Memory Start command (0x2C),--,--,--
+RAM_BASE,RAM Base Address,--,--,--
+DMA_SAR,DMA Source Address Register selector,DMA330,SAR,--
+DMA_DAR,DMA Destination Address Register selector,DMA330,DAR,--
+SOFT_RST_REG_ADDRESS,*** IGNORED per instruction ***,--,--,--
