@@ -2,6 +2,7 @@
 """LPDDR4 TestPlan Excel Generator - Agent 7
 Generates LPDDR4_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx using openpyxl.
 This script is executed by GitHub Actions workflow.
+Timestamp: 20260928_222500 IST
 """
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
