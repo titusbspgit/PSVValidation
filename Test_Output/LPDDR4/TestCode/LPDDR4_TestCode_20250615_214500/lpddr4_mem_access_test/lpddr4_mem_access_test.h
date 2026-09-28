@@ -4,7 +4,6 @@
 #ifndef LPDDR4_MEM_ACCESS_TEST_H
 #define LPDDR4_MEM_ACCESS_TEST_H
 
-#include "framework.h"
 
 int lpddr4_mem_access_test_init(const TestsItem *cfg);
 int lpddr4_mem_access_test_run(const TestsItem *cfg, TestOutput *out);
