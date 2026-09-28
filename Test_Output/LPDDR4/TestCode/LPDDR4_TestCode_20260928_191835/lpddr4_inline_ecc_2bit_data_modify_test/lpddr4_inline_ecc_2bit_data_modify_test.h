@@ -4,8 +4,6 @@
 #ifndef LPDDR4_INLINE_ECC_2BIT_DATA_MODIFY_TEST_H
 #define LPDDR4_INLINE_ECC_2BIT_DATA_MODIFY_TEST_H
 
-#include "framework.h"
-
 int lpddr4_inline_ecc_2bit_data_modify_test_init(const TestsItem *cfg);
 int lpddr4_inline_ecc_2bit_data_modify_test_run(const TestsItem *cfg, TestOutput *out);
 int lpddr4_inline_ecc_2bit_data_modify_test_teardown(const TestsItem cfg);
