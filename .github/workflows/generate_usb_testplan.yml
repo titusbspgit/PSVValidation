@@ -1,10 +1,10 @@
 name: Generate USB TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/USB/TestPlan/generate_testplan_final.py'
-  workflow_dispatch:
+      - 'Test_Output/USB/TestPlan/generate_excel.py'
 
 jobs:
   generate-excel:
@@ -23,22 +23,14 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel workbook
-        run: python Test_Output/USB/TestPlan/generate_testplan_final.py
+      - name: Generate Excel
+        run: python Test_Output/USB/TestPlan/generate_excel.py
 
-      - name: Commit and push generated Excel
+      - name: Commit and push Excel file
         run: |
-          cd Test_Output/USB/TestPlan/
-          XLSX_FILE=$(ls -t USB_TestPlan_*.xlsx 2>/dev/null | head -1)
-          if [ -n "$XLSX_FILE" ]; then
-            cd $GITHUB_WORKSPACE
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add "Test_Output/USB/TestPlan/$XLSX_FILE"
-            git commit -m "Added generated TestPlan Excel - $XLSX_FILE"
-            git push
-            echo "Successfully pushed: $XLSX_FILE"
-          else
-            echo "ERROR: No XLSX file found"
-            exit 1
-          fi
+          cd Test_Output/USB/TestPlan
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add *.xlsx
+          git commit -m "Added generated USB TestPlan Excel" || echo "No changes to commit"
+          git push
