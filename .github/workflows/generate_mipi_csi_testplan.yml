@@ -1,14 +1,16 @@
-name: Generate MIPI_CSI TestPlan XLSX
+name: Generate MIPI CSI TestPlan XLSX
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_agent7.py'
+      - 'Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_xlsx.py'
 
 jobs:
   generate-xlsx:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,14 +24,12 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate XLSX
-        run: |
-          cd Test_Output/MIPI/TestPlan
-          python generate_mipi_csi_testplan_agent7.py
+        run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_xlsx.py
 
       - name: Commit and push XLSX
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
-          git commit -m "Added generated MIPI_CSI TestPlan Excel" || echo "No changes to commit"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push
