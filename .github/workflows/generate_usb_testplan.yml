@@ -1,10 +1,10 @@
 name: Generate USB TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/USB/TestPlan/generate_excel.py'
+      - 'Test_Output/USB/TestPlan/generate_and_commit_xlsx.py'
+  workflow_dispatch:
 
 jobs:
   generate-excel:
@@ -23,14 +23,14 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel
-        run: python Test_Output/USB/TestPlan/generate_excel.py
+      - name: Generate Excel workbook
+        run: python Test_Output/USB/TestPlan/generate_and_commit_xlsx.py
 
-      - name: Commit and push Excel file
+      - name: Commit and push generated Excel
         run: |
-          cd Test_Output/USB/TestPlan
+          cd Test_Output/USB/TestPlan/
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add *.xlsx
-          git commit -m "Added generated USB TestPlan Excel" || echo "No changes to commit"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push
