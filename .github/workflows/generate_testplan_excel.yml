@@ -1,9 +1,11 @@
 name: Generate Ethernet TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_testplan.py'
+      - '.github/workflows/generate_testplan_excel.yml'
 
 jobs:
   generate-excel:
@@ -28,11 +30,14 @@ jobs:
           cd Test_Output/Ethernet/Ethernet0/TestPlan
           python generate_testplan.py
 
+      - name: List generated files
+        run: |
+          ls -la Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx
+
       - name: Commit and push generated Excel
         run: |
-          cd Test_Output/Ethernet/Ethernet0/TestPlan
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.xlsx
+          git add Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx
           git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push
