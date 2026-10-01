@@ -1,49 +1,178 @@
 #!/usr/bin/env python3
 """
-Agent 7 - Excel Generator Script
-Generates Ethernet_TestPlan_YYYYMMDD_HHMMSS.xlsx from aggregated JSON data.
-This script is auto-generated and should be executed to produce the final XLSX.
+Agent 7 - Excel TestPlan Generator
+Generates Ethernet_TestPlan_YYYYMMDD_HHMMSS.xlsx with TestPlan and MetaData sheets.
+Execute: python generate_testplan.py
 """
-import json
-import os
+import json, os, sys
 from datetime import datetime, timezone, timedelta
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 
-# IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 now_ist = datetime.now(IST)
-timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
-filename = f"Ethernet_TestPlan_{timestamp}.xlsx"
+TIMESTAMP = now_ist.strftime("%Y%m%d_%H%M%S")
+FILENAME = f"Ethernet_TestPlan_{TIMESTAMP}.xlsx"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_PATH = os.path.join(SCRIPT_DIR, FILENAME)
 
-# JSON data - 4 testcases
-json_data = [
-    {
-        "Index": "1",
-        "SS / Module": "Ethernet",
-        "Test Case Name": "ethernet0_reg_wr_rd_test",
-        "Feature": "Register Write Read",
-        "Test Description": "This testcase verifies the register write-read functionality of the Ethernet0 MAC subsystem. It first reads all target registers and validates their default (reset) values. Then it writes six distinct test patterns (all-ones, 0xAAAAAAAA, 0x55555555, all-zeros, 0xA5A5A5A5, 0xFFFF0000) to each writable register and reads them back, comparing the read value against an expected value computed using the register's read mask, write mask, and default value. The test passes if all default value checks and all write-read checks succeed for every register.",
-        "Speed": "NA",
-        "Mode": "NA",
-        "Memory Start Offset": "NA",
-        "Memory End Offset": "NA",
-        "Remarks": "The soft_reset_chk() function is defined in source but its call is commented out in test_case() and is therefore not executed. The addr_array is declared with dimension 434 but only 5 register entries are initialized; the remaining elements are implicitly zero-initialized. All 5 skip_array and skip_rst_array entries are 0, meaning no registers are skipped. SOFT_RST_REG_ADDRESS macro is excluded per project instructions.",
-        "Test Steps / Procedure": "1. Initialize global failure counters to zero.\n2. Execute the default value check phase: iterate over all target Ethernet0 MAC registers, read each register, and compare the read value against its expected default value. Skip registers that are not readable or are marked for skipping in the skip-reset array.\n3. Execute the write-read check phase: for each of six test patterns (all-ones, 0xAAAAAAAA, 0x55555555, all-zeros, 0xA5A5A5A5, 0xFFFF0000), write the pattern to each writable register, then read back each register and compare the read value against an expected value computed using the register\u2019s read mask, write mask, and default value. Skip registers that are not writable, not readable, or marked for skipping.\n4. After both phases complete, evaluate the failure counters. If any default value mismatch or write-read mismatch was detected, the test fails. Otherwise, the test passes.",
-        "Impacted Registers": "MAC_Configuration; MAC_Ext_Configuration; MAC_Packet_Filter; MAC_WD_JB_Timeout; MAC_Hash_Table_Reg0",
-        "Validation / Acceptance Criteria": "1. All target Ethernet0 MAC registers must read back their expected default values after reset. Any mismatch causes a test failure.\n2. For each of six test patterns written to the registers, the read-back value must match the expected value computed using the register\u2019s read mask, write mask, and default value. Any mismatch causes a test failure.\n3. The test passes only if zero default-value mismatches and zero write-read mismatches are detected across all registers and all test patterns.",
-        "Meta Headers": "<stdio.h>; <stdlib.h>; \"test_define.c\"; <test_common.h>; <ethernet0/ethernet0_def.h>; <ethernet0/ethernet0_offset.h>",
-        "Meta Macros": "#define CNT 434\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000",
-        "Meta Arrays": "const unsigned long int addr_array[434] = {\n  mizar_ETHERNET0_MAC_CONFIGURATION,\n  mizar_ETHERNET0_MAC_EXT_CONFIGURATION,\n  mizar_ETHERNET0_MAC_PACKET_FILTER,\n  mizar_ETHERNET0_MAC_WD_JB_TIMEOUT,\n  mizar_ETHERNET0_MAC_HASH_TABLE_REG0,\n};\n\nconst int default_value_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_DEFAULT_VAL,\n  ETHERNET0_MAC_EXT_CONFIGURATION_DEFAULT_VAL,\n  ETHERNET0_MAC_PACKET_FILTER_DEFAULT_VAL,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_DEFAULT_VAL,\n  ETHERNET0_MAC_HASH_TABLE_REG0_DEFAULT_VAL,\n};\n\nconst int read_mask_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_READ_MASK,\n  ETHERNET0_MAC_EXT_CONFIGURATION_READ_MASK,\n  ETHERNET0_MAC_PACKET_FILTER_READ_MASK,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_READ_MASK,\n  ETHERNET0_MAC_HASH_TABLE_REG0_READ_MASK,\n};\n\nconst int write_mask_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_WRITE_MASK,\n  ETHERNET0_MAC_EXT_CONFIGURATION_WRITE_MASK,\n  ETHERNET0_MAC_PACKET_FILTER_WRITE_MASK,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_WRITE_MASK,\n  ETHERNET0_MAC_HASH_TABLE_REG0_WRITE_MASK,\n};\n\nconst int skip_array[434] = {\n  0,\n  0,\n  0,\n  0,\n  0,\n};\n\nconst int skip_rst_array[434] = {\n  0,\n  0,\n  0,\n  0,\n  0,\n};\n\nint chk_val[6] = {\n  0xffffffff,\n  0xaaaaaaaa,\n  0x55555555,\n  0x00000000,\n  0xA5A5A5A5,\n  0xffff0000\n};",
-        "Meta Test Description": "This testcase performs register write-read verification for the Ethernet0 MAC subsystem. It operates in two phases:\n\nPhase 1 \u2014 Default Value Check (chk_rst_val): Iterates over all registers in addr_array (indexed 0 to CNT-1). For each register, it checks if read_mask_array[i] is 0x00000000 (not readable, skip) and if skip_rst_array[i] is 1 (skip). If neither skip condition is met, it reads the register using read_reg(addr) and compares the read value against default_value_array[i]. If the values match, the check passes. If they do not match, def_fail_cnt is incremented and a failure message is printed.\n\nPhase 2 \u2014 Write and Read Check (chk_rd_wr): Uses six test patterns stored in chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. For each of the 6 patterns (outer loop j=0 to 5), data_wr is set to chk_val[j]. Then for each register (inner loop i=0 to CNT-1): if skip_array[i] is 1, the register is skipped; if write_mask_array[i] is 0x00000000, the register is not writable and is skipped; otherwise write_reg(addr, data_wr) is called. After writing all registers with the current pattern, a second inner loop reads back each register: if skip_array[i] is 1, skip; if write_mask_array[i] is 0x00000000, skip; if read_mask_array[i] is 0x00000000, skip; otherwise read_reg(addr) is called. The expected value is computed as: wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])). The read value is compared against exp_val. If they match, the check passes. If they do not match, wr_fail_cnt is incremented and a failure message is printed.\n\nNote: soft_reset_chk() is commented out in test_case() and is not executed.\n\nAfter both phases, if def_fail_cnt > 0 or wr_fail_cnt > 0, finish(1) is called (test fail). Otherwise finish(0) is called (test pass).\n\nThe 5 registers under test are: mizar_ETHERNET0_MAC_CONFIGURATION, mizar_ETHERNET0_MAC_EXT_CONFIGURATION, mizar_ETHERNET0_MAC_PACKET_FILTER, mizar_ETHERNET0_MAC_WD_JB_TIMEOUT, mizar_ETHERNET0_MAC_HASH_TABLE_REG0.",
-        "Meta Test Steps / Procedure": "1. Global variable initialization: int data_rd, data_wr; int def_fail_cnt = 0, wr_fail_cnt = 0;\n2. Entry: test_case() is called.\n3. test_case() calls chk_rst_val().\n4. chk_rst_val() begins: declares int i; unsigned long int addr;\n5. chk_rst_val() loop: for (i = 0; i < CNT; i++) where CNT = 434.\n6. For each iteration i: addr = addr_array[i];\n7. Check: if (read_mask_array[i] == 0x00000000), print debug message and continue to next iteration.\n8. Check: if (skip_rst_array[i] == 1), print debug message and continue to next iteration.\n9. Read register: data_rd = read_reg(addr);\n10. Compare: if (data_rd == default_value_array[i]), print debug PASS message.\n11. Else: def_fail_cnt++; print failure message.\n12-46. [Full procedure as provided in JSON]",
-        "Meta Impacted Registers": "mizar_ETHERNET0_MAC_CONFIGURATION; mizar_ETHERNET0_MAC_EXT_CONFIGURATION; mizar_ETHERNET0_MAC_PACKET_FILTER; mizar_ETHERNET0_MAC_WD_JB_TIMEOUT; mizar_ETHERNET0_MAC_HASH_TABLE_REG0",
-        "Meta Validation / Acceptance Criteria": "Phase 1 \u2014 Default Value Check (chk_rst_val):\nFor each register index i from 0 to CNT-1:\n- Skip if read_mask_array[i] == 0x00000000 (register not readable).\n- Skip if skip_rst_array[i] == 1.\n- Read register: data_rd = read_reg(addr_array[i]).\n- Compare: data_rd == default_value_array[i].\n- PASS condition: data_rd equals default_value_array[i].\n- FAIL condition: data_rd does not equal default_value_array[i]; def_fail_cnt is incremented.\n\nPhase 2 \u2014 Write-Read Check (chk_rd_wr):\nFor each test pattern j from 0 to 5:\n  For each register index i from 0 to CNT-1:\n  - Skip write if skip_array[i] == 1.\n  - Skip write if write_mask_array[i] == 0x00000000.\n  - Otherwise write_reg(addr_array[i], data_wr) where data_wr = chk_val[j].\n  Then for each register index i from 0 to CNT-1:\n  - Skip read if skip_array[i] == 1.\n  - Skip read if write_mask_array[i] == 0x00000000.\n  - Skip read if read_mask_array[i] == 0x00000000.\n  - Otherwise read_reg(addr_array[i]) and compute expected value.\n  - Compare: data_rd == exp_val.\n\nFinal Verdict:\n- if (def_fail_cnt > 0 || wr_fail_cnt > 0): finish(1) \u2014 TEST FAIL.\n- else: finish(0) \u2014 TEST PASS."
-    }
-]
+# Load JSON from external file or inline
+JSON_PATH = os.path.join(SCRIPT_DIR, "testplan_data.json")
 
-# Note: This is a helper script. The actual XLSX is generated and pushed by Agent 7 directly.
-print(f"Filename: {filename}")
-print(f"Timestamp: {timestamp}")
-print("Script ready for execution.")
+def load_json():
+    if os.path.exists(JSON_PATH):
+        with open(JSON_PATH, 'r') as f:
+            return json.load(f)
+    print("ERROR: testplan_data.json not found")
+    sys.exit(1)
+
+def create_workbook(data):
+    wb = Workbook()
+    
+    # ---- TestPlan Sheet ----
+    ws_tp = wb.active
+    ws_tp.title = "TestPlan"
+    
+    tp_columns = [
+        "Index", "SS / Module", "Feature", "Test Case Name",
+        "Test Description", "Speed", "Mode", "Memory Start Offset",
+        "Memory End Offset", "Remarks", "Test Steps / Procedure",
+        "Impacted Registers", "Validation / Acceptance Criteria", "Code Generation"
+    ]
+    
+    # ---- MetaData Sheet ----
+    ws_md = wb.create_sheet("MetaData")
+    
+    md_columns = [
+        "Index", "Test Case Name", "Meta Test Description",
+        "Meta Test Steps / Procedure", "Meta Impacted Registers",
+        "Meta Validation / Acceptance Criteria", "Meta Headers",
+        "Meta Macros", "Meta Arrays"
+    ]
+    
+    # Formatting
+    header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    wrap_align = Alignment(wrap_text=True, vertical='top')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    
+    def format_sheet(ws, columns):
+        # Write headers
+        for col_idx, col_name in enumerate(columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = wrap_align
+            cell.border = thin_border
+        # Freeze first row
+        ws.freeze_panes = 'A2'
+    
+    def populate_sheet(ws, columns, data, field_map):
+        for row_idx, item in enumerate(data, 2):
+            for col_idx, col_name in enumerate(columns, 1):
+                json_key = field_map.get(col_name, col_name)
+                value = item.get(json_key, "")
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.alignment = wrap_align
+                cell.border = thin_border
+    
+    def auto_size(ws, columns, max_width=80):
+        for col_idx, col_name in enumerate(columns, 1):
+            max_len = len(col_name)
+            for row in ws.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+                for cell in row:
+                    if cell.value:
+                        lines = str(cell.value).split('\n')
+                        for line in lines:
+                            max_len = max(max_len, len(line))
+            adjusted = min(max_len + 2, max_width)
+            ws.column_dimensions[get_column_letter(col_idx)].width = adjusted
+    
+    # TestPlan field mapping (JSON key -> column name is same)
+    tp_map = {c: c for c in tp_columns}
+    
+    # MetaData field mapping
+    md_map = {c: c for c in md_columns}
+    
+    # Format and populate
+    format_sheet(ws_tp, tp_columns)
+    populate_sheet(ws_tp, tp_columns, data, tp_map)
+    auto_size(ws_tp, tp_columns)
+    
+    format_sheet(ws_md, md_columns)
+    populate_sheet(ws_md, md_columns, data, md_map)
+    auto_size(ws_md, md_columns)
+    
+    # Set MetaData sheet to veryHidden
+    ws_md.sheet_state = 'veryHidden'
+    
+    return wb
+
+def validate_workbook(filepath, data):
+    wb = load_workbook(filepath)
+    assert "TestPlan" in wb.sheetnames, "TestPlan sheet missing"
+    assert "MetaData" in wb.sheetnames, "MetaData sheet missing"
+    
+    ws_tp = wb["TestPlan"]
+    ws_md = wb["MetaData"]
+    
+    assert ws_tp.max_row == len(data) + 1, f"TestPlan rows mismatch: {ws_tp.max_row}"
+    assert ws_md.max_row == len(data) + 1, f"MetaData rows mismatch: {ws_md.max_row}"
+    
+    # Validate MetaData content matches JSON
+    md_columns = [
+        "Index", "Test Case Name", "Meta Test Description",
+        "Meta Test Steps / Procedure", "Meta Impacted Registers",
+        "Meta Validation / Acceptance Criteria", "Meta Headers",
+        "Meta Macros", "Meta Arrays"
+    ]
+    
+    for row_idx, item in enumerate(data, 2):
+        for col_idx, col_name in enumerate(md_columns, 1):
+            cell_val = ws_md.cell(row=row_idx, column=col_idx).value or ""
+            json_val = item.get(col_name, "")
+            if str(cell_val) != str(json_val):
+                print(f"VALIDATION FAILED: Row {row_idx}, Col '{col_name}'")
+                print(f"  Cell length: {len(str(cell_val))}")
+                print(f"  JSON length: {len(str(json_val))}")
+                return False
+    
+    print("VALIDATION PASSED: All MetaData cells match JSON values")
+    return True
+
+def main():
+    data = load_json()
+    print(f"Loaded {len(data)} testcases")
+    
+    wb = create_workbook(data)
+    wb.save(OUTPUT_PATH)
+    print(f"Workbook saved: {OUTPUT_PATH}")
+    
+    file_size = os.path.getsize(OUTPUT_PATH)
+    print(f"File size: {file_size} bytes")
+    assert file_size > 0, "File is empty"
+    
+    valid = validate_workbook(OUTPUT_PATH, data)
+    
+    print(f"\nFilename: {FILENAME}")
+    print(f"Rows TestPlan: {len(data)}")
+    print(f"Rows MetaData: {len(data)}")
+    print(f"Validation: {'PASSED' if valid else 'FAILED'}")
+    
+    # Write output info
+    with open(os.path.join(SCRIPT_DIR, "output_info.json"), 'w') as f:
+        json.dump({
+            "filename": FILENAME,
+            "filepath": OUTPUT_PATH,
+            "rows_testplan": len(data),
+            "rows_metadata": len(data),
+            "validation": "PASSED" if valid else "FAILED",
+            "file_size": file_size
+        }, f, indent=2)
+
+if __name__ == "__main__":
+    from openpyxl.utils import get_column_letter
+    main()
