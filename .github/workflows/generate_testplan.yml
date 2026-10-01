@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - '.github/scripts/generate_testplan_excel.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   generate-excel:
