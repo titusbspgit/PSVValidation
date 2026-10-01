@@ -1,10 +1,12 @@
 name: Generate Ethernet TestPlan Excel
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - '.github/scripts/generate_ethernet_testplan.py'
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   generate-excel:
@@ -23,9 +25,8 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel TestPlan
-        run: |
-          python .github/scripts/generate_ethernet_testplan.py "Test_Output/Ethernet/Ethernet0/TestPlan"
+      - name: Generate Excel workbook
+        run: python .github/scripts/generate_ethernet_testplan.py
 
       - name: Commit and push generated Excel
         run: |
