@@ -1,13 +1,13 @@
-name: Generate LPDDR4 TestPlan Excel
+name: Generate LPDDR4 TestPlan XLSX
 
 on:
   push:
     paths:
-      - '.github/scripts/generate_lpddr4_testplan.py'
+      - 'Test_Output/LPDDR4/TestPlan/generate_lpddr4_testplan.py'
   workflow_dispatch:
 
 jobs:
-  generate-excel:
+  generate-xlsx:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,13 +23,22 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate TestPlan Excel
-        run: python .github/scripts/generate_lpddr4_testplan.py
+      - name: Generate XLSX
+        run: python Test_Output/LPDDR4/TestPlan/generate_lpddr4_testplan.py
 
-      - name: Commit and push generated Excel
+      - name: Commit and push XLSX
         run: |
+          cd Test_Output/LPDDR4/TestPlan/
+          XLSX_FILE=$(ls -t LPDDR4_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -z "$XLSX_FILE" ]; then
+            echo "ERROR: No XLSX file generated!"
+            exit 1
+          fi
+          echo "Generated file: $XLSX_FILE"
+          echo "File size: $(stat --format=%s $XLSX_FILE) bytes"
+          cd $GITHUB_WORKSPACE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/LPDDR4/TestPlan/*.xlsx
-          git commit -m "Added generated TestPlan Excel - LPDDR4" || echo "No changes to commit"
+          git add "Test_Output/LPDDR4/TestPlan/$XLSX_FILE"
+          git commit -m "Agent 7: Added generated LPDDR4 TestPlan Excel - $XLSX_FILE"
           git push
