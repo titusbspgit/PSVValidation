@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""
+Agent 7 - Excel Generator Script
+Generates Ethernet_TestPlan_YYYYMMDD_HHMMSS.xlsx from aggregated JSON data.
+This script is auto-generated and should be executed to produce the final XLSX.
+"""
+import json
+import os
+from datetime import datetime, timezone, timedelta
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+# IST timezone
+IST = timezone(timedelta(hours=5, minutes=30))
+now_ist = datetime.now(IST)
+timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
+filename = f"Ethernet_TestPlan_{timestamp}.xlsx"
+
+# JSON data - 4 testcases
+json_data = [
+    {
+        "Index": "1",
+        "SS / Module": "Ethernet",
+        "Test Case Name": "ethernet0_reg_wr_rd_test",
+        "Feature": "Register Write Read",
+        "Test Description": "This testcase verifies the register write-read functionality of the Ethernet0 MAC subsystem. It first reads all target registers and validates their default (reset) values. Then it writes six distinct test patterns (all-ones, 0xAAAAAAAA, 0x55555555, all-zeros, 0xA5A5A5A5, 0xFFFF0000) to each writable register and reads them back, comparing the read value against an expected value computed using the register's read mask, write mask, and default value. The test passes if all default value checks and all write-read checks succeed for every register.",
+        "Speed": "NA",
+        "Mode": "NA",
+        "Memory Start Offset": "NA",
+        "Memory End Offset": "NA",
+        "Remarks": "The soft_reset_chk() function is defined in source but its call is commented out in test_case() and is therefore not executed. The addr_array is declared with dimension 434 but only 5 register entries are initialized; the remaining elements are implicitly zero-initialized. All 5 skip_array and skip_rst_array entries are 0, meaning no registers are skipped. SOFT_RST_REG_ADDRESS macro is excluded per project instructions.",
+        "Test Steps / Procedure": "1. Initialize global failure counters to zero.\n2. Execute the default value check phase: iterate over all target Ethernet0 MAC registers, read each register, and compare the read value against its expected default value. Skip registers that are not readable or are marked for skipping in the skip-reset array.\n3. Execute the write-read check phase: for each of six test patterns (all-ones, 0xAAAAAAAA, 0x55555555, all-zeros, 0xA5A5A5A5, 0xFFFF0000), write the pattern to each writable register, then read back each register and compare the read value against an expected value computed using the register\u2019s read mask, write mask, and default value. Skip registers that are not writable, not readable, or marked for skipping.\n4. After both phases complete, evaluate the failure counters. If any default value mismatch or write-read mismatch was detected, the test fails. Otherwise, the test passes.",
+        "Impacted Registers": "MAC_Configuration; MAC_Ext_Configuration; MAC_Packet_Filter; MAC_WD_JB_Timeout; MAC_Hash_Table_Reg0",
+        "Validation / Acceptance Criteria": "1. All target Ethernet0 MAC registers must read back their expected default values after reset. Any mismatch causes a test failure.\n2. For each of six test patterns written to the registers, the read-back value must match the expected value computed using the register\u2019s read mask, write mask, and default value. Any mismatch causes a test failure.\n3. The test passes only if zero default-value mismatches and zero write-read mismatches are detected across all registers and all test patterns.",
+        "Meta Headers": "<stdio.h>; <stdlib.h>; \"test_define.c\"; <test_common.h>; <ethernet0/ethernet0_def.h>; <ethernet0/ethernet0_offset.h>",
+        "Meta Macros": "#define CNT 434\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA 0x00000000",
+        "Meta Arrays": "const unsigned long int addr_array[434] = {\n  mizar_ETHERNET0_MAC_CONFIGURATION,\n  mizar_ETHERNET0_MAC_EXT_CONFIGURATION,\n  mizar_ETHERNET0_MAC_PACKET_FILTER,\n  mizar_ETHERNET0_MAC_WD_JB_TIMEOUT,\n  mizar_ETHERNET0_MAC_HASH_TABLE_REG0,\n};\n\nconst int default_value_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_DEFAULT_VAL,\n  ETHERNET0_MAC_EXT_CONFIGURATION_DEFAULT_VAL,\n  ETHERNET0_MAC_PACKET_FILTER_DEFAULT_VAL,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_DEFAULT_VAL,\n  ETHERNET0_MAC_HASH_TABLE_REG0_DEFAULT_VAL,\n};\n\nconst int read_mask_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_READ_MASK,\n  ETHERNET0_MAC_EXT_CONFIGURATION_READ_MASK,\n  ETHERNET0_MAC_PACKET_FILTER_READ_MASK,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_READ_MASK,\n  ETHERNET0_MAC_HASH_TABLE_REG0_READ_MASK,\n};\n\nconst int write_mask_array[434] = {\n  ETHERNET0_MAC_CONFIGURATION_WRITE_MASK,\n  ETHERNET0_MAC_EXT_CONFIGURATION_WRITE_MASK,\n  ETHERNET0_MAC_PACKET_FILTER_WRITE_MASK,\n  ETHERNET0_MAC_WD_JB_TIMEOUT_WRITE_MASK,\n  ETHERNET0_MAC_HASH_TABLE_REG0_WRITE_MASK,\n};\n\nconst int skip_array[434] = {\n  0,\n  0,\n  0,\n  0,\n  0,\n};\n\nconst int skip_rst_array[434] = {\n  0,\n  0,\n  0,\n  0,\n  0,\n};\n\nint chk_val[6] = {\n  0xffffffff,\n  0xaaaaaaaa,\n  0x55555555,\n  0x00000000,\n  0xA5A5A5A5,\n  0xffff0000\n};",
+        "Meta Test Description": "This testcase performs register write-read verification for the Ethernet0 MAC subsystem. It operates in two phases:\n\nPhase 1 \u2014 Default Value Check (chk_rst_val): Iterates over all registers in addr_array (indexed 0 to CNT-1). For each register, it checks if read_mask_array[i] is 0x00000000 (not readable, skip) and if skip_rst_array[i] is 1 (skip). If neither skip condition is met, it reads the register using read_reg(addr) and compares the read value against default_value_array[i]. If the values match, the check passes. If they do not match, def_fail_cnt is incremented and a failure message is printed.\n\nPhase 2 \u2014 Write and Read Check (chk_rd_wr): Uses six test patterns stored in chk_val[6] = {0xffffffff, 0xaaaaaaaa, 0x55555555, 0x00000000, 0xA5A5A5A5, 0xffff0000}. For each of the 6 patterns (outer loop j=0 to 5), data_wr is set to chk_val[j]. Then for each register (inner loop i=0 to CNT-1): if skip_array[i] is 1, the register is skipped; if write_mask_array[i] is 0x00000000, the register is not writable and is skipped; otherwise write_reg(addr, data_wr) is called. After writing all registers with the current pattern, a second inner loop reads back each register: if skip_array[i] is 1, skip; if write_mask_array[i] is 0x00000000, skip; if read_mask_array[i] is 0x00000000, skip; otherwise read_reg(addr) is called. The expected value is computed as: wr_n = (write_mask_array[i] ^ 0xffffffff); exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])). The read value is compared against exp_val. If they match, the check passes. If they do not match, wr_fail_cnt is incremented and a failure message is printed.\n\nNote: soft_reset_chk() is commented out in test_case() and is not executed.\n\nAfter both phases, if def_fail_cnt > 0 or wr_fail_cnt > 0, finish(1) is called (test fail). Otherwise finish(0) is called (test pass).\n\nThe 5 registers under test are: mizar_ETHERNET0_MAC_CONFIGURATION, mizar_ETHERNET0_MAC_EXT_CONFIGURATION, mizar_ETHERNET0_MAC_PACKET_FILTER, mizar_ETHERNET0_MAC_WD_JB_TIMEOUT, mizar_ETHERNET0_MAC_HASH_TABLE_REG0.",
+        "Meta Test Steps / Procedure": "1. Global variable initialization: int data_rd, data_wr; int def_fail_cnt = 0, wr_fail_cnt = 0;\n2. Entry: test_case() is called.\n3. test_case() calls chk_rst_val().\n4. chk_rst_val() begins: declares int i; unsigned long int addr;\n5. chk_rst_val() loop: for (i = 0; i < CNT; i++) where CNT = 434.\n6. For each iteration i: addr = addr_array[i];\n7. Check: if (read_mask_array[i] == 0x00000000), print debug message and continue to next iteration.\n8. Check: if (skip_rst_array[i] == 1), print debug message and continue to next iteration.\n9. Read register: data_rd = read_reg(addr);\n10. Compare: if (data_rd == default_value_array[i]), print debug PASS message.\n11. Else: def_fail_cnt++; print failure message.\n12-46. [Full procedure as provided in JSON]",
+        "Meta Impacted Registers": "mizar_ETHERNET0_MAC_CONFIGURATION; mizar_ETHERNET0_MAC_EXT_CONFIGURATION; mizar_ETHERNET0_MAC_PACKET_FILTER; mizar_ETHERNET0_MAC_WD_JB_TIMEOUT; mizar_ETHERNET0_MAC_HASH_TABLE_REG0",
+        "Meta Validation / Acceptance Criteria": "Phase 1 \u2014 Default Value Check (chk_rst_val):\nFor each register index i from 0 to CNT-1:\n- Skip if read_mask_array[i] == 0x00000000 (register not readable).\n- Skip if skip_rst_array[i] == 1.\n- Read register: data_rd = read_reg(addr_array[i]).\n- Compare: data_rd == default_value_array[i].\n- PASS condition: data_rd equals default_value_array[i].\n- FAIL condition: data_rd does not equal default_value_array[i]; def_fail_cnt is incremented.\n\nPhase 2 \u2014 Write-Read Check (chk_rd_wr):\nFor each test pattern j from 0 to 5:\n  For each register index i from 0 to CNT-1:\n  - Skip write if skip_array[i] == 1.\n  - Skip write if write_mask_array[i] == 0x00000000.\n  - Otherwise write_reg(addr_array[i], data_wr) where data_wr = chk_val[j].\n  Then for each register index i from 0 to CNT-1:\n  - Skip read if skip_array[i] == 1.\n  - Skip read if write_mask_array[i] == 0x00000000.\n  - Skip read if read_mask_array[i] == 0x00000000.\n  - Otherwise read_reg(addr_array[i]) and compute expected value.\n  - Compare: data_rd == exp_val.\n\nFinal Verdict:\n- if (def_fail_cnt > 0 || wr_fail_cnt > 0): finish(1) \u2014 TEST FAIL.\n- else: finish(0) \u2014 TEST PASS."
+    }
+]
+
+# Note: This is a helper script. The actual XLSX is generated and pushed by Agent 7 directly.
+print(f"Filename: {filename}")
+print(f"Timestamp: {timestamp}")
+print("Script ready for execution.")
