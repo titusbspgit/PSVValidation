@@ -1,164 +1,184 @@
 #!/usr/bin/env python3
-"""MIPI_DSI TestPlan Excel Generator - Agent 7 Fallback Automation"""
 import json
 import os
-from datetime import datetime, timezone, timedelta
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from datetime import datetime
+import pytz
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-IST = timezone(timedelta(hours=5, minutes=30))
-now_ist = datetime.now(IST)
+# === IST Timestamp ===
+ist = pytz.timezone('Asia/Kolkata')
+now_ist = datetime.now(ist)
 timestamp_str = now_ist.strftime('%Y%m%d_%H%M%S')
+filename = f'MIPI_DSI_TestPlan_{timestamp_str}.xlsx'
 
-IP_NAME = 'MIPI_DSI'
-OUTPUT_DIR = 'Test_Output/MIPI/TestPlan'
-FILENAME = f'{IP_NAME}_TestPlan_{timestamp_str}.xlsx'
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, FILENAME)
-
+# === JSON Data ===
 json_data = [
-    {
-        "Index": "1",
-        "SS / Module": "MIPI_DSI",
-        "Test Case Name": "mipi_dsi_basic_test",
-        "Feature": "NA",
-        "Meta Headers": "NA",
-        "Meta Macros": "NA",
-        "Meta Arrays": "NA",
-        "Speed": "NA",
-        "Mode": "NA",
-        "Memory Start Offset": "NA",
-        "Memory End Offset": "NA",
-        "Meta Test Description": "This testcase performs basic MIPI DSI operations involving DMAC, subsystem, and host register accesses. It writes to DMAC interrupt enable (MIZAR_MIPI_DSI_DMAC_INTEN), subsystem interrupt enable (MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE), host PHY interface configuration (MIZAR_MIPI_DSI_HOST_PHY_IF_CFG), host packet handler configuration (MIZAR_MIPI_DSI_HOST_PCKHDL_CFG), host clock manager configuration (MIZAR_MIPI_DSI_HOST_CLKMGR_CFG), and subsystem DPI control (MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL). It programs the DMAC debug instruction registers (MIZAR_MIPI_DSI_DMAC_DBGINST0, MIZAR_MIPI_DSI_DMAC_DBGINST1) and executes them via the DMAC debug command register (MIZAR_MIPI_DSI_DMAC_DBGCMD). It reads the subsystem interrupt mask (MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK) and DMAC masked interrupt status (MIZAR_MIPI_DSI_DMAC_INTMIS). It clears DMAC interrupts via MIZAR_MIPI_DSI_DMAC_INTCLR and subsystem raw interrupts via MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW.",
-        "Test Description": "This testcase performs basic MIPI DSI operations across the DMAC, subsystem, and host domains. It configures the PHY interface via PHY_IF_CFG, the packet handler via PCKHDL_CFG, and the clock manager via CLKMGR_CFG. It enables interrupts at both the DMAC and subsystem levels via the interrupt_enable register. It disables DPI output via the dpi_control register. It programs and executes DMAC debug instructions. It reads the interrupt_mask register and DMAC masked interrupt status to check interrupt state. It clears interrupts via the DMAC interrupt clear register and the subsystem interrupt_raw register.",
-        "Meta Test Steps / Procedure": "1. Write to MIZAR_MIPI_DSI_DMAC_INTEN to enable DMAC interrupts. 2. Write to MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE to enable subsystem-level interrupts. 3. Write to MIZAR_MIPI_DSI_HOST_PHY_IF_CFG to configure the PHY interface. 4. Write to MIZAR_MIPI_DSI_HOST_PCKHDL_CFG to configure the packet handler. 5. Write to MIZAR_MIPI_DSI_HOST_CLKMGR_CFG to configure the clock manager. 6. Write to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL to configure DPI control. 7. Write to MIZAR_MIPI_DSI_DMAC_DBGINST0 to load the first debug instruction word. 8. Write to MIZAR_MIPI_DSI_DMAC_DBGINST1 to load the second debug instruction word. 9. Write to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute the loaded debug instruction. 10. Read MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK to check subsystem interrupt mask status. 11. Read MIZAR_MIPI_DSI_DMAC_INTMIS to check DMAC masked interrupt status. 12. Write to MIZAR_MIPI_DSI_DMAC_INTCLR to clear DMAC interrupts. 13. Write to MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW to clear subsystem raw interrupts.",
-        "Test Steps / Procedure": "1. Enable DMAC-level interrupts by writing to the DMAC interrupt enable register. 2. Enable subsystem-level interrupts by writing to the interrupt_enable register. 3. Configure the PHY interface by writing to PHY_IF_CFG. 4. Configure the packet handler by writing to PCKHDL_CFG. 5. Configure the clock manager by writing to CLKMGR_CFG. 6. Configure DPI control by writing to the dpi_control register. 7. Load the first DMAC debug instruction word into the DMAC debug instruction 0 register. 8. Load the second DMAC debug instruction word into the DMAC debug instruction 1 register. 9. Execute the DMAC debug instruction by writing to the DMAC debug command register. 10. Read the interrupt_mask register to verify subsystem interrupt mask status. 11. Read the DMAC masked interrupt status register to verify DMAC interrupt state. 12. Clear DMAC interrupts by writing to the DMAC interrupt clear register. 13. Clear subsystem raw interrupts by writing to the interrupt_raw register.",
-        "Meta Impacted Registers": "MIZAR_MIPI_DSI_DMAC_INTEN; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE; MIZAR_MIPI_DSI_HOST_PHY_IF_CFG; MIZAR_MIPI_DSI_HOST_PCKHDL_CFG; MIZAR_MIPI_DSI_HOST_CLKMGR_CFG; MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL; MIZAR_MIPI_DSI_DMAC_DBGINST0; MIZAR_MIPI_DSI_DMAC_DBGINST1; MIZAR_MIPI_DSI_DMAC_DBGCMD; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK; MIZAR_MIPI_DSI_DMAC_INTMIS; MIZAR_MIPI_DSI_DMAC_INTCLR; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW",
-        "Impacted Registers": "interrupt_enable; PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control; interrupt_mask; interrupt_raw",
-        "Meta Validation / Acceptance Criteria": "The subsystem interrupt mask register (MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK) is read to verify interrupt configuration. The DMAC masked interrupt status register (MIZAR_MIPI_DSI_DMAC_INTMIS) is read to verify DMAC interrupt state. DMAC interrupts are cleared via MIZAR_MIPI_DSI_DMAC_INTCLR and subsystem raw interrupts are cleared via MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW.",
-        "Validation / Acceptance Criteria": "The interrupt_mask register is read to confirm subsystem interrupt configuration is correct. The DMAC masked interrupt status register is read to confirm DMAC interrupt state. DMAC interrupts are successfully cleared via the DMAC interrupt clear register. Subsystem raw interrupts are successfully cleared via the interrupt_raw register.",
-        "Remarks": "Six DMAC register macros (DMAC interrupt enable, DMAC debug instruction 0, DMAC debug instruction 1, DMAC debug command, DMAC masked interrupt status, DMAC interrupt clear) could not be mapped to canonical register names because no DMAC register specification document was provided. Source code files in the testcase folder did not contain MIPI DSI related content; testcase details are derived from Agent 2, Agent 3, and Agent 4 outputs only."
-    },
-    {
-        "Index": "2",
-        "SS / Module": "MIPI_DSI",
-        "Test Case Name": "mipi_dsi_dbi_random_payload_test",
-        "Feature": "NA",
-        "Meta Headers": "NA",
-        "Meta Macros": "NA",
-        "Meta Arrays": "NA",
-        "Speed": "NA",
-        "Mode": "NA",
-        "Memory Start Offset": "NA",
-        "Memory End Offset": "NA",
-        "Meta Test Description": "This testcase performs a DBI random payload test on the MIPI DSI interface. It writes to the host PHY interface configuration register (MIZAR_MIPI_DSI_HOST_PHY_IF_CFG), host packet handler configuration register (MIZAR_MIPI_DSI_HOST_PCKHDL_CFG), and host clock manager configuration register (MIZAR_MIPI_DSI_HOST_CLKMGR_CFG) to set up the DSI host. It writes to the subsystem DPI control register (MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL) to configure DPI output. It writes to the DMAC interrupt enable register (MIZAR_MIPI_DSI_DMAC_INTEN) to enable DMAC interrupts. It programs DMAC debug instruction registers (MIZAR_MIPI_DSI_DMAC_DBGINST0, MIZAR_MIPI_DSI_DMAC_DBGINST1) and executes them via the DMAC debug command register (MIZAR_MIPI_DSI_DMAC_DBGCMD). It polls the DMAC masked interrupt status register (MIZAR_MIPI_DSI_DMAC_INTMIS) to wait for DMA transfer completion. It clears DMAC interrupts by writing to the DMAC interrupt clear register (MIZAR_MIPI_DSI_DMAC_INTCLR).",
-        "Test Description": "This testcase performs a DBI random payload test on the MIPI DSI interface. It configures the DSI host by writing to PHY_IF_CFG, PCKHDL_CFG, and CLKMGR_CFG registers. It configures DPI output via the dpi_control register. It enables DMAC interrupts, programs DMAC debug instructions, and executes them via the DMAC debug command register. It polls the DMAC masked interrupt status register to wait for DMA transfer completion, then clears DMAC interrupts via the DMAC interrupt clear register.",
-        "Meta Test Steps / Procedure": "1. Write to MIZAR_MIPI_DSI_HOST_PHY_IF_CFG to configure the PHY interface. 2. Write to MIZAR_MIPI_DSI_HOST_PCKHDL_CFG to configure the packet handler. 3. Write to MIZAR_MIPI_DSI_HOST_CLKMGR_CFG to configure the clock manager. 4. Write to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL to configure DPI control. 5. Write to MIZAR_MIPI_DSI_DMAC_INTEN to enable DMAC interrupts. 6. Write to MIZAR_MIPI_DSI_DMAC_DBGINST0 to load the first debug instruction word. 7. Write to MIZAR_MIPI_DSI_DMAC_DBGINST1 to load the second debug instruction word. 8. Write to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute the loaded debug instruction. 9. Poll MIZAR_MIPI_DSI_DMAC_INTMIS to wait for DMAC transfer completion. 10. Write to MIZAR_MIPI_DSI_DMAC_INTCLR to clear DMAC interrupts.",
-        "Test Steps / Procedure": "1. Configure the PHY interface by writing to PHY_IF_CFG. 2. Configure the packet handler by writing to PCKHDL_CFG. 3. Configure the clock manager by writing to CLKMGR_CFG. 4. Configure DPI output by writing to the dpi_control register. 5. Enable DMAC interrupts by writing to the DMAC interrupt enable register. 6. Load the first DMAC debug instruction word into the DMAC debug instruction 0 register. 7. Load the second DMAC debug instruction word into the DMAC debug instruction 1 register. 8. Execute the DMAC debug instruction by writing to the DMAC debug command register. 9. Poll the DMAC masked interrupt status register until DMA transfer completion is indicated. 10. Clear DMAC interrupts by writing to the DMAC interrupt clear register.",
-        "Meta Impacted Registers": "MIZAR_MIPI_DSI_HOST_PHY_IF_CFG; MIZAR_MIPI_DSI_HOST_PCKHDL_CFG; MIZAR_MIPI_DSI_HOST_CLKMGR_CFG; MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL; MIZAR_MIPI_DSI_DMAC_INTEN; MIZAR_MIPI_DSI_DMAC_DBGINST0; MIZAR_MIPI_DSI_DMAC_DBGINST1; MIZAR_MIPI_DSI_DMAC_DBGCMD; MIZAR_MIPI_DSI_DMAC_INTMIS; MIZAR_MIPI_DSI_DMAC_INTCLR",
-        "Impacted Registers": "PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control",
-        "Meta Validation / Acceptance Criteria": "The DMAC masked interrupt status register (MIZAR_MIPI_DSI_DMAC_INTMIS) is polled until the expected completion status is indicated, confirming that the DMA transfer completed successfully. DMAC interrupts are then cleared by writing to MIZAR_MIPI_DSI_DMAC_INTCLR.",
-        "Validation / Acceptance Criteria": "The DMAC masked interrupt status register is polled until the expected completion status is indicated, confirming that the DMA transfer completed successfully. DMAC interrupts are then cleared via the DMAC interrupt clear register.",
-        "Remarks": "Six DMAC register macros (DMAC interrupt enable, DMAC debug instruction 0, DMAC debug instruction 1, DMAC debug command, DMAC masked interrupt status, DMAC interrupt clear) could not be mapped to canonical register names because no DMAC register specification document was provided. The source code file in the testcase folder contained unrelated PCIe code; testcase details are derived from Agent 2, Agent 3, and Agent 4 outputs only."
-    }
+  {
+    "Index": "1",
+    "SS / Module": "MIPI_DSI",
+    "Test Case Name": "mipi_dsi_basic_test",
+    "Feature": "DBI Command Mode DMA Write",
+    "Meta Headers": '<stdio.h>; <stdlib.h>; "test_common.h"; "mipi_dsi.h"',
+    "Meta Macros": "NA",
+    "Meta Arrays": "desc_t data_tdbdcb[2]; desc_t data_rebdcb[2]; desc_t cmd_tdbdcb[2]; desc_t cmd_rebdcb[2]",
+    "Speed": "NA",
+    "Mode": "DBI Command Mode",
+    "Memory Start Offset": "0x0000; 0x10000; 0x3F000; 0x3F800",
+    "Memory End Offset": "NA",
+    "Meta Test Description": "This testcase performs a basic MIPI DSI DBI write operation using DMA. It configures the DSI host PHY with 4 lanes (n_lanes=3 means 4 data lanes) and phy_stop_wait_time=0x40 via MIZAR_MIPI_DSI_HOST_PHY_IF_CFG. It sets PCKHDL_CFG to 0x3d and CLKMGR_CFG to 0x107. DBI mode is enabled by writing 0 to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL. PHY initialization is performed via phy_init(). DBI is configured with dbi_vcid=0x3, lut_size_conf=0x1, out_dbi_conf=0xb, in_dbi_conf=0x0, partitioning_en=0x1. The test generates 40 random pixels, converts them to byte count and wr_cmd_size via pixel_to_bytes_wr_cmd_size(). DPI clock is programmed based on dpi_clk_time_period=16.012400ns. dbi_config() is called to apply DBI configuration. A single DMA descriptor is set up for CH0 (data channel) sourcing from RAM_BASE+0x10000 and CH1 (command channel) sourcing from RAM_BASE+0x0000. DMA microcode programs are built at ch0_desc_addr (RAM_BASE+0x3F000) and ch1_desc_addr (RAM_BASE+0x3F800) using DMAMOV, program_data_num_bytes, DMAWMB, DMASEV, DMAEND. Random pixel data is loaded via load_rand_data() and write_memory_start command is loaded via load_wr_command() with DSI_WRITE_MEMORY_START. DMAC interrupts are enabled by writing 0x3 to MIZAR_MIPI_DSI_DMAC_INTEN and subsystem GDMA interrupt is enabled via MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE. DMA channels are started via the DMAC debug interface: MIZAR_MIPI_DSI_DMAC_DBGINST0 is written with 0x00A00000 for CH0 and 0x01A00000 for CH1, MIZAR_MIPI_DSI_DMAC_DBGINST1 is written with the respective descriptor addresses, and MIZAR_MIPI_DSI_DMAC_DBGCMD is written with 0x0 to execute. The test then waits in a while loop polling int_pend1 which is cleared by the ISR. The ISR (Default_IRQHandler) reads MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK to check for GDMA interrupt, reads MIZAR_MIPI_DSI_DMAC_INTMIS to identify which channel completed, clears the DMAC interrupt via MIZAR_MIPI_DSI_DMAC_INTCLR, and clears the subsystem interrupt via MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW. If unexpected interrupts occur, err0 is incremented. The test completes by calling finish(err0) where err0==0 indicates pass.",
+    "Test Description": "This test validates a basic MIPI DSI DBI write operation using DMA transfer. It configures the DSI host PHY interface for 4 data lanes with a stop wait time, sets packet handling and clock manager configurations, enables DBI command mode, initializes the PHY, and configures DBI parameters including virtual channel ID, LUT size, output/input DBI format, and partitioning. The test prepares 40 random pixels of data and a write_memory_start command, builds single-descriptor DMA microcode programs for both data (CH0) and command (CH1) channels, and triggers DMA execution via the DMAC debug interface. Completion is verified through an interrupt-driven ISR that checks the subsystem interrupt mask for GDMA interrupt, reads the DMAC masked interrupt status to identify completed channels, clears both DMAC and subsystem-level interrupts, and tracks unexpected interrupt errors. The test passes when both DMA channels complete without unexpected interrupts.",
+    "Meta Test Steps / Procedure": "1. Enable GIC IRQ for DSI_INTR_NO via GIC_EnableIRQ(DSI_INTR_NO). 2. Initialize int_pend=1, int_pend1=0x3, phy_stop_wait_time=0x40, n_lanes=3. 3. Write 0x3 to MIZAR_MIPI_DSI_DMAC_INTEN to enable interrupts for DMA CH0 and CH1. 4. Write MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR to MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE to enable GDMA interrupt at subsystem level. 5. Compute phy_if_cfg = n_lanes (3), then set phy_stop_wait_time field using set_data_mask with MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME mask and value 0x40. 6. Write computed phy_if_cfg to MIZAR_MIPI_DSI_HOST_PHY_IF_CFG. 7. Write 0x3d to MIZAR_MIPI_DSI_HOST_PCKHDL_CFG. 8. Write 0x107 to MIZAR_MIPI_DSI_HOST_CLKMGR_CFG. 9. Write 0 to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL to enable DBI mode. 10. Call phy_init() to initialize the DSI PHY. 11. Set DBI configuration variables: dbi_vcid=0x3, load_cmd_or_data_to_sram=1, lut_size_conf=0x1, out_dbi_conf=0xb, in_dbi_conf=0x0, partitioning_en=0x1, allowed_cmd_size=0x7. 12. Set num_of_pixel=40, call pixel_to_bytes_wr_cmd_size(40) to compute wr_cmd_size and num_bytes from pixel_attr. 13. Set DBI command mode parameters: max_rd_pkt_size=0x0, dcs_lw_tx=0x0, dcs_sr_0p_tx=0x0, dcs_sw_1p_tx=0x0, dcs_sw_0p_tx=0x0, gen_lw_tx=0x0, gen_sr_2p_tx=0x0, gen_sr_1p_tx=0x0, gen_sr_0p_tx=0x0, gen_sw_2p_tx=0x0, gen_sw_1p_tx=0x0, gen_sw_0p_tx=0x0, ack_rqst_en=0x0, tear_fx_en=0x1, generic_vc_id=0x2. 14. Compute dpi_clk_freq from dpi_clk_time_period=16.012400ns, call program_dpi_clock(dpi_clk_freq). 15. Call dbi_config() to apply all DBI configuration to DSI host registers. 16. Set num_descriptors=1. 17. Set ch0_desc_addr = RAM_BASE + 0x3F000, ch1_desc_addr = RAM_BASE + 0x3F800, ch0_desc_addr_act = ch0_desc_addr, ch1_desc_addr_act = ch1_desc_addr. 18. Enter descriptor loop (itter=0, single iteration): set data_tdbdcb[0].addr = RAM_BASE + 0x10000, data_tdbdcb[0].len = num_bytes, data_tdbdcb[0].eop = 1. 19. Set data_rebdcb[0].addr = 0x10000000000, data_rebdcb[0].len = num_bytes. 20. Set cmd_tdbdcb[0].addr = RAM_BASE + 0x0000, cmd_tdbdcb[0].len = 4, cmd_tdbdcb[0].eop = 1. 21. Set cmd_rebdcb[0].addr = 0x10000008000, cmd_rebdcb[0].len = 4. 22. Build CH0 DMA microcode: DMAMOV SAR to data source address, DMAMOV DAR to data destination address, program_data_num_bytes for data length, DMAWMB, DMASEV event 0, DMAEND. 23. Build CH1 DMA microcode: DMAMOV SAR to command source address, DMAMOV DAR to command destination address, program_data_num_bytes for command length (4 bytes), DMAWMB, DMASEV event 1, DMAEND. 24. Call load_rand_data(data_tdbdcb[0]) to load random pixel data into SRAM at data source address. 25. Call load_wr_command(cmd_tdbdcb[0].addr, num_bytes, DSI_WRITE_MEMORY_START) to load write_memory_start command into SRAM at command source address. 26. Write 0x00A00000 to MIZAR_MIPI_DSI_DMAC_DBGINST0 to select CH0 with DMAGO instruction. 27. Write ch0_desc_addr_act to MIZAR_MIPI_DSI_DMAC_DBGINST1 to provide CH0 descriptor start address. 28. Write 0x0 to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute CH0 DMAGO. 29. Write 0x01A00000 to MIZAR_MIPI_DSI_DMAC_DBGINST0 to select CH1 with DMAGO instruction. 30. Write ch1_desc_addr_act to MIZAR_MIPI_DSI_DMAC_DBGINST1 to provide CH1 descriptor start address. 31. Write 0x0 to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute CH1 DMAGO. 32. Enter while loop polling int_pend1 with wait_on(10) until int_pend1 becomes 0 (cleared by ISR for both channels). 33. Call wait_on(10000) for final settling delay. 34. ISR Default_IRQHandler fires on interrupt: set int_pend=0. 35. ISR reads MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK into dsi_subsys_mask_st. 36. ISR checks if dsi_subsys_mask_st equals MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR. 37. If GDMA interrupt matched: ISR reads MIZAR_MIPI_DSI_DMAC_INTMIS into ch_mask_st. 38. If ch_mask_st is non-zero: ISR clears corresponding bit in int_pend1 via int_pend1 = int_pend1 & (~ch_mask_st). 39. ISR writes ch_mask_st to MIZAR_MIPI_DSI_DMAC_INTCLR to clear DMAC channel interrupt. 40. If ch_mask_st is zero: ISR prints error and increments err0. 41. ISR writes dsi_subsys_mask_st to MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW to clear subsystem interrupt. 42. If dsi_subsys_mask_st does not match GDMA interrupt: ISR prints error and increments err0. 43. ISR calls GIC_ClearIRQ(DSI_INTR_NO) to clear GIC-level interrupt. 44. ISR sets int_pend=1 to re-enable polling. 45. Call finish(err0) to complete test; err0==0 indicates pass.",
+    "Test Steps / Procedure": "1. Enable the DSI interrupt at the GIC level. 2. Enable DMAC interrupts for both DMA channels (CH0 and CH1) by writing to the INTEN register. 3. Enable the GDMA interrupt at the DSI subsystem level by writing to the interrupt_enable register. 4. Configure the PHY interface with 4 data lanes and stop wait time by writing to the PHY_IF_CFG register. 5. Configure packet handling by writing to the PCKHDL_CFG register. 6. Configure the clock manager by writing to the CLKMGR_CFG register. 7. Enable DBI command mode by writing to the dpi_control register. 8. Initialize the DSI PHY. 9. Configure DBI parameters including virtual channel ID, LUT size, output/input DBI format, partitioning, and command sizes. 10. Compute pixel-to-byte conversion for 40 pixels and set the write command size. 11. Program the DPI clock frequency. 12. Apply the DBI configuration to the DSI host. 13. Build DMA microcode descriptors for data channel (CH0) and command channel (CH1) with source/destination addresses and transfer lengths. 14. Load random pixel data into SRAM for the data channel. 15. Load the write_memory_start command into SRAM for the command channel. 16. Start DMA CH0 by writing the DMAGO instruction and descriptor address via the DBGINST0, DBGINST1, and DBGCMD registers. 17. Start DMA CH1 by writing the DMAGO instruction and descriptor address via the DBGINST0, DBGINST1, and DBGCMD registers. 18. Wait for both DMA channels to complete by polling the interrupt-driven completion flag. 19. Verify that the ISR correctly identifies GDMA interrupts via the interrupt_mask register, reads channel completion status from the INTMIS register, clears DMAC interrupts via the INTCLR register, and clears subsystem interrupts via the interrupt_raw register. 20. Confirm test passes with zero unexpected interrupt errors.",
+    "Meta Impacted Registers": "MIZAR_MIPI_DSI_DMAC_INTEN; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE; MIZAR_MIPI_DSI_HOST_PHY_IF_CFG; MIZAR_MIPI_DSI_HOST_PCKHDL_CFG; MIZAR_MIPI_DSI_HOST_CLKMGR_CFG; MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL; MIZAR_MIPI_DSI_DMAC_DBGINST0; MIZAR_MIPI_DSI_DMAC_DBGINST1; MIZAR_MIPI_DSI_DMAC_DBGCMD; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK; MIZAR_MIPI_DSI_DMAC_INTMIS; MIZAR_MIPI_DSI_DMAC_INTCLR; MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW",
+    "Impacted Registers": "INTEN; interrupt_enable; PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control; DBGINST0; DBGINST1; DBGCMD; interrupt_mask; INTMIS; INTCLR; interrupt_raw",
+    "Meta Validation / Acceptance Criteria": "The ISR reads MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK and compares it against MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR. If matched, it reads MIZAR_MIPI_DSI_DMAC_INTMIS and checks if ch_mask_st is non-zero. If non-zero, the corresponding bit in int_pend1 is cleared (int_pend1 = int_pend1 & (~ch_mask_st)), and the DMAC interrupt is cleared by writing ch_mask_st to MIZAR_MIPI_DSI_DMAC_INTCLR. The subsystem interrupt is cleared by writing dsi_subsys_mask_st to MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW. If dsi_subsys_mask_st does not match GDMA interrupt, or if ch_mask_st is zero, err0 is incremented. The main loop exits when int_pend1 becomes 0 (both CH0 and CH1 interrupts received). The test passes when finish(err0) is called with err0==0. Any unexpected interrupt source or missing DMAC channel interrupt causes err0 to be non-zero, resulting in test failure.",
+    "Validation / Acceptance Criteria": "The test passes when both DMA channels (CH0 and CH1) complete their transfers and generate interrupts. The ISR must correctly identify the GDMA interrupt source by reading the interrupt_mask register, confirm the specific channel completion by reading the INTMIS register, clear the DMAC interrupt via the INTCLR register, and clear the subsystem-level interrupt via the interrupt_raw register. Both channel completion flags must be received. No unexpected interrupt sources should be detected. The error counter must remain zero for the test to pass.",
+    "Remarks": "The test uses an interrupt-driven model with a polling wait loop in the main function. The ISR handles both CH0 and CH1 completion interrupts independently. int_pend1 is initialized to 0x3 (bits for both channels) and each channel interrupt clears its respective bit. The test uses a single DMA descriptor per channel. DBI mode is selected by writing 0 to dpi_control. The test relies on external helper functions (phy_init, dbi_config, pixel_to_bytes_wr_cmd_size, load_rand_data, load_wr_command, program_dpi_clock) whose implementations are not in this testcase folder. DMA microcode is built in-place using DMAMOV, DMAWMB, DMASEV, DMAEND helper macros/functions. The DMAC debug interface is used to start DMA channels rather than a standard channel start mechanism."
+  },
+  {
+    "Index": "2",
+    "SS / Module": "MIPI_DSI",
+    "Test Case Name": "mipi_dsi_dbi_random_payload_test",
+    "Feature": "DBI Command Mode Random Payload DMA Write",
+    "Meta Headers": '<stdio.h>; <stdlib.h>; "test_common.h"; "mipi_dsi.h"; <math.h>',
+    "Meta Macros": "NA",
+    "Meta Arrays": "desc_t data_tdbdcb[10]; desc_t data_rebdcb[10]; desc_t cmd_tdbdcb[10]; desc_t cmd_rebdcb[10]; unsigned int wr_cmd_arr[27]; unsigned int WR_CMD_SIZE[27]",
+    "Speed": "NA",
+    "Mode": "DBI Command Mode",
+    "Memory Start Offset": "0x0000; 0x10000; 0x3F000; 0x3F800",
+    "Memory End Offset": "NA",
+    "Meta Test Description": "This testcase performs a MIPI DSI DBI random payload stress test using DMA. It configures the DSI host PHY with 4 lanes (n_lanes=3 means 4 data lanes) and phy_stop_wait_time=0x40 via MIZAR_MIPI_DSI_HOST_PHY_IF_CFG. It sets PCKHDL_CFG to 0x3d and CLKMGR_CFG to 0x107. DBI mode is enabled by writing 0 to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL. PHY initialization is performed via phy_init(). DBI is configured with dbi_vcid=0x3, lut_size_conf=0x1, out_dbi_conf=0xb, in_dbi_conf=0x0, partitioning_en=0x0, allowed_cmd_size=0x25. An initial pixel count of 40 is used to compute wr_cmd_size and num_bytes via pixel_to_bytes_wr_cmd_size(). DPI clock is programmed based on dpi_clk_time_period=16.012400ns. dbi_config() is called to apply initial DBI configuration. DMAC interrupts are enabled by writing 0x3 to MIZAR_MIPI_DSI_DMAC_INTEN. The test then enters a loop of 10 iterations. In each iteration: a random pixel count is generated as ((rand() % 1024) * 8), producing multiples of 8 up to 8192; pixel_to_bytes_wr_cmd_size() recomputes wr_cmd_size and num_bytes; dbi_config() is called again to update the DBI wr_cmd_size configuration; a single DMA descriptor is set up for CH0 (data channel) sourcing from RAM_BASE+0x10000 and CH1 (command channel) sourcing from RAM_BASE+0x0000; DMA microcode programs are built at ch0_desc_addr (RAM_BASE+0x3F000) and ch1_desc_addr (RAM_BASE+0x3F800) using DMAMOV, program_data_num_bytes with ceil-aligned length, DMAWMB, DMASEV, DMAEND; random pixel data is loaded via load_rand_data() and write_memory_start command is loaded via load_wr_command() with DSI_WRITE_MEMORY_START; DMA channels are started via the DMAC debug interface by writing 0x00A00000 to MIZAR_MIPI_DSI_DMAC_DBGINST0 for CH0 and 0x01A00000 for CH1, writing respective descriptor addresses to MIZAR_MIPI_DSI_DMAC_DBGINST1, and writing 0x0 to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute; the test then polls MIZAR_MIPI_DSI_DMAC_INTMIS in a while loop until rd_data equals 0x3 (both CH0 and CH1 complete); upon completion, rd_data is written to MIZAR_MIPI_DSI_DMAC_INTCLR to clear the interrupts; wait_on(100000) is called for settling delay. After all 10 iterations complete, finish(0) is called indicating pass.",
+    "Test Description": "This test validates MIPI DSI DBI write operations with randomized payload sizes over multiple iterations using DMA transfer. It configures the DSI host PHY interface for 4 data lanes with a stop wait time, sets packet handling and clock manager configurations, enables DBI command mode, initializes the PHY, and configures DBI parameters including virtual channel ID, LUT size, output/input DBI format, and partitioning. The test runs 10 iterations, each with a randomly generated pixel count (multiples of 8, up to 8192). In each iteration, the DBI write command size is reconfigured, DMA microcode descriptors are rebuilt for both data (CH0) and command (CH1) channels, random pixel data and a write_memory_start command are loaded into SRAM, and DMA execution is triggered via the DMAC debug interface. Completion of both channels is verified by polling the DMAC masked interrupt status register until both channel completion bits are set, after which the interrupts are cleared. The test passes after all 10 iterations complete successfully.",
+    "Meta Test Steps / Procedure": "1. Initialize phy_stop_wait_time=0x40, n_lanes=3. 2. Compute phy_if_cfg = n_lanes (3), then set phy_stop_wait_time field using set_data_mask with MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME mask and value 0x40. 3. Write computed phy_if_cfg to MIZAR_MIPI_DSI_HOST_PHY_IF_CFG. 4. Write 0x3d to MIZAR_MIPI_DSI_HOST_PCKHDL_CFG. 5. Write 0x107 to MIZAR_MIPI_DSI_HOST_CLKMGR_CFG. 6. Write 0 to MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL to enable DBI mode. 7. Call phy_init() to initialize the DSI PHY. 8. Set DBI configuration variables: dbi_vcid=0x3, load_cmd_or_data_to_sram=1, lut_size_conf=0x1, out_dbi_conf=0xb, in_dbi_conf=0x0, partitioning_en=0x0, allowed_cmd_size=0x25. 9. Set initial wr_cmd_size=193 (192+1). 10. Set initial num_of_pixel=40, call pixel_to_bytes_wr_cmd_size(40) to compute wr_cmd_size and num_bytes from pixel_attr. 11. Set DBI command mode parameters: max_rd_pkt_size=0x0, dcs_lw_tx=0x0, dcs_sr_0p_tx=0x0, dcs_sw_1p_tx=0x0, dcs_sw_0p_tx=0x0, gen_lw_tx=0x0, gen_sr_2p_tx=0x0, gen_sr_1p_tx=0x0, gen_sr_0p_tx=0x0, gen_sw_2p_tx=0x0, gen_sw_1p_tx=0x0, gen_sw_0p_tx=0x0, ack_rqst_en=0x0, tear_fx_en=0x1, generic_vc_id=0x2. 12. Compute dpi_clk_freq from dpi_clk_time_period=16.012400ns (dpi_clk_freq = 1000000000/dpi_clk_time_period), call program_dpi_clock(dpi_clk_freq). 13. Call dbi_config() to apply initial DBI configuration to DSI host registers. 14. Set num_descriptors=1. 15. Write 0x3 to MIZAR_MIPI_DSI_DMAC_INTEN to enable interrupts for DMA CH0 and CH1. 16. Begin iteration loop: for i=0 to 9 (10 iterations). 17. Generate random pixel count: num_of_pixel = ((rand() % 1024)) * 8. 18. Call pixel_to_bytes_wr_cmd_size(num_of_pixel) to recompute wr_cmd_size and num_bytes. 19. Print iteration index and wr_cmd_size via printf. 20. Call dbi_config() to re-apply DBI configuration with updated wr_cmd_size. 21. Set ch0_desc_addr = RAM_BASE + 0x3F000, ch1_desc_addr = RAM_BASE + 0x3F800, ch0_desc_addr_act = ch0_desc_addr, ch1_desc_addr_act = ch1_desc_addr. 22. Enter descriptor loop (itter=0, single iteration): set data_tdbdcb[0].addr = RAM_BASE + 0x10000, data_tdbdcb[0].len = num_bytes, data_tdbdcb[0].eop = 1. 23. Set data_rebdcb[0].addr = 0x10000000000, data_rebdcb[0].len = num_bytes. 24. Set cmd_tdbdcb[0].addr = RAM_BASE + 0x0000, cmd_tdbdcb[0].len = 4, cmd_tdbdcb[0].eop = 1. 25. Set cmd_rebdcb[0].addr = 0x10000008000, cmd_rebdcb[0].len = 4. 26. Build CH0 DMA microcode: DMAMOV SAR to data_tdbdcb[0].addr, DMAMOV DAR to data_rebdcb[0].addr, program_data_num_bytes with (ceil((double)data_tdbdcb[0].len/8))*8 for 8-byte aligned data length, DMAWMB, DMASEV event 0, DMAEND. 27. Build CH1 DMA microcode: DMAMOV SAR to cmd_tdbdcb[0].addr, DMAMOV DAR to cmd_rebdcb[0].addr, program_data_num_bytes for cmd length (4 bytes), DMAWMB, DMASEV event 1, DMAEND. 28. Call load_rand_data(data_tdbdcb[0]) to load random pixel data into SRAM at data source address. 29. Call load_wr_command(cmd_tdbdcb[0].addr, num_bytes, DSI_WRITE_MEMORY_START) to load write_memory_start command into SRAM at command source address. 30. Write 0x00A00000 to MIZAR_MIPI_DSI_DMAC_DBGINST0 to select CH0 with DMAGO instruction. 31. Write ch0_desc_addr_act to MIZAR_MIPI_DSI_DMAC_DBGINST1 to provide CH0 descriptor start address. 32. Write 0x0 to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute CH0 DMAGO. 33. Write 0x01A00000 to MIZAR_MIPI_DSI_DMAC_DBGINST0 to select CH1 with DMAGO instruction. 34. Write ch1_desc_addr_act to MIZAR_MIPI_DSI_DMAC_DBGINST1 to provide CH1 descriptor start address. 35. Write 0x0 to MIZAR_MIPI_DSI_DMAC_DBGCMD to execute CH1 DMAGO. 36. Read MIZAR_MIPI_DSI_DMAC_INTMIS into rd_data. 37. Enter polling while loop: continue reading MIZAR_MIPI_DSI_DMAC_INTMIS into rd_data until rd_data equals 0x3 (both CH0 and CH1 completion bits set). 38. Write rd_data (0x3) to MIZAR_MIPI_DSI_DMAC_INTCLR to clear both channel interrupts. 39. Call wait_on(100000) for settling delay. 40. End of iteration loop; repeat steps 17-39 for next iteration. 41. After all 10 iterations complete, call finish(0) to indicate test pass.",
+    "Test Steps / Procedure": "1. Configure the PHY interface with 4 data lanes and stop wait time by writing to the PHY_IF_CFG register. 2. Configure packet handling by writing to the PCKHDL_CFG register. 3. Configure the clock manager by writing to the CLKMGR_CFG register. 4. Enable DBI command mode by writing to the dpi_control register. 5. Initialize the DSI PHY. 6. Configure DBI parameters including virtual channel ID, LUT size, output/input DBI format, partitioning, and allowed command size. 7. Compute pixel-to-byte conversion and set the initial write command size. 8. Program the DPI clock frequency. 9. Apply the DBI configuration to the DSI host. 10. Enable DMAC interrupts for both DMA channels (CH0 and CH1) by writing to the INTEN register. 11. Begin iterating 10 times with a randomly generated pixel count (multiples of 8, up to 8192) for each iteration. 12. Recompute the write command size and byte count for the new random pixel count. 13. Re-apply the DBI configuration with the updated write command size. 14. Build DMA microcode descriptors for data channel (CH0) and command channel (CH1) with source/destination addresses and 8-byte aligned transfer lengths. 15. Load random pixel data into SRAM for the data channel. 16. Load the write_memory_start command into SRAM for the command channel. 17. Start DMA CH0 by writing the DMAGO instruction and descriptor address via the DBGINST0, DBGINST1, and DBGCMD registers. 18. Start DMA CH1 by writing the DMAGO instruction and descriptor address via the DBGINST0, DBGINST1, and DBGCMD registers. 19. Poll the INTMIS register until both channel completion bits are set. 20. Clear the DMAC interrupts by writing to the INTCLR register. 21. Wait for settling delay before the next iteration. 22. Repeat steps 11-21 for all 10 iterations. 23. Confirm test passes after all iterations complete successfully.",
+    "Meta Impacted Registers": "MIZAR_MIPI_DSI_HOST_PHY_IF_CFG; MIZAR_MIPI_DSI_HOST_PCKHDL_CFG; MIZAR_MIPI_DSI_HOST_CLKMGR_CFG; MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL; MIZAR_MIPI_DSI_DMAC_INTEN; MIZAR_MIPI_DSI_DMAC_DBGINST0; MIZAR_MIPI_DSI_DMAC_DBGINST1; MIZAR_MIPI_DSI_DMAC_DBGCMD; MIZAR_MIPI_DSI_DMAC_INTMIS; MIZAR_MIPI_DSI_DMAC_INTCLR",
+    "Impacted Registers": "PHY_IF_CFG; PCKHDL_CFG; CLKMGR_CFG; dpi_control; INTEN; DBGINST0; DBGINST1; DBGCMD; INTMIS; INTCLR",
+    "Meta Validation / Acceptance Criteria": "In each of the 10 iterations, after starting both DMA channels via the DMAC debug interface, the test polls MIZAR_MIPI_DSI_DMAC_INTMIS in a while loop until rd_data equals 0x3 (both bit 0 for CH0 and bit 1 for CH1 are set). Once rd_data == 0x3, the test writes rd_data to MIZAR_MIPI_DSI_DMAC_INTCLR to clear both channel interrupts. wait_on(100000) is called for settling delay after each iteration. The test unconditionally calls finish(0) after all 10 iterations complete, indicating pass. There is no explicit error counter in this test; the polling loop will hang if either DMA channel fails to complete, which would constitute a timeout failure.",
+    "Validation / Acceptance Criteria": "For each of the 10 iterations, both DMA channels (CH0 and CH1) must complete their transfers, indicated by both completion bits being set in the INTMIS register. The interrupts must be successfully cleared via the INTCLR register after each iteration. All 10 iterations with varying random payload sizes must complete without the polling loop hanging. The test passes unconditionally after all iterations complete. A timeout or hang during polling indicates a DMA transfer failure.",
+    "Remarks": "This test uses a polling-based model (not interrupt-driven ISR) to check DMA completion, unlike mipi_dsi_basic_test which uses an ISR. The test runs 10 iterations with randomized pixel counts generated as multiples of 8 (up to 8192). In each iteration, dbi_config() is re-called to update the wr_cmd_size for the new payload size. The DMA data length is 8-byte aligned using ceil((double)len/8)*8. The test uses a single DMA descriptor per channel per iteration. DBI mode is selected by writing 0 to dpi_control. partitioning_en is set to 0x0 in this test (unlike mipi_dsi_basic_test which uses 0x1). The test relies on external helper functions (phy_init, dbi_config, pixel_to_bytes_wr_cmd_size, load_rand_data, load_wr_command, program_dpi_clock, program_data_num_bytes) whose implementations are not in this testcase folder. The DMAC debug interface is used to start DMA channels. Arrays wr_cmd_arr[27] and WR_CMD_SIZE[27] are declared but not used in the test flow. finish(0) is called unconditionally, so the test always reports pass if all iterations complete."
+  }
 ]
 
-# TestPlan sheet columns
+# === TestPlan Sheet Columns ===
 testplan_columns = [
-    'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description',
-    'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks',
-    'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria',
-    'Code Generation'
+    'Index', 'SS / Module', 'Test Case Name', 'Feature',
+    'Test Description', 'Speed', 'Mode',
+    'Memory Start Offset', 'Memory End Offset', 'Remarks',
+    'Test Steps / Procedure', 'Impacted Registers',
+    'Validation / Acceptance Criteria', 'Code Generation'
 ]
 
-# MetaData sheet columns
+# === MetaData Sheet Columns ===
 metadata_columns = [
-    'Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure',
-    'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria',
+    'Index', 'Test Case Name', 'Meta Test Description',
+    'Meta Test Steps / Procedure', 'Meta Impacted Registers',
+    'Meta Validation / Acceptance Criteria',
     'Meta Headers', 'Meta Macros', 'Meta Arrays'
 ]
 
-# Create workbook
+# === Create Workbook ===
 wb = Workbook()
 
 # --- TestPlan Sheet ---
 ws_tp = wb.active
 ws_tp.title = 'TestPlan'
 
-header_font = Font(bold=True, color='FFFFFF', size=11)
+header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
 header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-wrap_alignment = Alignment(wrap_text=True, vertical='top')
+header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+cell_alignment = Alignment(vertical='top', wrap_text=True)
+thin_border = Border(
+    left=Side(style='thin'),
+    right=Side(style='thin'),
+    top=Side(style='thin'),
+    bottom=Side(style='thin')
+)
 
-# Write headers
+# Write TestPlan headers
 for col_idx, col_name in enumerate(testplan_columns, 1):
     cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
     cell.font = header_font
     cell.fill = header_fill
-    cell.alignment = wrap_alignment
+    cell.alignment = header_alignment
+    cell.border = thin_border
 
-# Write data rows
+# Write TestPlan data
 for row_idx, row_data in enumerate(json_data, 2):
     for col_idx, col_name in enumerate(testplan_columns, 1):
         value = row_data.get(col_name, '')
+        if col_name == 'Code Generation':
+            value = ''
         cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = wrap_alignment
+        cell.alignment = cell_alignment
+        cell.border = thin_border
 
 # Freeze first row
 ws_tp.freeze_panes = 'A2'
 
-# Auto-size columns
+# Auto-size columns with max width
 for col_idx, col_name in enumerate(testplan_columns, 1):
     max_len = len(col_name)
-    for row in range(2, len(json_data) + 2):
-        val = ws_tp.cell(row=row, column=col_idx).value
-        if val:
-            max_len = max(max_len, min(len(str(val)), 80))
-    ws_tp.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 60)
+    for row in ws_tp.iter_rows(min_row=2, max_row=ws_tp.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                max_len = max(max_len, min(len(str(cell.value)), 80))
+    adjusted_width = min(max_len + 4, 60)
+    ws_tp.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
 
 # --- MetaData Sheet ---
 ws_md = wb.create_sheet('MetaData')
 
-# Write headers
+# Write MetaData headers
 for col_idx, col_name in enumerate(metadata_columns, 1):
     cell = ws_md.cell(row=1, column=col_idx, value=col_name)
     cell.font = header_font
     cell.fill = header_fill
-    cell.alignment = wrap_alignment
+    cell.alignment = header_alignment
+    cell.border = thin_border
 
-# Write data rows
+# Write MetaData data
 for row_idx, row_data in enumerate(json_data, 2):
     for col_idx, col_name in enumerate(metadata_columns, 1):
         value = row_data.get(col_name, '')
         cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = wrap_alignment
+        cell.alignment = cell_alignment
+        cell.border = thin_border
 
 # Freeze first row
 ws_md.freeze_panes = 'A2'
 
-# Auto-size columns
+# Auto-size columns with max width
 for col_idx, col_name in enumerate(metadata_columns, 1):
     max_len = len(col_name)
-    for row in range(2, len(json_data) + 2):
-        val = ws_md.cell(row=row, column=col_idx).value
-        if val:
-            max_len = max(max_len, min(len(str(val)), 80))
-    ws_md.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 60)
+    for row in ws_md.iter_rows(min_row=2, max_row=ws_md.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                max_len = max(max_len, min(len(str(cell.value)), 80))
+    adjusted_width = min(max_len + 4, 60)
+    ws_md.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
 
 # Set MetaData sheet to veryHidden
 ws_md.sheet_state = 'veryHidden'
 
-# Save workbook
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-wb.save(OUTPUT_PATH)
+# === Save Workbook ===
+output_dir = 'Test_Output/MIPI/TestPlan'
+os.makedirs(output_dir, exist_ok=True)
+output_path = os.path.join(output_dir, filename)
+wb.save(output_path)
 
-# Validate
-wb2 = load_workbook(OUTPUT_PATH)
-assert 'TestPlan' in wb2.sheetnames, 'TestPlan sheet missing'
-assert 'MetaData' in wb2.sheetnames, 'MetaData sheet missing'
-assert os.path.getsize(OUTPUT_PATH) > 0, 'File is empty'
+# === Validate ===
+from openpyxl import load_workbook
+wb_check = load_workbook(output_path)
+assert 'TestPlan' in wb_check.sheetnames, 'TestPlan sheet missing'
+assert 'MetaData' in wb_check.sheetnames, 'MetaData sheet missing'
+assert wb_check['TestPlan'].max_row >= 3, 'TestPlan has insufficient rows'
+assert wb_check['MetaData'].max_row >= 3, 'MetaData has insufficient rows'
+assert os.path.getsize(output_path) > 0, 'File is empty'
 
-print(f'SUCCESS: {OUTPUT_PATH}')
-print(f'FILENAME: {FILENAME}')
-print(f'ROWS_TESTPLAN: {len(json_data)}')
-print(f'ROWS_METADATA: {len(json_data)}')
-print(f'FILE_SIZE: {os.path.getsize(OUTPUT_PATH)}')
+print(f'SUCCESS: {output_path}')
+print(f'File size: {os.path.getsize(output_path)} bytes')
+print(f'TestPlan rows: {wb_check["TestPlan"].max_row - 1}')
+print(f'MetaData rows: {wb_check["MetaData"].max_row - 1}')
+print(f'Filename: {filename}')
