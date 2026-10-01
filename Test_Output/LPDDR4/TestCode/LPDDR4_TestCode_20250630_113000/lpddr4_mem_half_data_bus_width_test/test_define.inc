@@ -1,28 +1,36 @@
-// Author - AI Force 2.3. Date in IST
+// Author - AI Force 2.3. 2025-06-30 11:30:00 IST
 // (EMBENGG-SYSAPPS)
 
+/* --------------------------------------------------------------------------
+ * PSV Framework header (mandatory)
+ * -------------------------------------------------------------------------- */
 #include <test.h>
 
 /* --------------------------------------------------------------------------
- * Meta Headers
+ * Standard headers
+ * -------------------------------------------------------------------------- */
+#include <stdint.h>
+
+/* --------------------------------------------------------------------------
+ * Meta Headers (G5): <stdio.h>; <stdlib.h>; "test_common.h"; "lpddr4.h"
+ * Preserved in first-seen order.
  * -------------------------------------------------------------------------- */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include "test_common.h"
 #include "lpddr4.h"
 
 /* --------------------------------------------------------------------------
- * Framework / platform includes used by FV template
+ * FV Template framework / platform includes for logging and register access
  * -------------------------------------------------------------------------- */
 #include "log.h"
 #include "mmio.h"
 #include "reg_access.h"
 
 /* --------------------------------------------------------------------------
- * Meta Macros: NA — no additional macros supplied.
+ * Meta Macros (H5): NA — no additional macros supplied.
  * -------------------------------------------------------------------------- */
 
 /* --------------------------------------------------------------------------
- * Meta Arrays: NA — no arrays supplied for this testcase.
+ * Meta Arrays (I5): NA — no arrays supplied for this testcase.
  * -------------------------------------------------------------------------- */
