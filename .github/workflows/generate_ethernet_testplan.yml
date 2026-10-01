@@ -1,0 +1,36 @@
+name: Generate Ethernet TestPlan Excel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/scripts/generate_ethernet_testplan.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate Excel TestPlan
+        run: |
+          python .github/scripts/generate_ethernet_testplan.py "Test_Output/Ethernet/Ethernet0/TestPlan"
+
+      - name: Commit and push generated Excel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push
