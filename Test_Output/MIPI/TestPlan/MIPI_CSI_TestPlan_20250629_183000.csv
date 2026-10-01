@@ -1,0 +1,54 @@
+S.No,Test Case Folder,Test Case Name,Test Objective,Test Description,Pre-Conditions,Test Steps,Registers Accessed,Register Address/Offset,Register Fields,Read/Write,Write Value,Expected Read Value,Pass/Fail Criteria,Post-Conditions,Notes
+1,mipi_csi2_dphy_lanes_test,MIPI CSI2 DPHY Lanes Test,"Verify MIPI CSI-2 receiver operation across all D-PHY lane configurations (4-lane down to 1-lane) with DMA-based control and data packet transfers.","This test validates the MIPI CSI-2 host controller's ability to receive CSI-2 data across varying D-PHY lane configurations. It iterates from 4 lanes down to 1 lane, configuring the N_LANES register each time, and performs DMA-based control packet and data packet transfers for each lane configuration. The test verifies interrupt-driven DMA completion and correct packet reception.","1. CSI-2 host controller is accessible.
+2. D-PHY is in a reset state.
+3. DMA engine (DMA330) is available at base 0xE6A00000.
+4. GDMA0 path is selected (default).
+5. Virtual Channel ID = 3.
+6. Data Type = CSI2_RGB888.
+7. VRES = 3, HRES = 64 (non-full-mem default).","Step 1: Enable CSI-2 interrupts via csi2_enable_interrupt().
+Step 2: Write virtual_channel register (MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL) with VC_ID shifted for GDMA0 path.
+Step 3: Enable control data transfer by writing 1 to control_data register (MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA).
+Step 4: Initialize D-PHY via snps_phy_init().
+Step 5: Poll PHY_STOPSTATE register until value equals 0x1000F (all data lanes + clock lane in stop state).
+Step 6: Loop lane_num from 3 down to 0:
+  Step 6a: Write N_LANES register with lane_num.
+  Step 6b: Write 0xA0243FFC with (lane_num+1) to trigger CSI-2 sequence.
+  Step 6c: For each control packet (cntrl_pkt_cnt = VRES*3 + 2):
+    - Enable DMA interrupts (INTEN = 0x3).
+    - Preload DMA CH0 instructions for control data transfer (8 bytes from 0x8000 to 0xE6001000).
+    - Issue DMAGO for CH0.
+    - Poll DMA INTMIS register until bit[0] = 1 (CH0 IRQ).
+    - Clear DMA IRQ by writing 0x1 to INTCLR.
+    - Read control data from 0xE6001000.
+    - If data_type > 0xF (long packet): compute word_count, align to 8-byte boundary, preload DMA CH1 for data transfer, issue DMAGO for CH1, poll INTMIS until bit[1] = 1, clear IRQ.
+Step 7: Call finish(0) on completion.","INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED; virtual_channel; control_data; PHY_STOPSTATE; N_LANES; DMA INTEN; DMA INTMIS; DMA INTCLR","CSI2 Host INT_ST_MAIN: 0x0C; CSI2 Host INT_MSK_PHY_FATAL: 0xE4; CSI2 Host INT_MSK_PKT_FATAL: 0xF4; CSI2 Host INT_MSK_PHY: 0x114; CSI2 Host INT_MSK_LINE: 0x134; CSI2 Host INT_MSK_BNDRY_FRAME_FATAL: 0x284; CSI2 Host INT_MSK_SEQ_FRAME_FATAL: 0x294; CSI2 Host INT_MSK_CRC_FRAME_FATAL: 0x2A4; CSI2 Host INT_MSK_PLD_CRC_FATAL: 0x2B4; CSI2 Host INT_MSK_DATA_ID: 0x2C4; CSI2 Host INT_MSK_ECC_CORRECTED: 0x2D4; CSI2 Subsys virtual_channel: 0x00; CSI2 Subsys control_data: 0x20; CSI2 Host PHY_STOPSTATE: 0x4C; CSI2 Host N_LANES: 0x04; DMA330 INTEN: 0x20; DMA330 INTMIS: 0x28; DMA330 INTCLR: 0x2C","INT_ST_MAIN: status_int_st_phy_fatal[0], status_int_st_pkt_fatal[1], etc.; INT_MSK_PHY_FATAL: mask_phy_errsotsynchs_0..3 [3:0]; INT_MSK_PKT_FATAL: mask_err_ecc_double[0], mask_shorter_payload[1]; INT_MSK_PHY: mask_phy_errsoths_0..3[3:0], mask_phy_erresc_0..3[19:16]; INT_MSK_LINE: mask_err_l_bndry_match_di0..3[3:0], mask_err_l_seq_di0..3[19:16]; INT_MSK_BNDRY_FRAME_FATAL: err_f_bndry_match_vc0..15[15:0]; INT_MSK_SEQ_FRAME_FATAL: err_f_seq_vc0..15[15:0]; INT_MSK_CRC_FRAME_FATAL: err_frame_data_vc0..15[15:0]; INT_MSK_PLD_CRC_FATAL: err_crc_vc0..15[15:0]; INT_MSK_DATA_ID: err_id_vc0..15[15:0]; INT_MSK_ECC_CORRECTED: err_ecc_corrected_vc0..15[15:0]; virtual_channel: ch0[15:12], ch1[11:8], ch2[7:4], ch3[3:0]; control_data: en[0]; PHY_STOPSTATE: phy_stopstatedata_0..3[3:0], phy_stopstateclk[16]; N_LANES: n_lanes[2:0]; DMA INTEN: event_irq_select[31:0]; DMA INTMIS: irq_status[31:0]; DMA INTCLR: irq_clr[31:0]","R/W as detailed per step","INT_MSK_PHY_FATAL=0x0000000F; INT_MSK_PKT_FATAL=0x00000003; INT_MSK_PHY=0x000F000F; INT_MSK_LINE=0x000F000F; INT_MSK_BNDRY_FRAME_FATAL=0x0000FFFF; INT_MSK_SEQ_FRAME_FATAL=0x0000FFFF; INT_MSK_CRC_FRAME_FATAL=0x0000FFFF; INT_MSK_PLD_CRC_FATAL=0x0000FFFF; INT_MSK_DATA_ID=0x0000FFFF; INT_MSK_ECC_CORRECTED=0x0000FFFF; virtual_channel=(VC_ID<<12) for GDMA0; control_data=1; N_LANES=3..0; DMA INTEN=0x3; DMA INTCLR=0x1 or 0x2","PHY_STOPSTATE = 0x1000F; DMA INTMIS bit[0]=1 for CH0 completion; DMA INTMIS bit[1]=1 for CH1 completion; All interrupt masks written successfully.","PASS: PHY enters stop state (0x1000F). DMA CH0 and CH1 interrupts fire correctly for each lane configuration. Control and data packets are transferred without error for all 4 lane configurations (4/3/2/1 lanes). FAIL: PHY does not reach stop state; DMA interrupts do not assert; Packet transfer errors.","CSI-2 controller has processed packets across all lane configurations. DMA channels are idle.","This test iterates through all 4 D-PHY lane configurations (4-lane to 1-lane) to validate lane scalability. The macro SOFT_RST_REG_ADDRESS is ignored per instructions. VC_ID=3 is used with GDMA0 path. Data type CSI2_RGB888 is used."
+2,mipi_csi2_test_pattern_generator,MIPI CSI2 Test Pattern Generator Test,"Verify the MIPI CSI-2 host controller's internal Pattern Generator (PG) functionality with DMA-based data reception.","This test validates the CSI-2 host controller's built-in PPI Pattern Generator. It configures the PG with specific VRES (16), HRES (320), data type (0x24 = RGB888), VC=3, and pattern type, then enables it to generate internal test data. A DMA channel receives the generated data and the test verifies successful transfer completion via DMA interrupt polling.","1. CSI-2 host controller is accessible.
+2. D-PHY is in a reset state.
+3. DMA engine (DMA330) is available.
+4. GDMA0 path is selected (default).
+5. Virtual Channel ID = 3.
+6. Pattern Generator is disabled initially.
+7. Valid bits per pixel = 24 (RGB888).","Step 1: Configure subsystem virtual_channel register with VC routing for GDMA0 path.
+Step 2: Disable control data transfer (control_data = 0).
+Step 3: Enable CSI-2 and DMA subsystem interrupts via csi2_subsys_enable_interrupt().
+Step 4: Initialize D-PHY via snps_phy_init().
+Step 5: Poll PHY_STOPSTATE register until value equals 0x1000F.
+Step 6: Configure DMA higher-order address registers:
+  - DMA_M0_ADDR_AR_CH0_DATA = 0x100
+  - DMA_M0_ADDR_AR_CH0_INSTRUCTION = 0x0
+  - DMA_M0_ADDR_AW_CH0_DATA = 0x0
+  - DMA_M0_ADDR_AW_CH0_INSTRUCTION = 0x0
+Step 7: Enable fractional divider output (CSI2_RB_REG_BASE + 0xF4 = 0x1).
+Step 8: Compute transfer size: ((24*320/8) aligned to 8 bytes) * 16 = 960 * 16 = 15360 bytes.
+Step 9: Preload DMA CH0 instructions for data transfer (from 0x00 to 0xE6001000, size=15360).
+Step 10: Issue DMAGO for CH0.
+Step 11: Configure Pattern Generator:
+  - PPI_PG_PATTERN_VRES = 0x10 (16 lines)
+  - PPI_PG_PATTERN_HRES = 0x70140 (pkt2pkt_time=7, hres=320)
+  - PPI_PG_CONFIG = 0xE401 (vc=3, datatype=0x24, pattern=1)
+  - PPI_PG_ENABLE = 1
+Step 12: Wait 100 cycles.
+Step 13: Disable Pattern Generator (PPI_PG_ENABLE = 0).
+Step 14: Poll DMA INTMIS until bit[0] = 1 (CH0 transfer complete).
+Step 15: Wait 10000 cycles.
+Step 16: Call finish(0).","INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED; virtual_channel; control_data; PHY_STOPSTATE; PPI_PG_PATTERN_VRES; PPI_PG_PATTERN_HRES; PPI_PG_CONFIG; PPI_PG_ENABLE; dma_m0_addr_ar_ch0_data; dma_m0_addr_ar_ch0_Instruction; dma_m0_addr_aw_ch0_data; dma_m0_addr_aw_ch0_Instruction; enableclkgating_csiphy; DMA INTMIS","CSI2 Host INT_ST_MAIN: 0x0C; CSI2 Host INT_MSK_PHY_FATAL: 0xE4; CSI2 Host INT_MSK_PKT_FATAL: 0xF4; CSI2 Host INT_MSK_PHY: 0x114; CSI2 Host INT_MSK_LINE: 0x134; CSI2 Host INT_MSK_BNDRY_FRAME_FATAL: 0x284; CSI2 Host INT_MSK_SEQ_FRAME_FATAL: 0x294; CSI2 Host INT_MSK_CRC_FRAME_FATAL: 0x2A4; CSI2 Host INT_MSK_PLD_CRC_FATAL: 0x2B4; CSI2 Host INT_MSK_DATA_ID: 0x2C4; CSI2 Host INT_MSK_ECC_CORRECTED: 0x2D4; CSI2 Subsys virtual_channel: 0x00; CSI2 Subsys control_data: 0x20; CSI2 Host PHY_STOPSTATE: 0x4C; CSI2 Host PPI_PG_PATTERN_VRES: 0x60; CSI2 Host PPI_PG_PATTERN_HRES: 0x64; CSI2 Host PPI_PG_CONFIG: 0x68; CSI2 Host PPI_PG_ENABLE: 0x6C; CSI2 Subsys dma_m0_addr_ar_ch0_data: 0x6C; CSI2 Subsys dma_m0_addr_ar_ch0_Instruction: 0x70; CSI2 Subsys dma_m0_addr_aw_ch0_data: 0x8C; CSI2 Subsys dma_m0_addr_aw_ch0_Instruction: 0x90; CSI2 Subsys enableclkgating_csiphy: 0xF4; DMA330 INTMIS: 0x28","PPI_PG_PATTERN_VRES: ppi_pg_pattern_vres[15:0]; PPI_PG_PATTERN_HRES: ppi_pg_pattern_hres[15:0], ppi_pg_pkt2pkt_time[25:16]; PPI_PG_CONFIG: ppi_pg_pattern[0], ppi_pg_datatype[13:8], ppi_pg_vc[15:14], ppi_pg_vcx_0_1[17:16]; PPI_PG_ENABLE: ppi_pg_enable[0]; virtual_channel: ch0[15:12], ch1[11:8], ch2[7:4], ch3[3:0]; control_data: en[0]; PHY_STOPSTATE: phy_stopstatedata_0..3[3:0], phy_stopstateclk[16]; dma_m0_addr_ar_ch0_data: msb[8:0]; dma_m0_addr_ar_ch0_Instruction: msb[8:0]; dma_m0_addr_aw_ch0_data: msb[7:0]; dma_m0_addr_aw_ch0_Instruction: msb[7:0]; enableclkgating_csiphy: sel[0]; DMA INTMIS: irq_status[31:0]","R/W as detailed per step","PPI_PG_PATTERN_VRES=0x10; PPI_PG_PATTERN_HRES=0x70140; PPI_PG_CONFIG=0xE401; PPI_PG_ENABLE=1 then 0; virtual_channel=computed VC routing; control_data=0; dma_m0_addr_ar_ch0_data=0x100; dma_m0_addr_ar_ch0_Instruction=0x0; dma_m0_addr_aw_ch0_data=0x0; dma_m0_addr_aw_ch0_Instruction=0x0; enableclkgating_csiphy=0x1","PHY_STOPSTATE = 0x1000F; DMA INTMIS bit[0]=1 for CH0 completion; Pattern Generator generates 16 lines x 320 pixels of RGB888 data.","PASS: PHY enters stop state (0x1000F). Pattern Generator successfully generates test pattern data. DMA CH0 interrupt fires indicating successful data reception. Total 15360 bytes transferred correctly. FAIL: PHY does not reach stop state; Pattern Generator does not produce data; DMA interrupt does not assert; Transfer size mismatch.","Pattern Generator is disabled. DMA channel is idle. CSI-2 data reception is complete.","This test uses the internal PPI Pattern Generator to validate CSI-2 data path without external D-PHY input. VC=3, RGB888 data type (0x24). The macro SOFT_RST_REG_ADDRESS is ignored per instructions. Fractional divider output is enabled for CSI-2 subsystem clocking."
