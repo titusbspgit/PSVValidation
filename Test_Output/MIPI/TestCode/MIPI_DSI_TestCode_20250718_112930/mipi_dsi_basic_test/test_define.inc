@@ -1,0 +1,30 @@
+// Author - AI Force 2.3. 18-Jul-2025 05:59 IST
+// (EMBENGG-SYSAPPS)
+
+/*
+ * Test Case  : mipi_dsi_basic_test
+ * Purpose    : Supporting definitions for MIPI DSI DBI Command Mode DMA Write test.
+ *              Contains headers, macros, arrays, and testcase data.
+ */
+
+#include "test.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "test_common.h"
+#include "mipi_dsi.h"
+
+#include "log.h"
+#include "mmio.h"
+#include "reg_access.h"
+
+/* Timeout for polling loops */
+#ifndef MIPI_DSI_POLL_TIMEOUT
+#define MIPI_DSI_POLL_TIMEOUT 100000U
+#endif
+
+/* Global DMA descriptor arrays */
+desc_t data_tdbdcb[2];
+desc_t data_rebdcb[2];
+desc_t cmd_tdbdcb[2];
+desc_t cmd_rebdcb[2];
