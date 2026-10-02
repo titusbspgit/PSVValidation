@@ -5,11 +5,11 @@
 #include "test_define.inc"
 
 /*
- * Test Case : mipi_dsi_dbi_random_payload_test
+ * Test Case  : mipi_dsi_dbi_random_payload_test
  * Description: MIPI DSI DBI data transfers with randomized pixel payload sizes
  *              across 10 iterations using a 2-channel DMA engine.
- *              CH0 for data transfer, CH1 for command transfer.
- *              Polling-based DMA completion (no interrupt handler).
+ *              CH0 for pixel data, CH1 for commands.
+ *              Polling-based DMA completion via INTMIS register.
  */
 
 /* ---------------------------------------------------------------------------
@@ -245,16 +245,26 @@ int mipi_dsi_dbi_random_payload_test_run(const TestsItem *cfg, TestOutput *out)
             load_wr_command(cmd_tdbdcb[itter].addr, num_bytes, DSI_WRITE_MEMORY_START);
         }
 
-        /* Start CH0 DMA transfer */
+        /* Step 15g: Start CH0 DMA transfer */
         LOGT("Step 15g: Starting CH0 DMA: DBGINST0 = 0x00A00000");
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGINST0, 0x00A00000U);
+
+        /* Step 15h: Write CH0 descriptor address */
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGINST1, (unsigned int)ch0_desc_addr_act);
+
+        /* Step 15i: Execute CH0 DMA instruction */
+        LOGT("Step 15i: Executing CH0 DMA (DBGCMD = 0x0)");
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGCMD, 0x0U);
 
-        /* Start CH1 DMA transfer */
-        LOGT("Step 15h: Starting CH1 DMA: DBGINST0 = 0x01A00000");
+        /* Step 15j: Start CH1 DMA transfer */
+        LOGT("Step 15j: Starting CH1 DMA: DBGINST0 = 0x01A00000");
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGINST0, 0x01A00000U);
+
+        /* Step 15k: Write CH1 descriptor address */
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGINST1, (unsigned int)ch1_desc_addr_act);
+
+        /* Step 15l: Execute CH1 DMA instruction */
+        LOGT("Step 15l: Executing CH1 DMA (DBGCMD = 0x0)");
         writel_reg(MIZAR_MIPI_DSI_DMAC_DBGCMD, 0x0U);
 
         /* Step 15m: Poll INTMIS until both channels complete (rd_data == 0x3) */
@@ -278,8 +288,10 @@ int mipi_dsi_dbi_random_payload_test_run(const TestsItem *cfg, TestOutput *out)
     /* Update output status - test passes unconditionally after all iterations */
     out->status = 0;
 
-    LOGT("Run complete: PASS iterations_completed=%u",
-         g_ctx.iterations_completed);
+    LOGT("Run complete: %s iterations_completed=%u errors=%u",
+         (out->status == 0) ? "PASS" : "FAIL",
+         g_ctx.iterations_completed,
+         g_ctx.errors);
 
     // MANUAL_REVIEW: DV finish(0) was present in the source flow. PSV/FV-native
     // out->status based PASS/FAIL reporting is used instead.
@@ -299,8 +311,8 @@ int mipi_dsi_dbi_random_payload_test_teardown(const TestsItem *cfg)
 {
     (void)cfg;
 
-    LOGT("mipi_dsi_dbi_random_payload_test teardown: iterations_completed=%u",
-         g_ctx.iterations_completed);
+    LOGT("mipi_dsi_dbi_random_payload_test teardown: iterations_completed=%u errors=%u",
+         g_ctx.iterations_completed, g_ctx.errors);
 
     /* Validation: all 10 iterations must have completed */
     if (g_ctx.iterations_completed == 10U) {
@@ -311,5 +323,5 @@ int mipi_dsi_dbi_random_payload_test_teardown(const TestsItem *cfg)
         return -1;
     }
 
-    return 0;
+    return g_ctx.errors == 0U ? 0 : -1;
 }
