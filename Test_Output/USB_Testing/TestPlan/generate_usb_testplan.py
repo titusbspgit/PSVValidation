@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 USB TestPlan Excel Generator
-Generates: USB_TestPlan_20261004_180506.xlsx
+Generates: USB_TestPlan_20261004_181143.xlsx
 Run: python3 generate_usb_testplan.py
 """
 import openpyxl
@@ -9,7 +9,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 import os, sys
 
-FILENAME = "USB_TestPlan_20261004_180506.xlsx"
+FILENAME = "USB_TestPlan_20261004_181143.xlsx"
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, FILENAME)
 
