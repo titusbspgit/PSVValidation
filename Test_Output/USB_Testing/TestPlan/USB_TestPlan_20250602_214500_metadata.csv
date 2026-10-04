@@ -1,0 +1,58 @@
+Index,Test Case Name,Meta Test Description,Meta Test Steps / Procedure,Meta Impacted Registers,Meta Validation / Acceptance Criteria,Meta Headers,Meta Macros,Meta Arrays
+1,usb_host_enumeration_ls,"USB host-mode enumeration of a low-speed device using xHCI host controller. Configures PHY, reads capability parameters, sets up DCBAA, Command Ring, Event Ring, enables interrupts, performs port connect detection, port reset, Enable Slot, Address Device commands, and GET_DESCRIPTOR control transfer.","1. nic_programming() and GIC_EnableAllIRQ()
+2. Configure PHY at MIZAR_USB_BASE+0xc200
+3. Read HCSPARAMS1, SUPTPRT2_DW2, SUPTPRT3_DW2
+4. Configure PORTSC_20 with WCE/WDE/WOE
+5. Read DBOFF, configure CONFIG
+6. Set DCBAAP_LO/HI, CRCR_LO/HI
+7. Configure ERSTSZ, ERDP, ERSTBA, IMOD, IMAN
+8. Write Enable Slot Command TRB
+9. Enable system interrupt, start host controller
+10. Wait for port connect interrupt
+11. Port reset sequence
+12. Populate Input Context, Address Device Command
+13. Ring doorbell, wait for completion
+14. Call enumeration() for GET_DESCRIPTOR","GUSB2PHYCFG, HCSPARAMS1, SUPTPRT2_DW2, SUPTPRT3_DW2, PORTSC_20, DBOFF, CONFIG, DCBAAP_LO, DCBAAP_HI, CRCR_LO, CRCR_HI, ERSTSZ, ERDP_LO, ERDP_HI, ERSTBA_LO, ERSTBA_HI, IMOD, IMAN, USBCMD, USBSTS, DB","1. Port connect interrupt received
+2. Port reset completion interrupt received
+3. Enable Slot command completes
+4. Address Device command completes
+5. GET_DESCRIPTOR transfer completes
+6. All int_pend wait loops exit
+7. System interrupts properly cleared","#include <stdio.h>
+#include <stdlib.h>
+#include ""usb.h""","MIZAR_USB_BASE, MIZAR_USB_HCSPARAMS1, MIZAR_USB_SUPTPRT2_DW2, MIZAR_USB_SUPTPRT3_DW2, MIZAR_USB_PORTSC_20, USB_PORTSC_20_WCE, USB_PORTSC_20_WDE, USB_PORTSC_20_WOE, MIZAR_USB_DBOFF, MIZAR_USB_CONFIG, MIZAR_USB_DCBAAP_LO, MIZAR_USB_DCBAAP_HI, MIZAR_USB_CRCR_LO, MIZAR_USB_CRCR_HI, MIZAR_USB_ERSTSZ, MIZAR_USB_ERDP_LO, MIZAR_USB_ERDP_HI, MIZAR_USB_ERSTBA_LO, MIZAR_USB_ERSTBA_HI, MIZAR_USB_IMOD, MIZAR_USB_IMAN, MIZAR_USB_USBCMD, MIZAR_LSS_SYSREG_INTR_EN0, MIZAR_USB_USBSTS, MIZAR_USB_DB, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0","int data_in[512]; int data_out[512]; Device_Context_Base_Address_Array; Event_Ring_Segment_Table; Default_Input_Context; Enable Slot Command TRB; Address Device Command TRB; GET_DESCRIPTOR TRBs"
+2,USB_FS_Device_Bulk_Transfer_test,"USB device-mode bulk transfer at full-speed using DWC3 controller. Initializes event buffer, reads GCTL/DCFG/DSTS, polls for microframe alignment, configures endpoints via DEPCMD commands, performs bulk data transfers with TRB-based DMA.","1. nic_programming() and GIC_EnableAllIRQ()
+2. Initialize event buffer (GEVNTADRLO/HI/SIZ/COUNT)
+3. Read GCTL, DCFG, DSTS
+4. Poll DSTS for microframe alignment
+5. Configure DCFG, DCTL, DALEPENA
+6. setup_stage() and GUSB2PHYCFG config
+7. EP0 DEPCMD Start New Configuration (0x401)
+8. EP1 DEPCMD+0x10 Start Transfer (0x506)
+9. Wait for interrupts, perform bulk transfers
+10. Debug marker at 0xA0243ffc","GEVNTADRLO, GEVNTADRHI, GEVNTSIZ, GEVNTCOUNT, GCTL, DCFG, DSTS, DCTL, DALEPENA, GUSB2PHYCFG, DEPCMDPAR1, DEPCMDPAR0, DEPCMD","1. Event buffer initialized
+2. DSTS poll exits on microframe alignment
+3. EP0 DEPCMD 0x401 completes
+4. EP1 DEPCMD+0x10 0x506 completes
+5. Bulk transfers complete with interrupts
+6. All int_pend loops exit","#include <stdio.h>
+#include <stdlib.h>
+#include ""usb.h""","MIZAR_USB_GEVNTADRLO, MIZAR_USB_GEVNTADRHI, MIZAR_USB_GEVNTSIZ, MIZAR_USB_GEVNTCOUNT, MIZAR_USB_GCTL, MIZAR_USB_DCFG, MIZAR_USB_DSTS, MIZAR_USB_DCTL, MIZAR_USB_DALEPENA, MIZAR_USB_GUSB2PHYCFG, MIZAR_USB_DEPCMDPAR1, MIZAR_USB_DEPCMDPAR0, MIZAR_USB_DEPCMD, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0, 0xA0243ffc","int buf_data[16]; Default_Event_Ring_Array; Buffer_PointerLO; Buffer_PointerLO_1; EP0_TR_Dequeue_Pointer; event_trb_addr"
+3,USB_FS_Device_Isochronous_Transfer_test,"USB device-mode isochronous transfer at full-speed using DWC3 controller. Similar initialization to bulk test but additionally configures EP6 (isochronous) via DEPCMD+0x60. Performs isochronous OUT and IN transfers with 1023-byte payloads. Multiple debug markers at various stages.","1. nic_programming() and GIC_EnableAllIRQ()
+2. Initialize event buffer (GEVNTADRLO/HI/SIZ/COUNT)
+3. Read GCTL, DCFG, DSTS
+4. Poll DSTS for microframe alignment
+5. Configure DCFG, DCTL, DALEPENA
+6. setup_stage() and GUSB2PHYCFG config
+7. EP0 DEPCMD Start New Configuration (0x401)
+8. EP1 DEPCMD+0x10 Start Transfer (0x506)
+9. EP6 DEPCMD+0x60 Start Transfer
+10. Isochronous OUT/IN transfers with 0x3ff payloads
+11. Debug markers at 0xA0243ffc","GEVNTADRLO, GEVNTADRHI, GEVNTSIZ, GEVNTCOUNT, GCTL, DCFG, DSTS, DCTL, DALEPENA, GUSB2PHYCFG, DEPCMDPAR1, DEPCMDPAR0, DEPCMD","1. Event buffer initialized
+2. DSTS poll exits on microframe alignment
+3. EP0, EP1, EP6 DEPCMD commands complete
+4. Isochronous OUT transfers complete with 1023-byte payloads
+5. Isochronous IN transfers complete
+6. All int_pend loops exit","#include <stdio.h>
+#include <stdlib.h>
+#include ""usb.h""","MIZAR_USB_GEVNTADRLO, MIZAR_USB_GEVNTADRHI, MIZAR_USB_GEVNTSIZ, MIZAR_USB_GEVNTCOUNT, MIZAR_USB_GCTL, MIZAR_USB_DCFG, MIZAR_USB_DSTS, MIZAR_USB_DCTL, MIZAR_USB_DALEPENA, MIZAR_USB_GUSB2PHYCFG, MIZAR_USB_DEPCMDPAR1, MIZAR_USB_DEPCMDPAR0, MIZAR_USB_DEPCMD, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0, 0xA0243ffc","int buf_data[16]; Default_Event_Ring_Array; Buffer_PointerLO; Buffer_PointerLO_1; EP0_TR_Dequeue_Pointer; event_trb_addr"
