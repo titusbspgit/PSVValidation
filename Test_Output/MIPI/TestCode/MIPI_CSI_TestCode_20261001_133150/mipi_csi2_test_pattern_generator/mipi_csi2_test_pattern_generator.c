@@ -11,7 +11,6 @@
  *              frame parameters (HRES=320, VRES=16, 24bpp).
  */
 
-/* Test context structure */
 typedef struct {
     uint32_t gdma_reg_base;
     uint32_t vcid_csi2_wrap_reg;
@@ -27,38 +26,47 @@ static void csi2_enable_interrupt(void)
 {
     uint32_t rd_data;
 
-    /* Read INT_ST_MAIN to clear pending interrupts */
+    /* Step 36: Read INT_ST_MAIN to clear pending interrupts */
     rd_data = read_reg(MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN);
     LOGT("CSI2 INT_ST_MAIN read to clear pending: 0x%x", rd_data);
 
-    /* Write interrupt mask registers */
+    /* Step 37: Write 0x0000000f to INT_MSK_PHY_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL, 0x0000000fU);
     LOGT("Wrote 0x0000000f to INT_MSK_PHY_FATAL");
 
+    /* Step 38: Write 0x00000003 to INT_MSK_PKT_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL, 0x00000003U);
     LOGT("Wrote 0x00000003 to INT_MSK_PKT_FATAL");
 
+    /* Step 39: Write 0x000f000f to INT_MSK_PHY */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY, 0x000f000fU);
     LOGT("Wrote 0x000f000f to INT_MSK_PHY");
 
+    /* Step 40: Write 0x000f000f to INT_MSK_LINE */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE, 0x000f000fU);
     LOGT("Wrote 0x000f000f to INT_MSK_LINE");
 
+    /* Step 41: Write 0x0000ffff to INT_MSK_BNDRY_FRAME_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_BNDRY_FRAME_FATAL");
 
+    /* Step 42: Write 0x0000ffff to INT_MSK_SEQ_FRAME_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_SEQ_FRAME_FATAL");
 
+    /* Step 43: Write 0x0000ffff to INT_MSK_CRC_FRAME_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_CRC_FRAME_FATAL");
 
+    /* Step 44: Write 0x0000ffff to INT_MSK_PLD_CRC_FATAL */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_PLD_CRC_FATAL");
 
+    /* Step 45: Write 0x0000ffff to INT_MSK_DATA_ID */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_DATA_ID");
 
+    /* Step 46: Write 0x0000ffff to INT_MSK_ECC_CORRECTED */
     write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED, 0x0000ffffU);
     LOGT("Wrote 0x0000ffff to INT_MSK_ECC_CORRECTED");
 }
@@ -102,8 +110,7 @@ int mipi_csi2_test_pattern_generator_init(const TestsItem *cfg)
 
     LOGT("mipi_csi2_test_pattern_generator init: starting PPI PG test initialization");
 
-    /* Step 2: Set int_pend = 1 */
-    /* int_pend is used internally, no register write needed */
+    /* Step 2: Set int_pend = 1 (internal variable, no register write) */
 
     /* Step 3: Set vcid = 3 */
     vcid = 3U;
@@ -158,12 +165,13 @@ int mipi_csi2_test_pattern_generator_init(const TestsItem *cfg)
     write_reg(MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA, 0U);
     LOGT("Wrote 0 to CONTROL_DATA (disabled)");
 
-    /* Step 9: Enable CSI-2 subsystem interrupts */
-    // MANUAL_REVIEW: Source calls csi2_subsys_enable_interrupt() but only csi2_enable_interrupt() is defined. Using csi2_enable_interrupt() as available.
+    /* Step 9: Enable CSI-2 interrupts */
+    // MANUAL_REVIEW: Source calls csi2_subsys_enable_interrupt() but only csi2_enable_interrupt() is defined in the source. Using csi2_enable_interrupt() as available.
     csi2_enable_interrupt();
     LOGT("CSI-2 host interrupts enabled");
 
     /* Step 10: Initialize the D-PHY */
+    // MANUAL_REVIEW: snps_phy_init() implementation not in supplied source.
     snps_phy_init();
     LOGT("D-PHY initialized via snps_phy_init()");
 
@@ -269,10 +277,12 @@ int mipi_csi2_test_pattern_generator_run(const TestsItem *cfg, TestOutput *out)
     LOGT("dma_dest_addr_incr_flag=%u", dma_dest_addr_incr_flag);
 
     /* Step 22: Preload DMA transfer instructions with address increment */
+    // MANUAL_REVIEW: dma_trnsfr_instn_preload_incr_addr() exact 6-argument signature preserved; implementation not in supplied source.
     dma_trnsfr_instn_preload_incr_addr(g_ctx.dma_ch0_pc, 0x0000U, GDMA_CSI2_DATA_DEST_ADDR2, csi2_data_trnsfr_size, 0U, dma_dest_addr_incr_flag);
     LOGT("DMA transfer instructions preloaded for ch0");
 
     /* Step 23: Start DMA channel 0 */
+    // MANUAL_REVIEW: DMAGO_CSI() exact 3-argument signature preserved; implementation not in supplied source.
     DMAGO_CSI(g_ctx.gdma_reg_base, 0U, g_ctx.dma_ch0_pc);
     LOGT("DMA channel 0 started");
 
