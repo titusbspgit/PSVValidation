@@ -1,137 +1,167 @@
 #!/usr/bin/env python3
-"""MIPI_CSI TestPlan Excel Generator - Self-contained script.
-Generates MIPI_CSI_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx using openpyxl.
-Usage: python3 excel_generator.py
-"""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
 from datetime import datetime, timezone, timedelta
-import os, sys, json, base64, subprocess
+import os
+import json
+import sys
+
+json_data = [
+  {
+    "Index": "1",
+    "SS / Module": "MIPI_CSI",
+    "Test Case Name": "mipi_csi2_dphy_lanes_test",
+    "Feature": "DPHY Lane Configuration",
+    "Meta Headers": "<stdio.h>; <stdlib.h>; \"test_common.h\"; \"mipi_csi2.h\"",
+    "Meta Macros": "GDMA_CSI2_DATA_DEST_ADDR2 = 0xE6040080; GDMA_CTRL_DATA_DEST_ADDR2 = 0xE6040000; LS_LE_EN = 1; TOTAL_FRAME = 1; VC_ID = 3; VRES; HRES; DATA_TYPE = CSI2_RGB888",
+    "Meta Arrays": "NA",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Meta Test Description": "This testcase validates MIPI CSI-2 DPHY lane configuration by iterating through lane counts from 4 lanes down to 1 lane. For each lane configuration, the test first calls csi2_enable_interrupt() which reads MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear interrupts, then writes interrupt mask registers (MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL with 0x0000000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL with 0x00000003, MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY with 0x000f000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE with 0x000f000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED with 0x0000ffff). It then writes MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with vcid_csi2_wrap_reg (derived from VC_ID shifted based on GDMA path), writes MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA with 1 to enable control data transfer, calls snps_phy_init() for D-PHY initialization, and polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until it equals 0x1000f. A for loop iterates lane_num from 3 down to 0, writing MIZAR_MIPI_CSI2_HOST_N_LANES with lane_num and writing 0xa0243ffc with (lane_num+1) to trigger the CSI-2 sequence. Inside a nested loop iterating over control packet count ((VRES*3)+2), DMA interrupt enable is written via gdma_reg_base+MIPI_CSI2_DMA_INTEN_OFFSET with 0x3, then dma_trnsfr_instn_preload() is called for channel 0 control data transfer, DMAGO_CSI() is called to start DMA channel 0, and the DMA interrupt masked status register (gdma_reg_base+MIPI_CSI2_DMA_INTMIS_OFFSET) is polled until bit 0 is set. After clearing the DMA interrupt via gdma_reg_base+MIPI_CSI2_DMA_INTCLR_OFFSET with 0x1, control data is read from 0xE6001000. If the data type field (bits [5:0]) is greater than 0xf, word_count is extracted from bits [21:6], csi_data_size is computed (aligned to 8 bytes), dma_trnsfr_instn_preload() is called for channel 1 data transfer, DMAGO_CSI() starts DMA channel 1, and the DMA interrupt masked status register is polled until bit 1 is set, then cleared with 0x2. The test completes by calling finish(0).",
+    "Test Description": "This test validates MIPI CSI-2 DPHY lane configuration by iterating through all supported lane counts (4 lanes down to 1 lane). For each lane configuration, the test enables CSI-2 interrupts by clearing the main interrupt status and enabling all interrupt mask registers (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected). It then configures the virtual channel, enables control data transfer, initializes the D-PHY, and polls the PHY stop state register until the PHY reaches the expected stop state. For each lane count, the N_LANES register is written with the lane number, a trigger write initiates the CSI-2 sequence, and a nested loop processes control and data packets using DMA transfers. Each DMA transfer involves preloading transfer instructions, starting the DMA channel, polling the DMA interrupt status for completion, clearing the interrupt, and reading control data to determine if a data payload transfer is needed. The test verifies correct operation across all lane configurations.",
+    "Meta Test Steps / Procedure": "1. Call csi2_enable_interrupt() function.\n2. Inside csi2_enable_interrupt(): Read MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear pending interrupts.\n3. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL with value 0x0000000f to enable PHY fatal interrupts.\n4. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL with value 0x00000003 to enable packet fatal interrupts.\n5. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY with value 0x000f000f to enable PHY interrupts.\n6. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE with value 0x000f000f to enable line interrupts.\n7. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL with value 0x0000ffff to enable boundary frame fatal interrupts.\n8. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL with value 0x0000ffff to enable sequence frame fatal interrupts.\n9. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL with value 0x0000ffff to enable CRC frame fatal interrupts.\n10. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL with value 0x0000ffff to enable payload CRC fatal interrupts.\n11. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID with value 0x0000ffff to enable data ID interrupts.\n12. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED with value 0x0000ffff to enable ECC corrected interrupts.\n13. Return from csi2_enable_interrupt().\n14. Determine vcid_csi2_wrap_reg based on GDMA path: GDMA3_PATH sets vcid_csi2_wrap_reg = VC_ID, GDMA2_PATH sets vcid_csi2_wrap_reg = (VC_ID << 4), GDMA1_PATH sets vcid_csi2_wrap_reg = (VC_ID << 8), GDMA0_PATH sets vcid_csi2_wrap_reg = (VC_ID << 12).\n15. Set gdma_reg_base = 0xE6A00000.\n16. Write MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with vcid_csi2_wrap_reg.\n17. Write MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA with value 1 to enable control data transfer.\n18. Write MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with vcid_csi2_wrap_reg again (second write).\n19. Write MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA with value 1 again (second write).\n20. Call snps_phy_init() for D-PHY initialization sequence.\n21. Read MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE into rd_data.\n22. Poll MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop until rd_data equals 0x1000f.\n23. Set ch0_pc = 0xE6000000 and ch1_pc = 0xE6000500.\n24. Begin outer for loop: lane_num iterates from 3 down to 0 (inclusive).\n25. Write MIZAR_MIPI_CSI2_HOST_N_LANES with lane_num to configure the number of active lanes.\n26. Compute cntrl_pkt_cnt = ((VRES * 3) + 2).\n27. Write 0xa0243ffc with value (lane_num + 1) to trigger the CSI-2 sequence.\n28. Begin inner for loop: i iterates from 0 to cntrl_pkt_cnt - 1.\n29. Set ch0_preload_loc = ch0_pc and ch1_preload_loc = ch1_pc.\n30. Write gdma_reg_base + MIPI_CSI2_DMA_INTEN_OFFSET with value 0x3 to enable DMA IRQ[1] and DMA IRQ[0].\n31. Call dma_trnsfr_instn_preload(ch0_preload_loc, gdma_reg_base, 0x8000, 0xE6001000, 8, 0) for channel 0 control data transfer preload.\n32. Call DMAGO_CSI(gdma_reg_base, ch0_pc, 0x0) to start DMA channel 0.\n33. Set rd_data = 0.\n34. Poll gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET in a while loop: read rd_data, check (rd_data & 0x1) == 0x0, continue polling until bit 0 is set.\n35. Write gdma_reg_base + MIPI_CSI2_DMA_INTCLR_OFFSET with value 0x1 to clear DMA IRQ for channel 0.\n36. Read gdma_reg_base + 0x28 into rd_data (read DMA status).\n37. Read 0xE6001000 into csi_ctrl_data to retrieve the CSI control data.\n38. Check condition: if (csi_ctrl_data & 0x3f) > 0xf (data type field indicates long packet / image data).\n39. If condition is true: extract word_count = ((csi_ctrl_data >> 6) & 0xffff).\n40. Compute csi_data_size: if (word_count % 8) != 0 then csi_data_size = (word_count / 8 + 1) * 8, else csi_data_size = word_count (8-byte alignment).\n41. Call dma_trnsfr_instn_preload(ch1_preload_loc, gdma_reg_base, 0x0000, 0xE6002000, csi_data_size, 1) for channel 1 data transfer preload.\n42. Call DMAGO_CSI(gdma_reg_base, ch1_pc, 0x1) to start DMA channel 1.\n43. Set rd_data = 0.\n44. Poll gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET in a while loop: read rd_data, check (rd_data & 0x2) == 0x0, continue polling until bit 1 is set.\n45. Read gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET into rd_data (final status read after loop).\n46. Write gdma_reg_base + MIPI_CSI2_DMA_INTCLR_OFFSET with value 0x2 to clear DMA IRQ for channel 1.\n47. End of if condition block.\n48. End of inner for loop (next packet iteration).\n49. End of outer for loop (next lane_num iteration).\n50. Call finish(0) to complete the test.",
+    "Test Steps / Procedure": "1. Enable CSI-2 interrupts by clearing the main interrupt status register and enabling all interrupt mask registers (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, ECC corrected).\n2. Configure the virtual channel register with the appropriate virtual channel ID based on the selected GDMA path.\n3. Enable control data transfer by writing to the control data register.\n4. Initialize the D-PHY by calling the PHY initialization sequence.\n5. Poll the PHY stop state register until the PHY reaches the expected stop state.\n6. For each lane configuration (4 lanes down to 1 lane), write the lane count to the N_LANES register.\n7. Trigger the CSI-2 sequence by writing the lane count to the trigger register.\n8. For each control packet in the frame, enable DMA interrupts for both channels.\n9. Preload DMA transfer instructions for channel 0 (control data) and start the DMA channel 0 transfer.\n10. Poll the DMA interrupt status register until channel 0 transfer completes (bit 0 set), then clear the DMA interrupt.\n11. Read the CSI control data from the destination address to determine the packet type.\n12. If the packet contains image data (data type greater than short packet threshold), extract the word count, compute the aligned data size, preload DMA transfer instructions for channel 1 (image data), and start DMA channel 1 transfer.\n13. Poll the DMA interrupt status register until channel 1 transfer completes (bit 1 set), then clear the DMA interrupt.\n14. Repeat steps 8-13 for all packets in the frame.\n15. Repeat steps 6-14 for all lane configurations.\n16. Complete the test by calling the finish routine.",
+    "Meta Impacted Registers": "MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_HOST_N_LANES; 0xa0243ffc; 0xE6001000; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED",
+    "Impacted Registers": "virtual_channel; control_data; PHY_STOPSTATE; N_LANES; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED",
+    "Meta Validation / Acceptance Criteria": "The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop until rd_data equals exactly 0x1000f, confirming the PHY has entered the stop state on all configured lanes. DMA channel 0 completion is validated by polling gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET until (rd_data & 0x1) != 0x0, confirming bit 0 is set. DMA channel 1 completion is validated by polling gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET until (rd_data & 0x2) != 0x0, confirming bit 1 is set. The CSI control data read from 0xE6001000 is checked with (csi_ctrl_data & 0x3f) > 0xf to determine if the packet is a long packet requiring data transfer. word_count is extracted as ((csi_ctrl_data >> 6) & 0xffff). The test calls finish(0) upon successful completion of all lane configurations, indicating a pass condition.",
+    "Validation / Acceptance Criteria": "1. The PHY stop state register must reach the expected stop state value confirming all lanes have entered stop state after PHY initialization.\n2. DMA channel 0 transfer must complete successfully, indicated by the DMA interrupt status register showing channel 0 completion.\n3. DMA channel 1 transfer must complete successfully for image data packets, indicated by the DMA interrupt status register showing channel 1 completion.\n4. Control data must be correctly read from the destination address after each DMA channel 0 transfer to determine packet type.\n5. The test must successfully iterate through all lane configurations (4 lanes down to 1 lane) and process all control and data packets for each configuration.\n6. The test completes by calling the finish routine with a pass indication.",
+    "Remarks": "The test iterates lane_num from 3 down to 0, testing 4-lane, 3-lane, 2-lane, and 1-lane configurations. VRES and HRES default values depend on GDMA0_FULL_MEM conditional compilation (1080x1920 or 3x64). The default data type is CSI2_RGB888. The virtual channel ID (VC_ID=3) is shifted to different bit positions depending on the GDMA path selected (GDMA0_PATH, GDMA1_PATH, GDMA2_PATH, GDMA3_PATH). Two hex addresses (0xa0243ffc and 0xE6001000) could not be mapped to named registers in the specification documents. DMA-related offset macros (MIPI_CSI2_DMA_INTEN_OFFSET, MIPI_CSI2_DMA_INTMIS_OFFSET, MIPI_CSI2_DMA_INTCLR_OFFSET) are used with gdma_reg_base in compound expressions. The functions snps_phy_init(), dma_trnsfr_instn_preload(), and DMAGO_CSI() are called but their implementations are not available in the testcase folder."
+  },
+  {
+    "Index": "2",
+    "SS / Module": "MIPI_CSI",
+    "Test Case Name": "mipi_csi2_test_pattern_generator",
+    "Feature": "Test Pattern Generator",
+    "Meta Headers": "<stdio.h>; <stdlib.h>; \"test_common.h\"; \"mipi_csi2.h\"",
+    "Meta Macros": "GDMA_CSI2_DATA_DEST_ADDR2 = 0xE6040080; GDMA_CTRL_DATA_DEST_ADDR2 = 0xE6040000",
+    "Meta Arrays": "NA",
+    "Speed": "NA",
+    "Mode": "NA",
+    "Memory Start Offset": "NA",
+    "Memory End Offset": "NA",
+    "Meta Test Description": "This testcase validates the MIPI CSI-2 internal test pattern generator (PPI PG) functionality. The test configures the CSI-2 subsystem to receive data generated by the host controller's built-in pattern generator rather than from an external D-PHY source. It begins by setting vcid=3 and computing vcid_csi2_wrap_reg based on the selected GDMA path (GDMA0_PATH, GDMA1_PATH, GDMA2_PATH, or GDMA3_PATH), then writes MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with vcid_csi2_wrap_reg and writes MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA with 0 to disable control data transfer. It calls csi2_subsys_enable_interrupt() and csi2_enable_interrupt() which reads MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear interrupts, then writes interrupt mask registers (MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL with 0x0000000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL with 0x00000003, MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY with 0x000f000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE with 0x000f000f, MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID with 0x0000ffff, MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED with 0x0000ffff). It calls snps_phy_init() for D-PHY initialization and polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until it equals 0x1000f. The test then computes csi2_data_trnsfr_size based on hres=320, vres=16, valid_bits_per_pixel=24 with 8-byte alignment. DMA address registers are configured: MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA with 0x100, MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION with 0x0, MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA with 0x0, MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION with 0x0. A write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 with 0x1 enables sending fracdiv output to the CSI-2 subsystem. DMA transfer instructions are preloaded via dma_trnsfr_instn_preload_incr_addr() and DMA channel 0 is started via DMAGO_CSI(). The pattern generator is then enabled by calling csi2_ctrlr_pg_enable() which writes MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES with 0x10, MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES with 0x70140, MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG with 0xe401, and MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE with 1. After wait_on(100), the pattern generator is disabled by writing MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE with 0. The DMA interrupt masked status register (gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET) is polled until bit 0 is set, confirming DMA transfer completion. The test completes with wait_on(10000) and finish(0).",
+    "Test Description": "This test validates the MIPI CSI-2 internal test pattern generator functionality. The test configures the CSI-2 subsystem to receive internally generated test pattern data instead of external D-PHY input. It configures the virtual channel register, disables control data transfer, enables all CSI-2 interrupt masks (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected), initializes the D-PHY, and polls the PHY stop state register until the PHY reaches the expected stop state. DMA address registers for channel 0 read and write paths are configured for data and instruction addresses. DMA transfer instructions are preloaded for a computed transfer size based on a 320x16 resolution at 24 bits per pixel with 8-byte alignment, and DMA channel 0 is started. The pattern generator is then enabled with specific vertical resolution, horizontal resolution, and configuration parameters. After a brief wait, the pattern generator is disabled, and the DMA interrupt status is polled until the transfer completes. The test verifies that internally generated test pattern data is correctly received and transferred via DMA.",
+    "Meta Test Steps / Procedure": "1. Set int_pend = 1.\n2. Set vcid = 3.\n3. Compute vcid_unselected_path = ((vcid + 1) & 0xf), resulting in 4.\n4. Determine vcid_csi2_wrap_reg based on GDMA path: GDMA3_PATH sets vcid_csi2_wrap_reg = ((vcid_unselected_path<<12)+(vcid_unselected_path<<8)+(vcid_unselected_path<<4)+vcid), GDMA2_PATH sets vcid_csi2_wrap_reg = ((vcid_unselected_path<<12)+(vcid_unselected_path<<8)+(vcid<<4)+(vcid_unselected_path)), GDMA1_PATH sets vcid_csi2_wrap_reg = ((vcid_unselected_path<<12)+(vcid<<8)+(vcid_unselected_path<<4)+(vcid_unselected_path)), GDMA0_PATH (default) sets vcid_csi2_wrap_reg = ((vcid<<12)+(vcid_unselected_path<<8)+(vcid_unselected_path<<4)+(vcid_unselected_path)).\n5. Set gdma_path based on selected path (3, 2, 1, or 0).\n6. Compute gdma_reg_base = 0xE6A00000 + ((gdma_path) * 0x1000).\n7. Write MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with vcid_csi2_wrap_reg.\n8. Write MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA with value 0 to disable control data transfer.\n9. Call csi2_subsys_enable_interrupt() to enable CSI-2 and DMA interrupts.\n10. Inside csi2_enable_interrupt(): Read MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear pending interrupts.\n11. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL with value 0x0000000f.\n12. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL with value 0x00000003.\n13. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY with value 0x000f000f.\n14. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE with value 0x000f000f.\n15. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL with value 0x0000ffff.\n16. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL with value 0x0000ffff.\n17. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL with value 0x0000ffff.\n18. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL with value 0x0000ffff.\n19. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID with value 0x0000ffff.\n20. Write MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED with value 0x0000ffff.\n21. Return from csi2_enable_interrupt().\n22. Call snps_phy_init() for D-PHY initialization sequence.\n23. Read MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE into rd_data.\n24. Poll MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop until rd_data equals 0x1000f.\n25. Set hres = 320, vres = 16, valid_bits_per_pixel = 24.\n26. Compute csi2_data_trnsfr_size = (((((valid_bits_per_pixel * hres)/8) % 8) ? (((valid_bits_per_pixel * hres)/8) + 8 - (((valid_bits_per_pixel * hres)/8) % 8)) : ((valid_bits_per_pixel * hres)/8)) * vres) for 8-byte aligned total transfer size.\n27. Write MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA with value 0x100.\n28. Write MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION with value 0x0.\n29. Write MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA with value 0x0.\n30. Write MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION with value 0x0.\n31. Write MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 with value 0x1 to enable sending fracdiv output to CSI-2 subsystem.\n32. Set dma_ch0_pc = 0xE6000000.\n33. Set dma_ch0_instn_preload_addr = dma_ch0_pc.\n34. Set dma_dest_addr_incr_flag = 0 if FPS60 is defined, else dma_dest_addr_incr_flag = 1.\n35. Call dma_trnsfr_instn_preload_incr_addr(dma_ch0_pc, gdma_reg_base, 0x00, 0xE6001000, csi2_data_trnsfr_size, 0, dma_dest_addr_incr_flag, 0) to preload DMA transfer instructions for channel 0.\n36. Call DMAGO_CSI(gdma_reg_base, dma_ch0_pc, 0) to start DMA channel 0.\n37. Call csi2_ctrlr_pg_enable() to enable the pattern generator.\n38. Inside csi2_ctrlr_pg_enable(): Write MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES with value 0x10.\n39. Write MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES with value 0x70140.\n40. Write MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG with value 0xe401.\n41. Write MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE with value 1.\n42. Return from csi2_ctrlr_pg_enable().\n43. Call wait_on(100).\n44. Write MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE with value 0 to disable the pattern generator.\n45. Read gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET into rd_data.\n46. Poll gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET in a while loop: check (rd_data & 0x1) == 0, continue polling until bit 0 is set.\n47. Call wait_on(10000).\n48. Call finish(0) to complete the test.",
+    "Test Steps / Procedure": "1. Configure the virtual channel register with the appropriate virtual channel ID based on the selected GDMA path.\n2. Disable control data transfer by writing to the control data register.\n3. Enable CSI-2 interrupts by clearing the main interrupt status register and enabling all interrupt mask registers (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected).\n4. Initialize the D-PHY by calling the PHY initialization sequence.\n5. Poll the PHY stop state register until the PHY reaches the expected stop state.\n6. Configure DMA address registers for channel 0 read and write paths (data and instruction addresses).\n7. Enable the fracdiv output to the CSI-2 subsystem.\n8. Compute the total DMA transfer size based on 320x16 resolution at 24 bits per pixel with 8-byte alignment.\n9. Preload DMA transfer instructions for channel 0 with the computed transfer size and start DMA channel 0.\n10. Enable the internal test pattern generator by configuring vertical resolution, horizontal resolution, pattern configuration, and enabling the pattern generator output.\n11. Wait briefly, then disable the pattern generator.\n12. Poll the DMA interrupt status register until channel 0 transfer completes (bit 0 set).\n13. Wait for a settling period and complete the test by calling the finish routine.",
+    "Meta Impacted Registers": "MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG; MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE; MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED",
+    "Impacted Registers": "PPI_PG_PATTERN_VRES; PPI_PG_PATTERN_HRES; PPI_PG_CONFIG; PPI_PG_ENABLE; virtual_channel; control_data; PHY_STOPSTATE; dma_m0_addr_ar_ch0_data; dma_m0_addr_ar_ch0_Instruction; dma_m0_addr_aw_ch0_data; dma_m0_addr_aw_ch0_Instruction; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED",
+    "Meta Validation / Acceptance Criteria": "The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop until rd_data equals exactly 0x1000f, confirming the PHY has entered the stop state on all configured lanes. DMA channel 0 completion is validated by polling gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET until (rd_data & 0x1) != 0x0, confirming bit 0 is set indicating DMA transfer completion. The pattern generator is enabled with MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE set to 1 and then disabled by writing 0, creating a bounded test pattern generation window. The test calls finish(0) upon successful completion, indicating a pass condition.",
+    "Validation / Acceptance Criteria": "1. The PHY stop state register must reach the expected stop state value confirming all lanes have entered stop state after PHY initialization.\n2. The internal test pattern generator must be successfully enabled and then disabled after a wait period.\n3. DMA channel 0 transfer must complete successfully, indicated by the DMA interrupt status register showing channel 0 completion (bit 0 set).\n4. The test completes by calling the finish routine with a pass indication.",
+    "Remarks": "This test uses the CSI-2 host controller's internal PPI pattern generator instead of an external D-PHY source. The pattern generator is configured with vres=0x10 (16 lines), hres=0x70140 (encoding both horizontal parameters), and config=0xe401. The DMA transfer size is computed for 320x16 resolution at 24 bits per pixel with 8-byte alignment. The virtual channel ID (vcid=3) is shifted to different bit positions depending on the GDMA path selected (GDMA0_PATH through GDMA3_PATH). A write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 enables the fracdiv output but could not be mapped to a named register. The dma_dest_addr_incr_flag depends on FPS60 conditional compilation. The functions snps_phy_init(), dma_trnsfr_instn_preload_incr_addr(), DMAGO_CSI(), csi2_subsys_enable_interrupt(), and wait_on() are called but their implementations are not available in the testcase folder."
+  }
+]
+
+# TestPlan columns
+testplan_columns = [
+    "Index", "SS / Module", "Feature", "Test Case Name", "Test Description",
+    "Speed", "Mode", "Memory Start Offset", "Memory End Offset", "Remarks",
+    "Test Steps / Procedure", "Impacted Registers", "Validation / Acceptance Criteria",
+    "Code Generation"
+]
+
+# MetaData columns
+metadata_columns = [
+    "Index", "Test Case Name", "Meta Test Description", "Meta Test Steps / Procedure",
+    "Meta Impacted Registers", "Meta Validation / Acceptance Criteria",
+    "Meta Headers", "Meta Macros", "Meta Arrays"
+]
 
 def generate_workbook():
     IST = timezone(timedelta(hours=5, minutes=30))
     now_ist = datetime.now(IST)
-    timestamp = now_ist.strftime('%Y%m%d_%H%M%S')
-    filename = f'MIPI_CSI_TestPlan_{timestamp}.xlsx'
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    filepath = os.path.join(script_dir, filename)
+    timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
+    filename = f"MIPI_CSI_TestPlan_{timestamp}.xlsx"
+    output_dir = os.environ.get("OUTPUT_DIR", ".")
+    filepath = os.path.join(output_dir, filename)
 
     wb = openpyxl.Workbook()
-    blue_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-    white_bold = Font(color='FFFFFF', bold=True, size=11)
-    wrap = Alignment(wrap_text=True, vertical='top')
 
-    # ===== TestPlan Sheet =====
-    ws = wb.active
-    ws.title = 'TestPlan'
-    tp_cols = ['Index','SS / Module','Feature','Test Case Name','Test Description','Speed','Mode','Memory Start Offset','Memory End Offset','Remarks','Test Steps / Procedure','Impacted Registers','Validation / Acceptance Criteria','Code Generation']
-    for i, c in enumerate(tp_cols, 1):
-        cell = ws.cell(1, i, c)
-        cell.fill = blue_fill
-        cell.font = white_bold
-        cell.alignment = wrap
+    # TestPlan sheet
+    ws_tp = wb.active
+    ws_tp.title = "TestPlan"
 
-    # Row 1
-    r1 = [
-        '1', 'MIPI_CSI', 'DPHY Lane Configuration and CSI2 Data Transfer', 'mipi_csi2_dphy_lanes_test',
-        'This test validates MIPI CSI-2 DPHY lane configuration by testing data reception across all supported lane counts (4 lanes down to 1 lane). The test enables CSI-2 interrupts by clearing pending interrupts via the main interrupt status register and configuring all interrupt mask registers for PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected events. It configures the virtual channel and enables control data transfer. After D-PHY initialization, it polls the PHY stop state register until all lanes and the clock lane confirm stop state entry. For each lane count (4 to 1), the N_LANES register is configured and a signal is sent to start the CSI-2 sequence. For each expected packet, DMA channel 0 transfers control data, the test waits for DMA completion via interrupt polling, reads the control packet, and if the data type indicates a long packet, programs DMA channel 1 to transfer the image data and waits for its completion. The test verifies successful data reception across all lane configurations.',
-        'NA', 'NA', 'NA', 'NA',
-        'The test iterates lane_num from 3 to 0, writing each value to N_LANES, effectively testing 4-lane, 3-lane, 2-lane, and 1-lane DPHY configurations. The virtual channel and control data registers are written twice (repeated writes). The D-PHY initialization is performed via snps_phy_init() whose implementation is external to this testcase. DMA transfer functions dma_trnsfr_instn_preload() and DMAGO_CSI() are also external. Two hex addresses (used for signaling and DMA status) could not be mapped to named registers in the specification documents. Default configuration uses VC_ID=3, VRES=3, HRES=64, DATA_TYPE=CSI2_RGB888 unless overridden by compile-time defines.',
-        '1. Enable CSI-2 interrupts by reading the main interrupt status register to clear pending interrupts, then configure all interrupt mask registers (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, ECC corrected) with appropriate enable masks. 2. Configure the virtual channel register with the selected virtual channel ID based on the GDMA path. 3. Enable control data transfer by writing to the control data register. 4. Perform D-PHY initialization sequence. 5. Poll the PHY stop state register until all data lanes and the clock lane confirm stop state entry (expected value indicates all lanes stopped). 6. For each lane configuration (4 lanes down to 1 lane): a. Write the lane count to the N_LANES register. b. Signal the start of the CSI-2 sequence for the current lane count. c. For each expected packet in the frame: i. Enable DMA interrupts for both channels. ii. Program and start DMA channel 0 for control data transfer. iii. Poll the DMA interrupt status register until channel 0 completion is indicated. iv. Clear the DMA channel 0 interrupt. v. Read the received control packet data. vi. If the control packet indicates a long packet (image data), calculate the transfer size, program and start DMA channel 1 for image data transfer, poll for channel 1 completion, and clear the channel 1 interrupt. 7. Verify test completes successfully for all lane configurations.',
-        'virtual_channel; control_data; PHY_STOPSTATE; N_LANES; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED',
-        '1. The PHY stop state register must read the expected value confirming all data lanes and the clock lane have entered stop state before proceeding with lane configuration. 2. For each DMA control data transfer, the DMA interrupt status must indicate channel 0 completion. 3. For each DMA image data transfer (when a long packet is detected), the DMA interrupt status must indicate channel 1 completion. 4. The test must successfully iterate through all lane configurations (4 lanes down to 1 lane) and complete all packet transfers for each configuration. 5. The test must call the finish routine with a pass indication (0) after all lane configurations are validated.',
-        ''
-    ]
-    for i, v in enumerate(r1, 1):
-        cell = ws.cell(2, i, v)
-        cell.alignment = wrap
+    # MetaData sheet
+    ws_md = wb.create_sheet(title="MetaData")
 
-    # Row 2
-    r2 = [
-        '2', 'MIPI_CSI', 'Test Pattern Generator and CSI2 Data Reception', 'mipi_csi2_test_pattern_generator',
-        'This test validates the MIPI CSI-2 internal test pattern generator and verifies data reception through the DMA path. The test configures the virtual channel and disables control data transfer. It enables all CSI-2 interrupts by clearing pending interrupts via the main interrupt status register and configuring all interrupt mask registers for PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected events. After D-PHY initialization, it polls the PHY stop state register until all data lanes and the clock lane confirm stop state entry. The test programs the DMA address registers for channel 0 read and write paths, enables the fractional divider output to the CSI-2 subsystem via the enableclkgating_csiphy register, and programs the DMA transfer with calculated transfer size based on resolution (320x16) and 24 bits per pixel. The pattern generator is configured with vertical resolution, horizontal resolution, and configuration parameters, then enabled. After a short wait, the pattern generator is disabled, and the test polls the DMA interrupt status until channel 0 transfer completion is confirmed. The test completes with a pass indication after a final wait.',
-        'NA', 'NA', 'NA', 'NA',
-        'The test uses the internal PPI test pattern generator to generate CSI-2 data internally, bypassing the need for an external D-PHY transmitter. The pattern generator is configured with vres=16, hres=320, 24 bits per pixel (RGB888 implied by config value 0xe401 with data type 0x24). The D-PHY initialization is performed via snps_phy_init() whose implementation is external to this testcase. DMA transfer functions dma_trnsfr_instn_preload_incr_addr() and DMAGO_CSI() are also external. The csi2_subsys_enable_interrupt() function is external but internally calls the locally defined csi2_enable_interrupt(). The destination address increment behavior is controlled by the FPS60 compile-time define. Control data transfer is explicitly disabled (written 0) unlike the DPHY lanes test. The enableclkgating_csiphy register is written to enable fractional divider output to the CSI-2 subsystem.',
-        '1. Configure the virtual channel register with the selected virtual channel ID based on the GDMA path. 2. Disable control data transfer by writing to the control data register. 3. Enable CSI-2 interrupts by reading the main interrupt status register to clear pending interrupts, then configure all interrupt mask registers (PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, ECC corrected) with appropriate enable masks. 4. Perform D-PHY initialization sequence. 5. Poll the PHY stop state register until all data lanes and the clock lane confirm stop state entry. 6. Calculate the data transfer size based on resolution (320x16) and 24 bits per pixel with 8-byte alignment. 7. Program the DMA higher-order AXI address registers for channel 0 read and write paths. 8. Enable the fractional divider output to the CSI-2 subsystem via the enableclkgating_csiphy register. 9. Program and start DMA channel 0 for image data transfer with the calculated transfer size. 10. Enable the test pattern generator by configuring vertical resolution, horizontal resolution, pattern configuration, and enabling the PPI_PG_ENABLE register. 11. Wait for pattern generation to complete, then disable the pattern generator by clearing the PPI_PG_ENABLE register. 12. Poll the DMA interrupt status register until channel 0 transfer completion is indicated. 13. Wait for a final settling period and verify test completes successfully.',
-        'PPI_PG_PATTERN_VRES; PPI_PG_PATTERN_HRES; PPI_PG_CONFIG; PPI_PG_ENABLE; virtual_channel; control_data; PHY_STOPSTATE; dma_m0_addr_ar_ch0_data; dma_m0_addr_ar_ch0_Instruction; dma_m0_addr_aw_ch0_data; dma_m0_addr_aw_ch0_Instruction; enableclkgating_csiphy; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED',
-        '1. The PHY stop state register must read the expected value confirming all data lanes and the clock lane have entered stop state before proceeding. 2. The DMA interrupt status must indicate channel 0 transfer completion after the pattern generator has been enabled and disabled. 3. The test must complete the full sequence of pattern generator enable, wait, disable, and DMA completion polling without hanging. 4. The test must call the finish routine with a pass indication (0) after successful DMA transfer completion and final wait.',
-        ''
-    ]
-    for i, v in enumerate(r2, 1):
-        cell = ws.cell(3, i, v)
-        cell.alignment = wrap
+    # Header styles
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    wrap_alignment = Alignment(wrap_text=True, vertical="top")
 
-    col_widths = {'A':8,'B':15,'C':40,'D':40,'E':60,'F':8,'G':8,'H':22,'I':22,'J':60,'K':60,'L':55,'M':60,'N':15}
-    for letter, width in col_widths.items():
-        ws.column_dimensions[letter].width = width
-    ws.freeze_panes = 'A2'
+    # Write TestPlan headers
+    for col_idx, col_name in enumerate(testplan_columns, 1):
+        cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = wrap_alignment
 
-    # ===== MetaData Sheet =====
-    ws2 = wb.create_sheet('MetaData')
-    md_cols = ['Index','Test Case Name','Meta Test Description','Meta Test Steps / Procedure','Meta Impacted Registers','Meta Validation / Acceptance Criteria','Meta Headers','Meta Macros','Meta Arrays']
-    for i, c in enumerate(md_cols, 1):
-        cell = ws2.cell(1, i, c)
-        cell.fill = blue_fill
-        cell.font = white_bold
-        cell.alignment = wrap
+    # Write MetaData headers
+    for col_idx, col_name in enumerate(metadata_columns, 1):
+        cell = ws_md.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = wrap_alignment
 
-    # MetaData Row 1
-    md_r1 = [
-        '1', 'mipi_csi2_dphy_lanes_test',
-        'This testcase validates MIPI CSI-2 DPHY lane configuration by iterating through all lane counts (4 lanes down to 1 lane). For each lane configuration, it performs a complete CSI-2 data reception sequence. The test begins by calling csi2_enable_interrupt() which reads MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear pending interrupts, then writes all interrupt mask registers (INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, INT_MSK_ECC_CORRECTED) to enable various CSI-2 interrupts. It then configures the virtual channel register MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with the VC_ID (default 3) shifted based on the selected GDMA path, and enables control data transfer by writing 1 to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA. The D-PHY is initialized via snps_phy_init(), and the test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until it reads 0x1000f, confirming all lanes and the clock lane have entered stop state. A for-loop iterates lane_num from 3 down to 0, writing lane_num to MIZAR_MIPI_CSI2_HOST_N_LANES and signaling the lane count via write to 0xa0243ffc. For each lane configuration, an inner loop iterates over the expected number of control packets (cntrl_pkt_cnt = VRES*3 + 2). In each iteration, DMA channel 0 is programmed via dma_trnsfr_instn_preload() and started via DMAGO_CSI(gdma_reg_base, ch0_pc, 0x0) for control data transfer. The test polls gdma_reg_base+MIPI_CSI2_DMA_INTMIS_OFFSET for bit 0 to confirm DMA channel 0 completion, then clears the interrupt via gdma_reg_base+MIPI_CSI2_DMA_INTCLR_OFFSET. It reads the control data from 0xE6001000 and checks if the data type field (bits [5:0]) is greater than 0xf, indicating a long packet with image data. If so, it calculates the transfer size from word_count (bits [21:6]), programs DMA channel 1 via dma_trnsfr_instn_preload() and DMAGO_CSI(gdma_reg_base, ch1_pc, 0x1), polls for bit 1 in the DMA interrupt status, and clears the channel 1 interrupt. After all lane configurations are tested, finish(0) is called.',
-        '1. Call csi2_enable_interrupt() function. 2. Inside csi2_enable_interrupt(): read MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to clear pending interrupts (rd_data = read_reg(MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN)). 3. Write 0x0000000f to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL to enable PHY fatal interrupts. 4. Write 0x00000003 to MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL to enable packet fatal interrupts. 5. Write 0x000f000f to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY to enable PHY interrupts. 6. Write 0x000f000f to MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE to enable line interrupts. 7. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL to enable boundary frame fatal interrupts. 8. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL to enable sequence frame fatal interrupts. 9. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL to enable CRC frame fatal interrupts. 10. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL to enable payload CRC fatal interrupts. 11. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID to enable data ID interrupts. 12. Write 0x0000ffff to MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED to enable ECC corrected interrupts. 13. Return from csi2_enable_interrupt(). 14. Determine vcid_csi2_wrap_reg based on GDMA path. 15. Set gdma_reg_base = 0xE6A00000. 16. Write vcid_csi2_wrap_reg to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL. 17. Write 1 to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA. 18-19. Repeat writes. 20. Call snps_phy_init(). 21-22. Poll MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until 0x1000f. 23. Set DMA PC addresses. 24-47. Lane iteration and DMA transfer loop. 48. Call finish(0).',
-        'MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_HOST_N_LANES; 0xa0243ffc; 0xE6001000; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED',
-        'The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until rd_data equals 0x1000f, confirming all 4 data lanes (bits [3:0] = 0xf) and the clock lane (bit 16 = 0x10000) have entered stop state. For each packet transfer, the DMA interrupt status register is polled: bit 0 must be set for DMA channel 0 completion, and bit 1 must be set for DMA channel 1 completion. The test calls finish(0) upon successful completion of all lane configurations, indicating a pass.',
-        '<stdio.h>; <stdlib.h>; "test_common.h"; "mipi_csi2.h"',
-        'GDMA_CSI2_DATA_DEST_ADDR2; GDMA_CTRL_DATA_DEST_ADDR2; LS_LE_EN; TOTAL_FRAME; VC_ID; VRES; HRES; DATA_TYPE',
-        'NA'
-    ]
-    for i, v in enumerate(md_r1, 1):
-        cell = ws2.cell(2, i, v)
-        cell.alignment = wrap
+    # Populate TestPlan rows
+    for row_idx, row_data in enumerate(json_data, 2):
+        for col_idx, col_name in enumerate(testplan_columns, 1):
+            value = row_data.get(col_name, "")
+            if value is None:
+                value = ""
+            cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
+            cell.alignment = wrap_alignment
 
-    # MetaData Row 2
-    md_r2 = [
-        '2', 'mipi_csi2_test_pattern_generator',
-        'This testcase validates the MIPI CSI-2 internal test pattern generator (PPI PG) and verifies data reception through the DMA path. The test configures the virtual channel register MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL with a VC ID of 3 (shifted based on the selected GDMA path) and disables control data transfer by writing 0 to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA. It calls csi2_subsys_enable_interrupt() to clear pending interrupts and enable all interrupt mask registers. D-PHY initialization is performed via snps_phy_init(), then MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE is polled until it reads 0x1000f. The test calculates the data transfer size based on hres=320, vres=16, valid_bits_per_pixel=24, with 8-byte alignment. DMA address registers are programmed. A write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 with value 0x1 enables sending fracdiv output to the CSI-2 subsystem. DMA channel 0 is programmed and started. The pattern generator is enabled by calling csi2_ctrlr_pg_enable() which writes PPI_PG_PATTERN_VRES, PPI_PG_PATTERN_HRES, PPI_PG_CONFIG, and PPI_PG_ENABLE. After wait_on(100), the pattern generator is disabled. The DMA interrupt status is polled until bit 0 is set. After wait_on(10000), finish(0) is called.',
-        '1. Set int_pend = 1. 2. Set vcid = 3 and calculate vcid_unselected_path. 3. Determine vcid_csi2_wrap_reg based on GDMA path. 4. Calculate gdma_reg_base. 5. Write vcid_csi2_wrap_reg to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL. 6. Write 0 to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA. 7-19. Enable interrupts. 20-22. D-PHY init and poll PHY_STOPSTATE. 23-24. Calculate transfer size. 25-28. Program DMA address registers. 29. Write 0x1 to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4. 30-33. Program and start DMA. 34-39. Enable pattern generator. 40-41. Wait and disable PG. 42-43. Poll DMA completion. 44-45. Final wait and finish(0).',
-        'MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG; MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE; MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_BASE; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED',
-        'The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE until rd_data equals 0x1000f. The DMA interrupt status register is polled until bit 0 is set, confirming DMA channel 0 transfer completion. The test calls finish(0) upon successful completion, indicating a pass.',
-        '<stdio.h>; <stdlib.h>; "test_common.h"; "mipi_csi2.h"',
-        'GDMA_CSI2_DATA_DEST_ADDR2; GDMA_CTRL_DATA_DEST_ADDR2',
-        'NA'
-    ]
-    for i, v in enumerate(md_r2, 1):
-        cell = ws2.cell(3, i, v)
-        cell.alignment = wrap
+    # Populate MetaData rows
+    for row_idx, row_data in enumerate(json_data, 2):
+        for col_idx, col_name in enumerate(metadata_columns, 1):
+            value = row_data.get(col_name, "")
+            if value is None:
+                value = ""
+            cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
+            cell.alignment = wrap_alignment
 
-    for letter in ['A','B','C','D','E','F','G','H','I']:
-        ws2.column_dimensions[letter].width = 45
-    ws2.column_dimensions['A'].width = 8
-    ws2.column_dimensions['B'].width = 40
-    ws2.freeze_panes = 'A2'
-    ws2.sheet_state = 'veryHidden'
+    # Auto-size columns with max width
+    max_width = 80
+    for ws in [ws_tp, ws_md]:
+        for col_cells in ws.columns:
+            max_len = 0
+            col_letter = col_cells[0].column_letter
+            for cell in col_cells:
+                if cell.value:
+                    lines = str(cell.value).split("\n")
+                    for line in lines:
+                        max_len = max(max_len, len(line))
+            adjusted = min(max_len + 2, max_width)
+            ws.column_dimensions[col_letter].width = max(adjusted, 12)
 
+    # Freeze first row
+    ws_tp.freeze_panes = "A2"
+    ws_md.freeze_panes = "A2"
+
+    # Set MetaData sheet to veryHidden
+    ws_md.sheet_state = "veryHidden"
+
+    # Save workbook
     wb.save(filepath)
-    file_size = os.path.getsize(filepath)
-    print(f'Generated: {filename}')
-    print(f'Path: {filepath}')
-    print(f'Size: {file_size} bytes')
+    print(f"FILE_GENERATED:{filename}")
+    print(f"FILE_PATH:{filepath}")
+    print(f"FILE_SIZE:{os.path.getsize(filepath)}")
 
-    # Verify
+    # Validation
     wb2 = openpyxl.load_workbook(filepath)
-    assert 'TestPlan' in wb2.sheetnames, 'TestPlan sheet missing'
-    assert 'MetaData' in wb2.sheetnames, 'MetaData sheet missing'
-    assert wb2['TestPlan'].max_row == 3, f'Expected 3 rows, got {wb2["TestPlan"].max_row}'
-    assert wb2['MetaData'].max_row == 3, f'Expected 3 rows, got {wb2["MetaData"].max_row}'
-    print('Verification: PASSED')
-    print(f'TestPlan rows: {wb2["TestPlan"].max_row - 1}')
-    print(f'MetaData rows: {wb2["MetaData"].max_row - 1}')
+    sheets = wb2.sheetnames
+    assert "TestPlan" in sheets, "TestPlan sheet missing"
+    assert "MetaData" in sheets, "MetaData sheet missing"
+    tp_rows = wb2["TestPlan"].max_row - 1
+    md_rows = wb2["MetaData"].max_row - 1
+    print(f"VALIDATION:PASSED")
+    print(f"ROWS_TESTPLAN:{tp_rows}")
+    print(f"ROWS_METADATA:{md_rows}")
     wb2.close()
 
-    return filepath, filename
+    return filename, filepath
 
-if __name__ == '__main__':
-    filepath, filename = generate_workbook()
-    print(f'\nSUCCESS: {filename}')
+if __name__ == "__main__":
+    generate_workbook()
