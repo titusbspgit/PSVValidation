@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'scripts/generate_lpddr4_testplan.py'
+      - '.github/workflows/generate_testplan.yml'
     branches:
       - main
   workflow_dispatch:
@@ -11,9 +12,13 @@ on:
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,10 +31,17 @@ jobs:
       - name: Generate Excel workbook
         run: python scripts/generate_lpddr4_testplan.py
 
+      - name: Verify generated file
+        run: |
+          echo "=== Generated files ==="
+          ls -la Test_Output/LPDDR4/TestPlan/*.xlsx
+          echo "=== Verification complete ==="
+
       - name: Commit and push Excel file
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/LPDDR4/TestPlan/*.xlsx
+          git diff --cached --stat
           git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push
