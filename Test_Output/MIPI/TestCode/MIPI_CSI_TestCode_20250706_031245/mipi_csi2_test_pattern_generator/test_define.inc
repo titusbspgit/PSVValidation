@@ -16,30 +16,31 @@
 #include "test_common.h"
 #include "mipi_csi2.h"
 
+/* FV framework headers */
 #include "log.h"
 #include "mmio.h"
 #include "reg_access.h"
 
 /* Macros from Meta TestPlan */
 #ifndef GDMA_CSI2_DATA_DEST_ADDR2
-#define GDMA_CSI2_DATA_DEST_ADDR2    0xE6002000
+#define GDMA_CSI2_DATA_DEST_ADDR2    0xE6002000U
 #endif
 
 #ifndef GDMA_CTRL_DATA_DEST_ADDR2
-#define GDMA_CTRL_DATA_DEST_ADDR2    0xE6001000
+#define GDMA_CTRL_DATA_DEST_ADDR2    0xE6001000U
 #endif
 
 /* DMA register offset macros */
 #ifndef MIPI_CSI2_DMA_INTEN_OFFSET
-#define MIPI_CSI2_DMA_INTEN_OFFSET   0x20
+#define MIPI_CSI2_DMA_INTEN_OFFSET   0x20U
 #endif
 
 #ifndef MIPI_CSI2_DMA_INTMIS_OFFSET
-#define MIPI_CSI2_DMA_INTMIS_OFFSET  0x24
+#define MIPI_CSI2_DMA_INTMIS_OFFSET  0x24U
 #endif
 
 #ifndef MIPI_CSI2_DMA_INTCLR_OFFSET
-#define MIPI_CSI2_DMA_INTCLR_OFFSET  0x2C
+#define MIPI_CSI2_DMA_INTCLR_OFFSET  0x2CU
 #endif
 
 /* Timeout values for polling loops */
