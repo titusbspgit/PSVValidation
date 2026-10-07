@@ -1,0 +1,38 @@
+name: Generate MIPI CSI TestPlan XLSX (Agent7 Retry)
+
+on:
+  push:
+    paths:
+      - 'Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_agent7_retry.py'
+  workflow_dispatch:
+
+jobs:
+  generate-xlsx:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate XLSX
+        id: gen
+        env:
+          OUTPUT_DIR: Test_Output/MIPI/TestPlan
+        run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_agent7_retry.py
+
+      - name: Commit and push XLSX
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/MIPI/TestPlan/*.xlsx
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push
