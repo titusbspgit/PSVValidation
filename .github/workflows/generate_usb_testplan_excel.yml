@@ -1,0 +1,47 @@
+name: Generate USB TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/USB_Testing/TestPlan/generate_current_testplan.py'
+      - '.github/workflows/generate_usb_testplan_excel.yml'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl pytz
+
+      - name: Generate Excel workbook
+        run: python Test_Output/USB_Testing/TestPlan/generate_current_testplan.py
+
+      - name: Verify generated file
+        run: |
+          echo "=== Generated files ==="
+          ls -la Test_Output/USB_Testing/TestPlan/*.xlsx
+          echo "=== Verification complete ==="
+
+      - name: Commit and push Excel file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/USB_Testing/TestPlan/*.xlsx
+          git diff --cached --stat
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git push
