@@ -1,0 +1,8 @@
+# This file documents the generation workflow.
+# To generate the Excel file locally, run:
+#   cd Test_Output/Ethernet/Ethernet0/TestPlan/
+#   pip install openpyxl
+#   python generate_testplan.py
+#
+# The script will create: Ethernet_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx
+# with IST (GMT+05:30) timestamp.
