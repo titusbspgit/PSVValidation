@@ -1,38 +1,26 @@
-name: Generate MIPI_CSI TestPlan XLSX
-
+name: Generate MIPI CSI TestPlan XLSX
 on:
   push:
     paths:
-      - '.github/workflows/generate_mipi_csi_testplan.yml'
+      - 'Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_xlsx_final.py'
   workflow_dispatch:
 
 jobs:
-  generate-xlsx:
+  generate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install openpyxl
-
+      - run: pip install openpyxl
       - name: Generate XLSX
-        run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_20261007.py
-
-      - name: List generated files
-        run: ls -la Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
-
-      - name: Commit and push XLSX
+        run: cd Test_Output/MIPI/TestPlan && python generate_mipi_csi_testplan_xlsx_final.py
+      - name: Commit XLSX
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
-          git commit -m "Agent 7: Added generated MIPI_CSI TestPlan Excel"
+          cd Test_Output/MIPI/TestPlan
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add *.xlsx
+          git commit -m 'Added generated TestPlan Excel' || echo 'No changes'
           git push
