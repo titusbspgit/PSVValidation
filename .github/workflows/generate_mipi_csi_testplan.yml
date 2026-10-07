@@ -1,11 +1,16 @@
 name: Generate MIPI_CSI TestPlan XLSX
 
 on:
+  push:
+    paths:
+      - '.github/workflows/generate_mipi_csi_testplan.yml'
   workflow_dispatch:
 
 jobs:
   generate-xlsx:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,6 +25,9 @@ jobs:
 
       - name: Generate XLSX
         run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_20261007.py
+
+      - name: List generated files
+        run: ls -la Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
 
       - name: Commit and push XLSX
         run: |
