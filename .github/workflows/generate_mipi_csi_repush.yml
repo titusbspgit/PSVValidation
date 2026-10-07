@@ -1,0 +1,34 @@
+name: Generate MIPI CSI TestPlan Excel (Re-push)
+
+on:
+  push:
+    paths:
+      - 'Test_Output/MIPI/TestPlan/generate_mipi_csi_repush.py'
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate Excel
+        env:
+          OUTPUT_DIR: Test_Output/MIPI/TestPlan
+        run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_repush.py
+
+      - name: Commit and push Excel
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
+          git commit -m 'Added generated TestPlan Excel'
+          git push
