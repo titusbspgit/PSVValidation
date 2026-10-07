@@ -1,0 +1,30 @@
+name: Generate MIPI_CSI TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Generate XLSX
+        run: python Test_Output/MIPI/TestPlan/generate_mipi_csi_testplan_20261007.py
+
+      - name: Commit and push XLSX
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
+          git commit -m "Agent 7: Added generated MIPI_CSI TestPlan Excel"
+          git push
