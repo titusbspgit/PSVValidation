@@ -1,0 +1,40 @@
+name: Generate Ethernet TestPlan Excel v2
+
+on:
+  push:
+    paths:
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/gen_ethernet_testplan.py'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install openpyxl
+        run: pip install openpyxl
+
+      - name: Generate Excel
+        run: python Test_Output/Ethernet/Ethernet0/TestPlan/gen_ethernet_testplan.py
+
+      - name: Commit generated Excel
+        run: |
+          cd Test_Output/Ethernet/Ethernet0/TestPlan/
+          XLSX_FILE=$(ls -t Ethernet_TestPlan_*.xlsx 2>/dev/null | head -1)
+          if [ -n "$XLSX_FILE" ]; then
+            cd $GITHUB_WORKSPACE
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "Test_Output/Ethernet/Ethernet0/TestPlan/$XLSX_FILE"
+            git commit -m "Agent 7: Generated $XLSX_FILE with 4 testcases (2 sheets: TestPlan + MetaData)"
+            git push
+            echo "Committed: $XLSX_FILE"
+          else
+            echo "ERROR: No XLSX file generated"
+            exit 1
+          fi
