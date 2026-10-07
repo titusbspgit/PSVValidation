@@ -1,0 +1,29 @@
+name: Generate Ethernet TestPlan Excel
+
+on:
+  push:
+    paths:
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_excel.py'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install openpyxl
+      - run: |
+          cd Test_Output/Ethernet/Ethernet0/TestPlan
+          python generate_excel.py
+      - run: |
+          cd Test_Output/Ethernet/Ethernet0/TestPlan
+          FILENAME=$(ls -t Ethernet_TestPlan_*.xlsx | head -1)
+          echo "Generated: $FILENAME"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add "$FILENAME"
+          git rm -f generate_excel.py || true
+          git commit -m "Added generated TestPlan Excel: $FILENAME"
+          git push
