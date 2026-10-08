@@ -1,0 +1,23 @@
+name: Generate MIPI_CSI TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install openpyxl
+      - run: |
+          cd Test_Output/MIPI/TestPlan
+          python generate_mipi_csi_testplan_xlsx_agent7_final.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: testplan-xlsx
+          path: Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx
