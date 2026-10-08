@@ -1,21 +1,19 @@
-name: Generate MIPI_CSI TestPlan Excel
+name: Generate Ethernet TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/MIPI/TestPlan/generate_testplan.py'
-  workflow_dispatch:
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_excel.py'
 
 jobs:
-  generate-excel:
+  generate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -23,17 +21,15 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate Excel TestPlan
+      - name: Generate Excel
         run: |
-          cd Test_Output/MIPI/TestPlan
-          python generate_testplan.py
-        env:
-          OUTPUT_DIR: .
+          cd Test_Output/Ethernet/Ethernet0/TestPlan
+          python generate_excel.py
 
-      - name: Commit and push generated Excel
+      - name: Commit and push
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Test_Output/MIPI/TestPlan/*.xlsx
-          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add 'Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx'
+          git commit -m 'Added generated TestPlan Excel' || echo 'No changes to commit'
           git push
