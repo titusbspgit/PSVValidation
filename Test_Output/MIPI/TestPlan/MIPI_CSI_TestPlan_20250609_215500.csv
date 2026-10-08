@@ -1,0 +1,119 @@
+Index,SS / Module,Test Case Name,Feature,Meta Headers,Meta Macros,Meta Arrays,Speed,Mode,Memory Start Offset,Memory End Offset,Meta Test Description,Test Description,Meta Test Steps / Procedure,Test Steps / Procedure,Meta Impacted Registers,Impacted Registers,Meta Validation / Acceptance Criteria,Validation / Acceptance Criteria,Remarks
+"1","MIPI_CSI","mipi_csi2_dphy_lanes_test","DPHY Lane Configuration and CSI-2 Data Transfer","#include <stdio.h>; #include <stdlib.h>; #include ""test_common.h""; #include ""mipi_csi2.h""","#define GDMA_CSI2_DATA_DEST_ADDR2 0xE6040080
+#define GDMA_CTRL_DATA_DEST_ADDR2 0xE6040000
+#define LS_LE_EN 1
+#define TOTAL_FRAME 1
+#define VC_ID 3
+#define VRES 1080 (if GDMA0_FULL_MEM defined) or 3 (otherwise)
+#define HRES 1920 (if GDMA0_FULL_MEM defined) or 64 (otherwise)
+#define DATA_TYPE CSI2_RGB888
+#define MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL (MIZAR_MIPI_CSI2_RB_REG_BASE + MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_OFFSET) base=0xE6A04000, offset=0x0
+#define MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA (MIZAR_MIPI_CSI2_RB_REG_BASE + MIPI_CSI2_RB_REG_CONTROL_DATA_OFFSET) base=0xE6A04000, offset=0x20
+#define MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE (MIZAR_MIPI_CSI2_HOST_BASE + MIPI_CSI2_HOST_PHY_STOPSTATE_OFFSET) base=0xE6A05000, offset=0x4C
+#define MIZAR_MIPI_CSI2_HOST_N_LANES (MIZAR_MIPI_CSI2_HOST_BASE + MIPI_CSI2_HOST_N_LANES_OFFSET) base=0xE6A05000, offset=0x4
+#define MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN (MIZAR_MIPI_CSI2_HOST_BASE + MIPI_CSI2_HOST_INT_ST_MAIN_OFFSET) base=0xE6A05000, offset=0xC
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL base=0xE6A05000, offset=0xE4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL base=0xE6A05000, offset=0xF4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY base=0xE6A05000, offset=0x114
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE base=0xE6A05000, offset=0x134
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL base=0xE6A05000, offset=0x284
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL base=0xE6A05000, offset=0x294
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL base=0xE6A05000, offset=0x2A4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL base=0xE6A05000, offset=0x2B4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID base=0xE6A05000, offset=0x2C4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED base=0xE6A05000, offset=0x2D4
+#define MIZAR_MIPI_CSI2_RB_REG_BASE (0xE6A00000+0x4000)
+#define MIZAR_MIPI_CSI2_HOST_BASE (0xE6A00000+0x5000)","NA","NA","NA","NA","NA","This testcase validates MIPI CSI-2 DPHY lane configuration and data transfer across all lane counts (4 lanes down to 1 lane). The test begins by enabling all CSI-2 host interrupts via the csi2_enable_interrupt() helper function, which reads INT_ST_MAIN to clear pending interrupts and then writes mask values to 10 interrupt mask registers. The virtual channel register is configured based on the GDMA path with VC_ID=3. The D-PHY is initialized via snps_phy_init(). The PHY_STOPSTATE register is polled until it reads 0x1000f. An outer loop iterates lane_num from 3 down to 0, writing each lane count to N_LANES and triggering the CSI-2 sequence. An inner loop iterates over control packets. For each packet DMA channel 0 transfers control data and conditionally DMA channel 1 transfers pixel data based on data type field evaluation.","Verify MIPI CSI-2 DPHY lane configuration by iterating through all supported lane counts (4 to 1) and performing CSI-2 control and data packet transfers using DMA. The test enables all CSI-2 host interrupts, initializes the D-PHY, waits for PHY stop state, and for each lane configuration transfers control packets followed by conditional data packets, validating DMA completion via interrupt polling.","1. Enter test_case() function.
+2. Call csi2_enable_interrupt() to read INT_ST_MAIN and write 10 interrupt mask registers.
+3. Select GDMA path and configure vcid_csi2_wrap_reg.
+4. Set gdma_reg_base = 0xE6A00000.
+5. Write virtual_channel register twice with vcid_csi2_wrap_reg.
+6. Write control_data register twice with value 1.
+7. Call snps_phy_init().
+8. Poll PHY_STOPSTATE until rd_data == 0x1000f.
+9. Set ch0_pc = 0xE6000000, ch1_pc = 0xE6000500.
+10. For lane_num = 3 down to 0: write N_LANES, calculate cntrl_pkt_cnt, write 0xa0243ffc.
+11. For each packet: enable DMA IRQ, program DMA ch0, issue DMAGO, poll INTMIS bit 0, clear IRQ, read control data.
+12. If data type > 0xf: extract word_count, align to 8 bytes, program DMA ch1, issue DMAGO, poll INTMIS bit 1, clear IRQ.
+13. Call finish(0).","1. Enable all CSI-2 host interrupts by reading INT_ST_MAIN and writing enable masks to 10 interrupt mask registers.
+2. Configure virtual channel register and enable control data transfer.
+3. Initialize the D-PHY.
+4. Poll PHY Stop State register until all lanes report stop state (0x1000f).
+5. For each lane configuration (4 to 1 lanes): write N_LANES, trigger CSI-2 sequence, transfer control packets via DMA ch0, conditionally transfer data packets via DMA ch1.
+6. Signal test completion.","MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_HOST_N_LANES; 0xa0243ffc; 0xE6001000; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED","virtual_channel; control_data; PHY_STOPSTATE; N_LANES; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED","1. PHY_STOPSTATE polled until rd_data == 0x1000f (all 4 data lanes + clock lane in stop state).
+2. DMA ch0 completion: INTMIS bit 0 polled until set.
+3. Control data type check: (csi_ctrl_data & 0x3f) > 0xf triggers data transfer.
+4. DMA ch1 completion: INTMIS bit 1 polled until set.
+5. DMA interrupts cleared after each transfer.
+6. finish(0) called indicating pass.","1. PHY Stop State register must read 0x1000f before proceeding.
+2. DMA ch0 transfer must complete (INTMIS bit 0 set) for each control packet.
+3. Control data type field must be correctly evaluated for long-packet detection.
+4. DMA ch1 transfer must complete (INTMIS bit 1 set) when long packet detected.
+5. DMA interrupts must be properly cleared.
+6. All four lane configurations must be tested.
+7. Test must complete with finish(0).","Conditional compilation for GDMA path (GDMA0-3) and resolution (GDMA0_FULL_MEM). External functions: snps_phy_init(), dma_trnsfr_instn_preload(), DMAGO_CSI(), finish(). Two unresolved hex addresses: 0xa0243ffc (trigger) and 0xE6001000 (control data dest). DMA base+offset accesses use gdma_reg_base (0xE6A00000)."
+"2","MIPI_CSI","mipi_csi2_test_pattern_generator","CSI-2 Internal Test Pattern Generator and DMA Data Transfer","#include <stdio.h>; #include <stdlib.h>; #include ""test_common.h""; #include ""mipi_csi2.h""","#define GDMA_CSI2_DATA_DEST_ADDR2 0xE6040080
+#define GDMA_CTRL_DATA_DEST_ADDR2 0xE6040000
+#define MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES base=0xE6A05000, offset=0x60
+#define MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES base=0xE6A05000, offset=0x64
+#define MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG base=0xE6A05000, offset=0x68
+#define MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE base=0xE6A05000, offset=0x6C
+#define MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL base=0xE6A04000, offset=0x0
+#define MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA base=0xE6A04000, offset=0x20
+#define MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE base=0xE6A05000, offset=0x4C
+#define MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA base=0xE6A04000, offset=0x6C
+#define MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION base=0xE6A04000, offset=0x70
+#define MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA base=0xE6A04000, offset=0x8C
+#define MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION base=0xE6A04000, offset=0x90
+#define MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN base=0xE6A05000, offset=0xC
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL base=0xE6A05000, offset=0xE4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL base=0xE6A05000, offset=0xF4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY base=0xE6A05000, offset=0x114
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE base=0xE6A05000, offset=0x134
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL base=0xE6A05000, offset=0x284
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL base=0xE6A05000, offset=0x294
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL base=0xE6A05000, offset=0x2A4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL base=0xE6A05000, offset=0x2B4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID base=0xE6A05000, offset=0x2C4
+#define MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED base=0xE6A05000, offset=0x2D4
+#define MIZAR_MIPI_CSI2_RB_REG_BASE (0xE6A00000+0x4000)
+#define MIZAR_MIPI_CSI2_HOST_BASE (0xE6A00000+0x5000)","NA","NA","NA","NA","NA","This testcase validates the MIPI CSI-2 internal test pattern generator (PPI PG) functionality and DMA-based data reception. The test configures the virtual channel register, disables control data, enables interrupts, initializes D-PHY, polls PHY_STOPSTATE, programs DMA address registers, calculates transfer size for hres=320 vres=16 24bpp, programs DMA ch0, enables the pattern generator with VRES=0x10 HRES=0x70140 CONFIG=0xe401, waits, disables PG, polls DMA INTMIS bit 0, and calls finish(0).","Verify MIPI CSI-2 internal test pattern generator functionality by configuring the PPI pattern generator with specific vertical/horizontal resolution and data type, enabling it to generate CSI-2 test patterns, and receiving the generated data via DMA transfer. The test validates pattern generator enable/disable control, DMA address configuration, data transfer completion via interrupt polling, and proper subsystem interrupt setup.","1. Set int_pend=1, vcid=3, compute vcid_unselected_path.
+2. Select GDMA path and compute vcid_csi2_wrap_reg.
+3. Compute gdma_reg_base = 0xE6A00000 + (gdma_path * 0x1000).
+4. Write virtual_channel register with vcid_csi2_wrap_reg.
+5. Write control_data register with 0 (disable).
+6. Call csi2_subsys_enable_interrupt().
+7. Call snps_phy_init().
+8. Poll PHY_STOPSTATE until rd_data == 0x1000f.
+9. Set hres=320, vres=16, valid_bits_per_pixel=24.
+10. Calculate csi2_data_trnsfr_size (8-byte aligned).
+11. Write dma_m0_addr_ar_ch0_data=0x100, dma_m0_addr_ar_ch0_Instruction=0x0, dma_m0_addr_aw_ch0_data=0x0, dma_m0_addr_aw_ch0_Instruction=0x0.
+12. Write MIZAR_MIPI_CSI2_RB_REG_BASE+0xf4 = 0x1 (fracdiv enable).
+13. Set dma_ch0_pc=0xE6000000.
+14. Call dma_trnsfr_instn_preload_incr_addr() for DMA ch0.
+15. Call DMAGO_CSI() for ch0.
+16. Call csi2_ctrlr_pg_enable(): write PPI_PG_PATTERN_VRES=0x10, PPI_PG_PATTERN_HRES=0x70140, PPI_PG_CONFIG=0xe401, PPI_PG_ENABLE=1.
+17. wait_on(100).
+18. Write PPI_PG_ENABLE=0 (disable PG).
+19. Poll INTMIS bit 0 until set.
+20. wait_on(10000).
+21. Call finish(0).","1. Configure virtual channel and disable control data transfer.
+2. Enable CSI-2 subsystem and DMA interrupts.
+3. Initialize D-PHY and poll PHY Stop State until 0x1000f.
+4. Set resolution parameters and calculate DMA transfer size.
+5. Program DMA higher-order AXI address registers.
+6. Enable fracdiv output to CSI-2 subsystem.
+7. Program DMA ch0 and issue DMAGO.
+8. Enable pattern generator with VRES, HRES, CONFIG, ENABLE.
+9. Wait, then disable pattern generator.
+10. Poll DMA INTMIS bit 0 until transfer completes.
+11. Signal test completion.","MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG; MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE; MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED","PPI_PG_PATTERN_VRES; PPI_PG_PATTERN_HRES; PPI_PG_CONFIG; PPI_PG_ENABLE; virtual_channel; control_data; PHY_STOPSTATE; dma_m0_addr_ar_ch0_data; dma_m0_addr_ar_ch0_Instruction; dma_m0_addr_aw_ch0_data; dma_m0_addr_aw_ch0_Instruction; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED","1. PHY_STOPSTATE polled until rd_data == 0x1000f.
+2. DMA ch0 completion: INTMIS bit 0 polled until set.
+3. PG enable/disable: PPI_PG_ENABLE written 1 then 0.
+4. DMA transfer size = (960 * 16) = 15360 bytes.
+5. finish(0) called indicating pass.","1. PHY Stop State register must read 0x1000f before proceeding.
+2. Pattern generator must be properly configured and enabled.
+3. Pattern generator must be disabled after generation period.
+4. DMA ch0 transfer must complete (INTMIS bit 0 set).
+5. DMA transfer size must be correctly calculated (15360 bytes).
+6. Test must complete with finish(0).","Conditional compilation for GDMA path (GDMA0-3) and frame rate (FPS60). External functions: snps_phy_init(), csi2_subsys_enable_interrupt(), dma_trnsfr_instn_preload_incr_addr(), DMAGO_CSI(), wait_on(), finish(). Local csi2_enable_interrupt() defined but csi2_subsys_enable_interrupt() called. gdma_reg_base dynamically computed. Register at RB_REG_BASE+0xf4 enables fracdiv output. PPI_PG_PATTERN_HRES=0x70140 encodes pkt2pkt_time=7 and hres=320. PPI_PG_CONFIG=0xe401 encodes pattern=1, datatype=0x24(RGB888), vc=0x3."
