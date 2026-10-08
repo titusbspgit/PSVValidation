@@ -1,0 +1,262 @@
+Test_Case_ID,Test_Case_Name,Test_Description,Test_Category,Pre_Conditions,Test_Steps,Register_Operations,Resolved_Address,Register_Name,Field_Name,Access_Type,Write_Value,Expected_Read_Value,Pass_Fail_Criteria,Comments
+TC_001,mipi_csi2_dphy_lanes_test,"Verify MIPI CSI-2 D-PHY lane configuration and data transfer across all lane configurations (4-lane down to 1-lane). The test iterates from 4 lanes to 1 lane, configuring the CSI-2 controller, performing DMA-based control and data packet transfers, and verifying interrupt-driven completion for each lane configuration.",Functional - DPHY Lane Configuration,"System powered on; CSI-2 subsystem clocked; D-PHY in reset state; GDMA0 path selected (default); VC_ID=3; VRES=3; HRES=64; DATA_TYPE=CSI2_RGB888; LS_LE_EN=1; TOTAL_FRAME=1","Step 1: Enable CSI-2 interrupts via csi2_enable_interrupt()
+Step 2: Configure virtual channel register for GDMA0 path (VC_ID=3 shifted to bits[15:12])
+Step 3: Enable control data transfer
+Step 4: Execute D-PHY initialization sequence via snps_phy_init()
+Step 5: Poll PHY_STOPSTATE register until all lanes and clock in stop state (0x1000F)
+Step 6: Loop lane_num from 3 down to 0:
+  Step 6a: Write N_LANES register with lane_num
+  Step 6b: Trigger CSI-2 sequence via write to 0xA0243FFC
+  Step 6c: For each control packet: enable DMA IRQ, preload DMA ch0 instructions, execute DMAGO for ch0, poll INTMIS for ch0 completion, clear IRQ
+  Step 6d: Read control data from 0xE6001000, extract data_type and word_count
+  Step 6e: If long packet (data_type > 0xF): preload DMA ch1 instructions for CSI data, execute DMAGO for ch1, poll INTMIS for ch1 completion, clear IRQ
+Step 7: Call finish(0)","write_reg(MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN) -> READ to clear
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL, 0x0000000F)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL, 0x00000003)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY, 0x000F000F)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE, 0x000F000F)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED, 0x0000FFFF)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL, vcid_csi2_wrap_reg)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA, 1)
+read_reg(MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE) -> poll until 0x1000F
+write_reg(MIZAR_MIPI_CSI2_HOST_N_LANES, lane_num)
+write_reg(gdma_reg_base+MIPI_CSI2_DMA_INTEN_OFFSET, 0x3)
+read_reg(gdma_reg_base+MIPI_CSI2_DMA_INTMIS_OFFSET) -> poll for IRQ
+write_reg(gdma_reg_base+MIPI_CSI2_DMA_INTCLR_OFFSET, 0x1/0x2)","INT_ST_MAIN: CSI2_HOST_BASE+0x0C
+INT_MSK_PHY_FATAL: CSI2_HOST_BASE+0xE4
+INT_MSK_PKT_FATAL: CSI2_HOST_BASE+0xF4
+INT_MSK_PHY: CSI2_HOST_BASE+0x114
+INT_MSK_LINE: CSI2_HOST_BASE+0x134
+INT_MSK_BNDRY_FRAME_FATAL: CSI2_HOST_BASE+0x284
+INT_MSK_SEQ_FRAME_FATAL: CSI2_HOST_BASE+0x294
+INT_MSK_CRC_FRAME_FATAL: CSI2_HOST_BASE+0x2A4
+INT_MSK_PLD_CRC_FATAL: CSI2_HOST_BASE+0x2B4
+INT_MSK_DATA_ID: CSI2_HOST_BASE+0x2C4
+INT_MSK_ECC_CORRECTED: CSI2_HOST_BASE+0x2D4
+virtual_channel: CSI2_RB_BASE+0x00
+control_data: CSI2_RB_BASE+0x20
+PHY_STOPSTATE: CSI2_HOST_BASE+0x4C
+N_LANES: CSI2_HOST_BASE+0x04
+INTEN: DMA_BASE+0x20
+INTMIS: DMA_BASE+0x28
+INTCLR: DMA_BASE+0x2C","INT_ST_MAIN
+INT_MSK_PHY_FATAL
+INT_MSK_PKT_FATAL
+INT_MSK_PHY
+INT_MSK_LINE
+INT_MSK_BNDRY_FRAME_FATAL
+INT_MSK_SEQ_FRAME_FATAL
+INT_MSK_CRC_FRAME_FATAL
+INT_MSK_PLD_CRC_FATAL
+INT_MSK_DATA_ID
+INT_MSK_ECC_CORRECTED
+virtual_channel
+control_data
+PHY_STOPSTATE
+N_LANES
+INTEN
+INTMIS
+INTCLR","status_int_st_phy_fatal[0]; mask_phy_errsotsynchs_0-3[3:0]; mask_err_ecc_double[0]/mask_shorter_payload[1]; mask_phy_errsoths_0-3[3:0]/mask_phy_erresc_0-3[19:16]; mask_err_l_bndry_match_di0-3[3:0]/mask_err_l_seq_di0-3[19:16]; err_f_bndry_match_vc0-15[15:0]; err_f_seq_vc0-15[15:0]; err_frame_data_vc0-15[15:0]; err_crc_vc0-15[15:0]; err_id_vc0-15[15:0]; err_ecc_corrected_vc0-15[15:0]; ch0-ch3[15:0]; en[0]; phy_stopstatedata_0-3[3:0]/phy_stopstateclk[16]; n_lanes[2:0]; event_irq_select[31:0]; irq_status[31:0]; irq_clr[31:0]","RO/RC
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RW
+RO
+RW
+RW
+RO
+WO","Read to clear
+0x0000000F
+0x00000003
+0x000F000F
+0x000F000F
+0x0000FFFF
+0x0000FFFF
+0x0000FFFF
+0x0000FFFF
+0x0000FFFF
+0x0000FFFF
+vcid_csi2_wrap_reg
+0x1
+N/A (poll)
+lane_num (3 to 0)
+0x3
+N/A (poll)
+0x1 or 0x2","Interrupts cleared after read
+All PHY fatal interrupts enabled
+All PKT fatal interrupts enabled
+All PHY interrupts enabled
+All LINE interrupts enabled
+All boundary frame fatal interrupts enabled
+All sequence frame fatal interrupts enabled
+All CRC frame fatal interrupts enabled
+All payload CRC fatal interrupts enabled
+All data ID interrupts enabled
+All ECC corrected interrupts enabled
+VC_ID mapped to GDMA0 path
+Control data transfer enabled
+0x1000F (all lanes + clock in stop state)
+Lane count matches configuration
+DMA IRQ[0] and IRQ[1] enabled
+IRQ bit set indicating transfer complete
+IRQ cleared successfully","1. PHY_STOPSTATE must read 0x1000F before proceeding
+2. DMA ch0 IRQ (bit 0) must assert for control packet completion
+3. DMA ch1 IRQ (bit 1) must assert for data packet completion (long packets only)
+4. All lane configurations (4/3/2/1) must complete successfully
+5. finish(0) indicates PASS","SOFT_RST_REG_ADDRESS macro ignored per requirement. Test iterates 4 lane configs. DMA base=0xE6A00000. Control packet count = (VRES*3)+2."
+TC_001_S01,csi2_enable_interrupt - Clear INT_ST_MAIN,"Read INT_ST_MAIN register to clear any pending main interrupts before enabling individual interrupt masks",Interrupt Setup,CSI-2 controller accessible,"Read INT_ST_MAIN register","read_reg(MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN)",CSI2_HOST_BASE+0x0C,INT_ST_MAIN,"status_int_st_phy_fatal[0] status_int_st_pkt_fatal[1] status_int_st_bndry_frame_fatal[2] status_int_st_seq_frame_fatal[3] status_int_st_crc_frame_fatal[4] status_int_st_pld_crc_fatal[5] status_int_st_data_id[6] status_int_st_ecc_corrected[7] status_int_st_phy[16] status_int_st_line[17]",RO/RC,N/A (Read),0x00000000 (all cleared),All interrupt status bits cleared after read,Read-clear register; reading clears pending interrupts
+TC_001_S02,csi2_enable_interrupt - Enable PHY Fatal IRQ Mask,"Write INT_MSK_PHY_FATAL to enable PHY fatal interrupt reporting for all 4 lanes",Interrupt Setup,INT_ST_MAIN cleared,"Write 0x0000000F to INT_MSK_PHY_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL, 0x0000000F)",CSI2_HOST_BASE+0xE4,INT_MSK_PHY_FATAL,"mask_phy_errsotsynchs_0[0] mask_phy_errsotsynchs_1[1] mask_phy_errsotsynchs_2[2] mask_phy_errsotsynchs_3[3]",RW,0x0000000F,0x0000000F,All 4 lane PHY fatal masks enabled (bits[3:0]=0xF),Enables SoT sync error reporting for lanes 0-3
+TC_001_S03,csi2_enable_interrupt - Enable PKT Fatal IRQ Mask,"Write INT_MSK_PKT_FATAL to enable packet fatal interrupt reporting",Interrupt Setup,PHY Fatal mask set,"Write 0x00000003 to INT_MSK_PKT_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL, 0x00000003)",CSI2_HOST_BASE+0xF4,INT_MSK_PKT_FATAL,"mask_err_ecc_double[0] mask_shorter_payload[1]",RW,0x00000003,0x00000003,ECC double error and shorter payload masks enabled,Enables ECC double-bit error and shorter payload detection
+TC_001_S04,csi2_enable_interrupt - Enable PHY IRQ Mask,"Write INT_MSK_PHY to enable PHY SoT and escape error interrupt reporting",Interrupt Setup,PKT Fatal mask set,"Write 0x000F000F to INT_MSK_PHY","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY, 0x000F000F)",CSI2_HOST_BASE+0x114,INT_MSK_PHY,"mask_phy_errsoths_0-3[3:0] mask_phy_erresc_0-3[19:16]",RW,0x000F000F,0x000F000F,PHY SoT error masks (bits[3:0]) and escape error masks (bits[19:16]) enabled,Enables SoT HS error and escape entry error for all 4 lanes
+TC_001_S05,csi2_enable_interrupt - Enable LINE IRQ Mask,"Write INT_MSK_LINE to enable line boundary and sequence error interrupt reporting",Interrupt Setup,PHY mask set,"Write 0x000F000F to INT_MSK_LINE","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE, 0x000F000F)",CSI2_HOST_BASE+0x134,INT_MSK_LINE,"mask_err_l_bndry_match_di0-3[3:0] mask_err_l_seq_di0-3[19:16]",RW,0x000F000F,0x000F000F,Line boundary match and sequence error masks enabled for DI0-DI3,Enables line start/end boundary match and line sequence errors
+TC_001_S06,csi2_enable_interrupt - Enable BNDRY_FRAME_FATAL Mask,"Write INT_MSK_BNDRY_FRAME_FATAL to enable frame boundary fatal interrupt reporting for all VCs",Interrupt Setup,LINE mask set,"Write 0x0000FFFF to INT_MSK_BNDRY_FRAME_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL, 0x0000FFFF)",CSI2_HOST_BASE+0x284,INT_MSK_BNDRY_FRAME_FATAL,"err_f_bndry_match_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,Frame boundary match error masks enabled for VC0-VC15,Enables Frame Start/End mismatch detection for all 16 virtual channels
+TC_001_S07,csi2_enable_interrupt - Enable SEQ_FRAME_FATAL Mask,"Write INT_MSK_SEQ_FRAME_FATAL to enable frame sequence fatal interrupt reporting for all VCs",Interrupt Setup,BNDRY_FRAME_FATAL mask set,"Write 0x0000FFFF to INT_MSK_SEQ_FRAME_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL, 0x0000FFFF)",CSI2_HOST_BASE+0x294,INT_MSK_SEQ_FRAME_FATAL,"err_f_seq_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,Frame sequence error masks enabled for VC0-VC15,Enables incorrect frame sequence detection for all 16 virtual channels
+TC_001_S08,csi2_enable_interrupt - Enable CRC_FRAME_FATAL Mask,"Write INT_MSK_CRC_FRAME_FATAL to enable CRC frame fatal interrupt reporting for all VCs",Interrupt Setup,SEQ_FRAME_FATAL mask set,"Write 0x0000FFFF to INT_MSK_CRC_FRAME_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL, 0x0000FFFF)",CSI2_HOST_BASE+0x2A4,INT_MSK_CRC_FRAME_FATAL,"err_frame_data_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,CRC frame error masks enabled for VC0-VC15,Enables CRC error detection per frame for all 16 virtual channels
+TC_001_S09,csi2_enable_interrupt - Enable PLD_CRC_FATAL Mask,"Write INT_MSK_PLD_CRC_FATAL to enable payload CRC fatal interrupt reporting for all VCs",Interrupt Setup,CRC_FRAME_FATAL mask set,"Write 0x0000FFFF to INT_MSK_PLD_CRC_FATAL","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL, 0x0000FFFF)",CSI2_HOST_BASE+0x2B4,INT_MSK_PLD_CRC_FATAL,"err_crc_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,Payload CRC error masks enabled for VC0-VC15,Enables payload checksum error detection for all 16 virtual channels
+TC_001_S10,csi2_enable_interrupt - Enable DATA_ID Mask,"Write INT_MSK_DATA_ID to enable data ID interrupt reporting for all VCs",Interrupt Setup,PLD_CRC_FATAL mask set,"Write 0x0000FFFF to INT_MSK_DATA_ID","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID, 0x0000FFFF)",CSI2_HOST_BASE+0x2C4,INT_MSK_DATA_ID,"err_id_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,Data ID error masks enabled for VC0-VC15,Enables unrecognized/unimplemented data type detection for all 16 VCs
+TC_001_S11,csi2_enable_interrupt - Enable ECC_CORRECTED Mask,"Write INT_MSK_ECC_CORRECTED to enable ECC corrected interrupt reporting for all VCs",Interrupt Setup,DATA_ID mask set,"Write 0x0000FFFF to INT_MSK_ECC_CORRECTED","write_reg(MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED, 0x0000FFFF)",CSI2_HOST_BASE+0x2D4,INT_MSK_ECC_CORRECTED,"err_ecc_corrected_vc0-vc15[15:0]",RW,0x0000FFFF,0x0000FFFF,ECC corrected error masks enabled for VC0-VC15,Enables header ECC single-bit corrected error reporting for all 16 VCs
+TC_001_S12,Configure Virtual Channel for GDMA0 Path,"Write virtual_channel register to map VC_ID=3 to GDMA0 path (bits[15:12])",Subsystem Configuration,All interrupts enabled,"Write vcid_csi2_wrap_reg=(3<<12)=0x3000 to virtual_channel register","write_reg(MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL, 0x3000)",CSI2_RB_BASE+0x00,virtual_channel,"ch0[15:12]=3",RW,0x3000,0x3000,VC_ID=3 mapped to GDMA0 path (ch0 field),Maps virtual channel 3 to GDMA path 0 for data routing
+TC_001_S13,Enable Control Data Transfer,"Write control_data register to enable control data transfer path",Subsystem Configuration,Virtual channel configured,"Write 0x1 to control_data register","write_reg(MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA, 1)",CSI2_RB_BASE+0x20,control_data,"en[0]=1",RW,0x1,0x1,Control data transfer enabled,Enables the control data path for packet header extraction
+TC_001_S14,D-PHY Initialization,"Execute snps_phy_init() to initialize the SNPS D-PHY",PHY Initialization,Control data path enabled,"Call snps_phy_init() function","snps_phy_init() - internal PHY initialization sequence",N/A (function call),N/A,N/A,N/A,N/A,N/A,PHY enters operational state after initialization,Vendor-specific PHY initialization; includes PHY_SHUTDOWNZ/DPHY_RSTZ/PHY_TEST_CTRL0/PHY_TEST_CTRL1 programming
+TC_001_S15,Poll PHY Stop State,"Poll PHY_STOPSTATE register until all data lanes and clock lane enter stop state",PHY Initialization,D-PHY initialized,"Read PHY_STOPSTATE repeatedly until value equals 0x1000F","read_reg(MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE) -> poll until 0x1000F",CSI2_HOST_BASE+0x4C,PHY_STOPSTATE,"phy_stopstatedata_0[0]=1 phy_stopstatedata_1[1]=1 phy_stopstatedata_2[2]=1 phy_stopstatedata_3[3]=1 phy_stopstateclk[16]=1",RO,N/A (Read/Poll),0x0001000F,All 4 data lanes (bits[3:0]=0xF) and clock lane (bit[16]=1) in stop state,PHY must reach stop state before CSI-2 transactions can begin
+TC_001_S16,Configure N_LANES (4-lane to 1-lane loop),"Write N_LANES register to configure active lane count; iterates from 3 (4 lanes) down to 0 (1 lane)",Lane Configuration,PHY in stop state,"Write lane_num (3/2/1/0) to N_LANES register","write_reg(MIZAR_MIPI_CSI2_HOST_N_LANES, lane_num)",CSI2_HOST_BASE+0x04,N_LANES,"n_lanes[2:0]=lane_num",RW,"3 then 2 then 1 then 0","Matches written value",N_LANES field reflects configured lane count,Can only be updated when PHY is in stop state; 0=1lane 1=2lanes 2=3lanes 3=4lanes
+TC_001_S17,Enable DMA Interrupts,"Write DMA INTEN register to enable IRQ[0] and IRQ[1] for control and data transfer completion",DMA Configuration,N_LANES configured,"Write 0x3 to gdma_reg_base+INTEN_OFFSET","write_reg(0xE6A00000+0x20, 0x3)",0xE6A00020,INTEN (DMA330),"event_irq_select[1:0]=0x3",RW,0x3,0x3,DMA IRQ[0] and IRQ[1] enabled,Enables interrupt generation for DMA channel 0 and channel 1 completion events
+TC_001_S18,Poll DMA INTMIS for Ch0 Completion,"Poll DMA INTMIS register until IRQ bit 0 is set indicating control packet DMA transfer complete",DMA Transfer Verification,DMA ch0 DMAGO issued,"Read INTMIS repeatedly until (rd_data & 0x1) != 0","read_reg(0xE6A00000+0x28) -> poll bit[0]",0xE6A00028,INTMIS (DMA330),"irq_status[0]=1",RO,N/A (Read/Poll),Bit[0]=1,DMA channel 0 transfer complete IRQ asserted,Indicates control packet has been fully transferred via DMA
+TC_001_S19,Clear DMA IRQ Ch0,"Write DMA INTCLR register to clear IRQ[0] after control packet transfer completion",DMA Cleanup,Ch0 IRQ asserted,"Write 0x1 to gdma_reg_base+INTCLR_OFFSET","write_reg(0xE6A00000+0x2C, 0x1)",0xE6A0002C,INTCLR (DMA330),"irq_clr[0]=1",WO,0x1,N/A (Write-only),IRQ[0] cleared successfully,Write-only register; clears the DMA channel 0 interrupt
+TC_001_S20,Poll DMA INTMIS for Ch1 Completion (Long Packets),"Poll DMA INTMIS register until IRQ bit 1 is set indicating CSI data DMA transfer complete (only for long packets with data_type > 0xF)",DMA Transfer Verification,DMA ch1 DMAGO issued for long packet,"Read INTMIS repeatedly until (rd_data & 0x2) != 0","read_reg(0xE6A00000+0x28) -> poll bit[1]",0xE6A00028,INTMIS (DMA330),"irq_status[1]=1",RO,N/A (Read/Poll),Bit[1]=1,DMA channel 1 transfer complete IRQ asserted for CSI data,Only executed when control data indicates long packet (data_type > 0xF)
+TC_001_S21,Clear DMA IRQ Ch1,"Write DMA INTCLR register to clear IRQ[1] after CSI data transfer completion",DMA Cleanup,Ch1 IRQ asserted,"Write 0x2 to gdma_reg_base+INTCLR_OFFSET","write_reg(0xE6A00000+0x2C, 0x2)",0xE6A0002C,INTCLR (DMA330),"irq_clr[1]=1",WO,0x2,N/A (Write-only),IRQ[1] cleared successfully,Write-only register; clears the DMA channel 1 interrupt
+TC_002,mipi_csi2_test_pattern_generator,"Verify MIPI CSI-2 internal test pattern generator (PG) functionality. The test configures the PG with RGB888 data type (0x24), VC=3, HRES=320, VRES=16, enables PG to generate internal test patterns, and verifies DMA-based data reception and interrupt-driven completion without external D-PHY input.",Functional - Test Pattern Generator,"System powered on; CSI-2 subsystem clocked; D-PHY in reset state; GDMA0 path selected (default); vcid=3; hres=320; vres=16; valid_bits_per_pixel=24 (RGB888)","Step 1: Configure virtual channel register for selected GDMA path
+Step 2: Disable control data transfer (PG mode uses data path only)
+Step 3: Enable CSI-2 and DMA subsystem interrupts
+Step 4: Execute D-PHY initialization sequence
+Step 5: Poll PHY_STOPSTATE until all lanes and clock in stop state (0x1000F)
+Step 6: Configure higher-order DMA address bits for AXI addressing
+Step 7: Enable fracdiv output to CSI2 subsystem (write 0x1 to RB_BASE+0xF4)
+Step 8: Preload DMA ch0 instructions for data transfer (src=0x00, dest=0xE6001000, size=calculated)
+Step 9: Execute DMAGO for DMA ch0
+Step 10: Configure and enable Pattern Generator:
+  - PPI_PG_PATTERN_VRES = 0x10 (16 lines)
+  - PPI_PG_PATTERN_HRES = 0x70140 (pkt2pkt_time=7, hres=320)
+  - PPI_PG_CONFIG = 0xE401 (vc=3, datatype=0x24/RGB888, pattern=vertical)
+  - PPI_PG_ENABLE = 1
+Step 11: Wait 100 cycles
+Step 12: Disable Pattern Generator (PPI_PG_ENABLE = 0)
+Step 13: Poll DMA INTMIS for ch0 completion
+Step 14: Wait 10000 cycles
+Step 15: Call finish(0)","write_reg(MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL, vcid_csi2_wrap_reg)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA, 0)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA, 0x100)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION, 0x0)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA, 0x0)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION, 0x0)
+write_reg(MIZAR_MIPI_CSI2_RB_REG_BASE+0xF4, 0x1)
+read_reg(MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE) -> poll until 0x1000F
+write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES, 0x10)
+write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES, 0x70140)
+write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG, 0xE401)
+write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE, 1)
+write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE, 0)
+read_reg(gdma_reg_base+MIPI_CSI2_DMA_INTMIS_OFFSET) -> poll bit[0]","virtual_channel: CSI2_RB_BASE+0x00
+control_data: CSI2_RB_BASE+0x20
+dma_m0_addr_ar_ch0_data: CSI2_RB_BASE+0x6C
+dma_m0_addr_ar_ch0_Instruction: CSI2_RB_BASE+0x70
+dma_m0_addr_aw_ch0_data: CSI2_RB_BASE+0x8C
+dma_m0_addr_aw_ch0_Instruction: CSI2_RB_BASE+0x90
+enableclkgating_csiphy: CSI2_RB_BASE+0xF4
+PHY_STOPSTATE: CSI2_HOST_BASE+0x4C
+PPI_PG_PATTERN_VRES: CSI2_HOST_BASE+0x60
+PPI_PG_PATTERN_HRES: CSI2_HOST_BASE+0x64
+PPI_PG_CONFIG: CSI2_HOST_BASE+0x68
+PPI_PG_ENABLE: CSI2_HOST_BASE+0x6C
+INTMIS: DMA_BASE+0x28","virtual_channel
+control_data
+dma_m0_addr_ar_ch0_data
+dma_m0_addr_ar_ch0_Instruction
+dma_m0_addr_aw_ch0_data
+dma_m0_addr_aw_ch0_Instruction
+enableclkgating_csiphy
+PHY_STOPSTATE
+PPI_PG_PATTERN_VRES
+PPI_PG_PATTERN_HRES
+PPI_PG_CONFIG
+PPI_PG_ENABLE
+INTMIS","ch0-ch3[15:0]
+en[0]
+msb[8:0]
+msb[8:0]
+msb[7:0]
+msb[7:0]
+sel[0]
+phy_stopstatedata_0-3[3:0]/phy_stopstateclk[16]
+ppi_pg_pattern_vres[15:0]
+ppi_pg_pattern_hres[15:0]/ppi_pg_pkt2pkt_time[25:16]
+ppi_pg_pattern[0]/ppi_pg_datatype[13:8]/ppi_pg_vc[15:14]/ppi_pg_vcx_0_1[17:16]
+ppi_pg_enable[0]
+irq_status[31:0]","RW
+RW
+RW
+RW
+RW
+RW
+RW
+RO
+RW
+RW
+RW
+RW
+RO","vcid_csi2_wrap_reg
+0x0
+0x100
+0x0
+0x0
+0x0
+0x1
+N/A (poll)
+0x10
+0x70140
+0xE401
+1 then 0
+N/A (poll)","VC3 mapped to GDMA0
+Control data disabled
+AR addr MSB=0x100
+AR instruction MSB=0x0
+AW addr MSB=0x0
+AW instruction MSB=0x0
+Fracdiv output enabled
+0x1000F
+16 vertical lines
+hres=320 pkt2pkt=7
+RGB888/VC3/vertical pattern
+PG enabled then disabled
+Bit[0]=1 (ch0 complete)","1. PHY_STOPSTATE must read 0x1000F before PG enable
+2. PG generates 16 lines x 320 pixels of RGB888 data on VC3
+3. Transfer size = ((24*320/8) aligned to 8 bytes) * 16 = 960*16 = 15360 bytes
+4. DMA ch0 IRQ bit[0] must assert indicating all PG data received
+5. finish(0) indicates PASS","SOFT_RST_REG_ADDRESS macro ignored per requirement. PG_CONFIG=0xE401 decoded: pattern=1(vertical), datatype=0x24(RGB888), vc=3, vcx=0. DMA base varies by GDMA path."
+TC_002_S01,Configure Virtual Channel for PG Test,"Write virtual_channel register to route VC3 to selected GDMA path",Subsystem Configuration,System initialized,"Write vcid_csi2_wrap_reg to virtual_channel register","write_reg(MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL, vcid_csi2_wrap_reg)",CSI2_RB_BASE+0x00,virtual_channel,"ch0[15:12]=3 (for GDMA0 path)",RW,vcid_csi2_wrap_reg,Matches written value,VC3 correctly mapped to selected GDMA path,Unselected paths get vcid_unselected_path=(vcid+1)&0xF=4
+TC_002_S02,Disable Control Data Transfer,"Write control_data register to disable control data path (PG mode transfers data only)",Subsystem Configuration,VC configured,"Write 0x0 to control_data register","write_reg(MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA, 0)",CSI2_RB_BASE+0x20,control_data,"en[0]=0",RW,0x0,0x0,Control data transfer disabled,PG test uses data path only; control data path not needed
+TC_002_S03,Configure DMA AXI Address - AR CH0 Data MSB,"Write higher-order AXI read address bits for DMA channel 0 data path",DMA Address Configuration,Control data disabled,"Write 0x100 to dma_m0_addr_ar_ch0_data","write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA, 0x100)",CSI2_RB_BASE+0x6C,dma_m0_addr_ar_ch0_data,"msb[8:0]=0x100",RW,0x100,0x100,AXI read address MSB for data = 0x100,Sets upper address bits for DMA read transactions on data channel
+TC_002_S04,Configure DMA AXI Address - AR CH0 Instruction MSB,"Write higher-order AXI read address bits for DMA channel 0 instruction path",DMA Address Configuration,AR data MSB set,"Write 0x0 to dma_m0_addr_ar_ch0_Instruction","write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION, 0x0)",CSI2_RB_BASE+0x70,dma_m0_addr_ar_ch0_Instruction,"msb[8:0]=0x0",RW,0x0,0x0,AXI read address MSB for instructions = 0x0,Sets upper address bits for DMA instruction fetch
+TC_002_S05,Configure DMA AXI Address - AW CH0 Data MSB,"Write higher-order AXI write address bits for DMA channel 0 data path",DMA Address Configuration,AR instruction MSB set,"Write 0x0 to dma_m0_addr_aw_ch0_data","write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA, 0x0)",CSI2_RB_BASE+0x8C,dma_m0_addr_aw_ch0_data,"msb[7:0]=0x0",RW,0x0,0x0,AXI write address MSB for data = 0x0,Sets upper address bits for DMA write transactions on data channel
+TC_002_S06,Configure DMA AXI Address - AW CH0 Instruction MSB,"Write higher-order AXI write address bits for DMA channel 0 instruction path",DMA Address Configuration,AW data MSB set,"Write 0x0 to dma_m0_addr_aw_ch0_Instruction","write_reg(MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION, 0x0)",CSI2_RB_BASE+0x90,dma_m0_addr_aw_ch0_Instruction,"msb[7:0]=0x0",RW,0x0,0x0,AXI write address MSB for instructions = 0x0,Sets upper address bits for DMA instruction write path
+TC_002_S07,Enable Fracdiv Output to CSI2 Subsystem,"Write enableclkgating_csiphy register to enable fractional divider clock output",Clock Configuration,DMA addresses configured,"Write 0x1 to RB_BASE+0xF4","write_reg(MIZAR_MIPI_CSI2_RB_REG_BASE+0xF4, 0x1)",CSI2_RB_BASE+0xF4,enableclkgating_csiphy,"sel[0]=1",RW,0x1,0x1,Fracdiv clock output enabled to CSI2 subsystem,Required for PG operation to provide proper clocking
+TC_002_S08,D-PHY Initialization and Stop State Poll,"Execute snps_phy_init() and poll PHY_STOPSTATE until 0x1000F",PHY Initialization,Clock configured,"Call snps_phy_init(); Poll PHY_STOPSTATE until 0x1000F","snps_phy_init(); read_reg(MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE) -> poll",CSI2_HOST_BASE+0x4C,PHY_STOPSTATE,"phy_stopstatedata_0-3[3:0] phy_stopstateclk[16]",RO,N/A,0x0001000F,All lanes and clock in stop state,PHY must be in stop state before enabling pattern generator
+TC_002_S09,Configure PG Vertical Resolution,"Write PPI_PG_PATTERN_VRES to set pattern vertical resolution to 16 lines",Pattern Generator Configuration,PHY in stop state,"Write 0x10 to PPI_PG_PATTERN_VRES","write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES, 0x10)",CSI2_HOST_BASE+0x60,PPI_PG_PATTERN_VRES,"ppi_pg_pattern_vres[15:0]=0x10",RW,0x10,0x10,PG vertical resolution = 16 lines,Configures number of lines in generated test pattern
+TC_002_S10,Configure PG Horizontal Resolution and Pkt2Pkt Time,"Write PPI_PG_PATTERN_HRES to set hres=320 and pkt2pkt_time=7",Pattern Generator Configuration,VRES configured,"Write 0x70140 to PPI_PG_PATTERN_HRES","write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES, 0x70140)",CSI2_HOST_BASE+0x64,PPI_PG_PATTERN_HRES,"ppi_pg_pattern_hres[15:0]=0x140(320) ppi_pg_pkt2pkt_time[25:16]=0x7",RW,0x70140,0x70140,PG horizontal resolution = 320 pixels; packet-to-packet time = 7,0x70140 = {10'd7 << 16 | 16'd320}
+TC_002_S11,Configure PG Config (DataType/VC/Pattern),"Write PPI_PG_CONFIG to set RGB888 data type VC=3 and vertical color bar pattern",Pattern Generator Configuration,HRES configured,"Write 0xE401 to PPI_PG_CONFIG","write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG, 0xE401)",CSI2_HOST_BASE+0x68,PPI_PG_CONFIG,"ppi_pg_pattern[0]=1 ppi_pg_datatype[13:8]=0x24 ppi_pg_vc[15:14]=0x3",RW,0xE401,0xE401,"Pattern=vertical(1) DataType=0x24(RGB888) VC=3","0xE401 = {2'b00(vcx) 2'b11(vc=3) 6'h24(RGB888) 7'h00(rsvd) 1'b1(vertical)}"
+TC_002_S12,Enable Pattern Generator,"Write PPI_PG_ENABLE to start internal test pattern generation",Pattern Generator Control,PG configured,"Write 1 to PPI_PG_ENABLE","write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE, 1)",CSI2_HOST_BASE+0x6C,PPI_PG_ENABLE,"ppi_pg_enable[0]=1",RW,0x1,0x1,Pattern generator enabled and generating data,PG starts sending test pattern data through the CSI-2 pipeline
+TC_002_S13,Disable Pattern Generator,"Write PPI_PG_ENABLE to stop test pattern generation after wait",Pattern Generator Control,PG running + wait_on(100),"Write 0 to PPI_PG_ENABLE","write_reg(MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE, 0)",CSI2_HOST_BASE+0x6C,PPI_PG_ENABLE,"ppi_pg_enable[0]=0",RW,0x0,0x0,Pattern generator disabled,PG stops generating data; remaining data in pipeline drains
+TC_002_S14,Poll DMA INTMIS for PG Data Transfer Completion,"Poll DMA INTMIS register until IRQ bit 0 is set indicating all PG data has been transferred via DMA",DMA Transfer Verification,PG disabled,"Read INTMIS repeatedly until (rd_data & 0x1) != 0","read_reg(gdma_reg_base+MIPI_CSI2_DMA_INTMIS_OFFSET) -> poll bit[0]",DMA_BASE+0x28,INTMIS (DMA330),"irq_status[0]=1",RO,N/A (Read/Poll),Bit[0]=1,DMA channel 0 transfer complete - all PG data received,Confirms 15360 bytes (320*3*16 aligned) of RGB888 test pattern data transferred successfully
