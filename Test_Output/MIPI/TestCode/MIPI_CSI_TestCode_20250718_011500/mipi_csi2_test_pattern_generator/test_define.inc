@@ -3,7 +3,7 @@
 
 /*
  * Test Case : mipi_csi2_test_pattern_generator
- * Purpose   : Supporting definitions for MIPI CSI-2 Test Pattern Generator
+ * Purpose   : Supporting definitions for MIPI CSI-2 test pattern generator
  *             testcase including headers, macros, and testcase constants.
  */
 
@@ -20,8 +20,12 @@
 #include "reg_access.h"
 
 /* Macros from Meta TestPlan */
-#define GDMA_CSI2_DATA_DEST_ADDR2  0xE6040080
-#define GDMA_CTRL_DATA_DEST_ADDR2  0xE6040000
+#define GDMA_CSI2_DATA_DEST_ADDR2   0xE6040080
+#define GDMA_CTRL_DATA_DEST_ADDR2   0xE6040000
 
 /* Timeout constant for polling loops */
-#define MIPI_CSI2_POLL_TIMEOUT     100000U
+#define MIPI_CSI2_POLL_TIMEOUT       100000
+
+/* DV wait_on() replacement constants */
+#define MIPI_CSI2_WAIT_PG_COMPLETE   1000
+#define MIPI_CSI2_WAIT_SETTLE        100
