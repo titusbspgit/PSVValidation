@@ -3,6 +3,7 @@
 Run: python3 generate_mipi_csi_testplan_20251010.py
 Requires: pip install openpyxl
 Generates MIPI_CSI_TestPlan_<IST_TIMESTAMP>.xlsx and outputs base64 for GitHub push.
+Trigger: workflow_dispatch or push event
 """
 import json, os, sys, base64
 from datetime import datetime, timezone, timedelta
