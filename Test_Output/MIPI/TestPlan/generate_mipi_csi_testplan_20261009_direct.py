@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MIPI CSI TestPlan XLSX Generator - Agent 7 Direct Execution"""
+"""MIPI CSI TestPlan XLSX Generator - Agent 7 Direct Execution - Triggered"""
 import os, sys, json, base64
 from datetime import datetime, timezone, timedelta
 
