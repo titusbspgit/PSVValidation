@@ -1,0 +1,23 @@
+// Author - AI Force 2.3. Date in IST
+// (EMBENGG-SYSAPPS)
+
+#ifndef USB_HOST_ENUMERATION_HS_H
+#define USB_HOST_ENUMERATION_HS_H
+
+#include <test.h>
+
+int usb_host_enumeration_hs_init(const TestsItem *cfg);
+
+int usb_host_enumeration_hs_run(
+    const TestsItem *cfg,
+    TestOutput *out
+);
+
+int usb_host_enumeration_hs_teardown(
+    const TestsItem *cfg
+);
+
+// IRQ handler prototype
+void Default_IRQHandler(void);
+
+#endif /* USB_HOST_ENUMERATION_HS_H */
