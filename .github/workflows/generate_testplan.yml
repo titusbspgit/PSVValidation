@@ -1,10 +1,10 @@
 name: Generate TestPlan Excel
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - '.github/scripts/generate_testplan.py'
-  workflow_dispatch:
+      - '.github/scripts/generate_testplan_excel.py'
 
 jobs:
   generate:
@@ -21,13 +21,13 @@ jobs:
       - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Generate TestPlan Excel
-        run: python .github/scripts/generate_testplan.py
+      - name: Generate Excel workbook
+        run: python .github/scripts/generate_testplan_excel.py
 
       - name: Commit and push generated file
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/LPDDR4/TestPlan/*.xlsx
-          git commit -m "Added generated TestPlan Excel"
+          git commit -m "Added generated TestPlan Excel" || echo "No changes to commit"
           git push
