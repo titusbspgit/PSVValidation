@@ -3,6 +3,7 @@
 LPDDR4 TestPlan Excel Generator
 Generates LPDDR4_TestPlan_<YYYYMMDD>_<HHMMSS>.xlsx using openpyxl
 Run: pip install openpyxl && python generate_excel.py
+Auto-triggered via GitHub Actions workflow
 """
 import json
 import os
@@ -11,7 +12,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# IST timezone
+# IST timezone (GMT+05:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 now_ist = datetime.now(IST)
 timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
