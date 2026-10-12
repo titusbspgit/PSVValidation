@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""MIPI_DSI TestPlan Excel Generator - Agent 7"""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from datetime import datetime, timezone, timedelta
@@ -139,7 +140,6 @@ wb.save(output_path)
 wb.close()
 
 # Post-save validation
-import os
 assert os.path.exists(output_path), 'File does not exist'
 assert os.path.getsize(output_path) > 0, 'File is empty'
 
