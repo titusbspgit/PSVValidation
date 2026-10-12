@@ -1,15 +1,21 @@
+#!/usr/bin/env python3
+"""
+Agent 7 - Excel Workbook Generator
+Generates LPDDR4_TestPlan_20261012_100339.xlsx
+"""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from datetime import datetime, timezone, timedelta
-import os, json
+from openpyxl.utils import get_column_letter
+import os, sys, json, base64
 
+# ============ JSON DATA ============
 json_data = [
   {
     "Index": "1",
     "SS / Module": "LPDDR4",
     "Test Case Name": "lpddr4_mem_half_data_bus_width_test",
     "Feature": "Half Data Bus Width",
-    "Meta Headers": "#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"lpddr4.h\"",
+    "Meta Headers": '#include <stdio.h>\n#include <stdlib.h>\n#include "test_common.h"\n#include "lpddr4.h"',
     "Meta Macros": "APS_DRAM - Preprocessor conditional compilation flag for APS DRAM configuration (used in #if defined(APS_DRAM)); no #define value; externally defined.\nMPS_DRAM - Preprocessor conditional compilation flag for MPS DRAM configuration (used in #else path of APS_DRAM); no #define value; externally defined.\nSG2667 - Preprocessor conditional compilation flag for Speed Grade 2667 selection (used in #if defined(SG2667)); no #define value; externally defined.\nSG2133 - Preprocessor conditional compilation flag for Speed Grade 2133 selection (used in #elif defined(SG2133)); no #define value; externally defined.\nA53_INITIATOR - Preprocessor conditional compilation flag for A53 initiator selection (used in #if defined(A53_INITIATOR)); no #define value; externally defined.\nAI_INITIATOR - Preprocessor conditional compilation flag for AI initiator selection (used in #if defined(AI_INITIATOR)); no #define value; externally <NRP> conditional compilation flag for DSP initiator selection (used in #if defined(DSP_INITIATOR)); no #define value; externally defined.",
     "Meta Arrays": "NA",
     "Speed": "SG3200 (default), SG2667 (when SG2667 defined), SG2133 (when SG2133 defined)",
@@ -18,7 +24,7 @@ json_data = [
     "Memory End Offset": "0x108",
     "Meta Test Description": "This testcase verifies LPDDR4 memory data integrity when operating in half data bus width mode (bus_width = 1). The test configures the LPDDR4 controller and PHY base addresses based on the DRAM type (APS_DRAM or MPS_DRAM), sets bus_width to 1 (Half Bus), selects the speed grade (SG3200 default, SG2667, or SG2133 via preprocessor defines), disables Data Bus Inversion (<NRP> = 0) and <PERSON> (DM_EN = 0), performs LPDDR4 memory training via <PERSON>(), confirms training completion via training_done(), waits 1000 units for stabilization via wait_on(1000), then performs 64-bit read-back verification on <PERSON> (conditionally compiled based on XOR of initiator/DRAM combinations) and <PERSON> (unconditionally) at offsets 0x100 and 0x108. Read data is compared against expected patterns 0x3333333333333333 and 0x2222222222222222. Errors are accumulated in err0 and the test concludes with finish(err0).",
     "Test Description": "Verify LPDDR4 memory data integrity in half data bus width mode after training. The test configures the memory controller for half bus width operation, performs LPDDR4 training, waits for stabilization, then reads back data from both memory ports at specific offsets and verifies the data matches expected patterns. The test supports both APS_DRAM and MPS_DRAM configurations with multiple speed grades (3200, 2667, 2133).",
-    "Meta Test Steps / Procedure": "1. File-scope declarations:\n   unsigned long int port0_addr;\n   unsigned long int port1_addr;\n\n2. Function: int test_case()\n\n3. Local variable declarations:\n   unsigned long int index;\n   unsigned long int offset;\n   unsigned long int read_data0;\n   unsigned long int read_data1;\n   unsigned long int read_data2;\n   unsigned long int read_data3;\n   unsigned int err0;\n\n4. Call gpv_programming();\n\n5. err0 = 0;\n\n6. Address configuration (preprocessor conditional):\n   #if defined(APS_DRAM)\n     port0_addr = 0;\n     port1_addr = 0x15A0000000;\n     ctl_base = 0x9EE03000;\n     phy_base = 0x9F000000;\n   #else\n     port0_addr = 0;\n     port1_addr = 0x11A0000000;\n     ctl_base = 0x11D003000;\n     phy_base = 0x11D500000;\n   #endif\n\n7. bus_width = 1; //0 -> Full Bus, 1 -> Half Bus, 2 -> Quarter bus\n\n8. Speed grade selection (preprocessor conditional):\n   #if defined(SG2667)\n     SG = 2667;\n   #elif defined(SG2133)\n     SG = 2133;\n   #else\n     SG = 3200;\n   #endif\n\n9. <NRP> = 0;\n\n10. DM_EN = 0;\n\n11. Call <PERSON>();\n\n12. Call training_done();\n\n13. Call wait_on(1000);\n\n14. Port0 read-back verification (preprocessor conditional):\n   #if !((defined(APS_DRAM) && defined(A53_INITIATOR)) ^(defined(MPS_DRAM) && defined(AI_INITIATOR)) ^(defined(MPS_DRAM) && defined(DSP_INITIATOR)))\n     read_reg64(port0_addr + 0x100, &read_data0);\n     read_reg64(port0_addr + 0x108, &read_data1);\n     if((read_data0 != 0x3333333333333333) && (read_data1 != 0x2222222222222222))\n     {\n       printf(\"ERROR: port0 read_data0 = %lx, read_data1 = %lx\\n\", read_data0, read_data1);\n       err0++;\n     }\n   #endif\n\n15. Port1 read-back verification (unconditional):\n   read_reg64(port1_addr + 0x100, &read_data2);\n   read_reg64(port1_addr + 0x108, &read_data3);\n   if((read_data2 != 0x3333333333333333) && (read_data3 != 0x2222222222222222))\n   {\n     printf(\"ERROR: port1 read_data2 = %lx, read_data3 = %lx\\n\", read_data2, read_data3);\n     err0++;\n   }\n\n16. Call finish(err0);",
+    "Meta Test Steps / Procedure": '1. File-scope declarations:\n   unsigned long int port0_addr;\n   unsigned long int port1_addr;\n\n2. Function: int test_case()\n\n3. Local variable declarations:\n   unsigned long int index;\n   unsigned long int offset;\n   unsigned long int read_data0;\n   unsigned long int read_data1;\n   unsigned long int read_data2;\n   unsigned long int read_data3;\n   unsigned int err0;\n\n4. Call gpv_programming();\n\n5. err0 = 0;\n\n6. Address configuration (preprocessor conditional):\n   #if defined(APS_DRAM)\n     port0_addr = 0;\n     port1_addr = 0x15A0000000;\n     ctl_base = 0x9EE03000;\n     phy_base = 0x9F000000;\n   #else\n     port0_addr = 0;\n     port1_addr = 0x11A0000000;\n     ctl_base = 0x11D003000;\n     phy_base = 0x11D500000;\n   #endif\n\n7. bus_width = 1; //0 -> Full Bus, 1 -> Half Bus, 2 -> Quarter bus\n\n8. Speed grade selection (preprocessor conditional):\n   #if defined(SG2667)\n     SG = 2667;\n   #elif defined(SG2133)\n     SG = 2133;\n   #else\n     SG = 3200;\n   #endif\n\n9. <NRP> = 0;\n\n10. DM_EN = 0;\n\n11. Call <PERSON>();\n\n12. Call training_done();\n\n13. Call wait_on(1000);\n\n14. Port0 read-back verification (preprocessor conditional):\n   #if !((defined(APS_DRAM) && defined(A53_INITIATOR)) ^(defined(MPS_DRAM) && defined(AI_INITIATOR)) ^(defined(MPS_DRAM) && defined(DSP_INITIATOR)))\n     read_reg64(port0_addr + 0x100, &read_data0);\n     read_reg64(port0_addr + 0x108, &read_data1);\n     if((read_data0 != 0x3333333333333333) && (read_data1 != 0x2222222222222222))\n     {\n       printf("ERROR: port0 read_data0 = %lx, read_data1 = %lx\\n", read_data0, read_data1);\n       err0++;\n     }\n   #endif\n\n15. Port1 read-back verification (unconditional):\n   read_reg64(port1_addr + 0x100, &read_data2);\n   read_reg64(port1_addr + 0x108, &read_data3);\n   if((read_data2 != 0x3333333333333333) && (read_data3 != 0x2222222222222222))\n   {\n     printf("ERROR: port1 read_data2 = %lx, read_data3 = %lx\\n", read_data2, read_data3);\n     err0++;\n   }\n\n16. Call finish(err0);',
     "Test Steps / Procedure": "1. Perform GPV programming to set up the bus interconnect.\n2. Initialize error counter to 0.\n3. Configure port addresses and controller/PHY base addresses based on DRAM type (APS_DRAM or MPS_DRAM).\n4. Set bus width to Half Bus mode (bus_width = 1).\n5. Select speed grade: SG3200 (default), SG2667, or SG2133.\n6. Disable Data Bus Inversion (<NRP> = 0).\n7. Disable Data Mask (DM_EN = 0).\n8. Execute LPDDR4 memory training sequence.\n9. Confirm training completion.\n10. Wait 1000 units for stabilization.\n11. Conditionally read 64-bit data from <LOCATION> at offsets 0x100 and 0x108 and verify against expected patterns (condition based on initiator/DRAM combination).\n12. Read 64-bit data from <LOCATION> at offsets 0x100 and 0x108 and verify against expected <LOCATION>. Report test result based on accumulated error count.",
     "Meta Impacted Registers": "NA",
     "Impacted Registers": "NA",
@@ -28,6 +34,146 @@ json_data = [
   }
 ]
 
-print("Script ready for execution")
-print(f"openpyxl version: {openpyxl.__version__}")
-print(f"JSON rows: {len(json_data)}")
+# ============ CONFIG ============
+FILENAME = "LPDDR4_TestPlan_20261012_100339.xlsx"
+OUTPUT_DIR = "/tmp"
+FILEPATH = os.path.join(OUTPUT_DIR, FILENAME)
+
+# ============ STYLES ============
+header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+wrap_alignment = Alignment(wrap_text=True, vertical='top')
+header_alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+
+# ============ TESTPLAN COLUMNS ============
+testplan_columns = [
+    "Index", "SS / Module", "Feature", "Test Case Name", "Test Description",
+    "Speed", "Mode", "Memory Start Offset", "Memory End Offset", "Remarks",
+    "Test Steps / Procedure", "Impacted Registers", "Validation / Acceptance Criteria",
+    "Code Generation"
+]
+
+# ============ METADATA COLUMNS ============
+metadata_columns = [
+    "Index", "Test Case Name", "Meta Test Description",
+    "Meta Test Steps / Procedure", "Meta Impacted Registers",
+    "Meta Validation / Acceptance Criteria", "Meta Headers",
+    "Meta Macros", "Meta Arrays"
+]
+
+# ============ CREATE WORKBOOK ============
+wb = openpyxl.Workbook()
+
+# --- TestPlan Sheet ---
+ws_tp = wb.active
+ws_tp.title = "TestPlan"
+
+# Write headers
+for col_idx, col_name in enumerate(testplan_columns, 1):
+    cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = header_alignment
+
+# Write data rows
+for row_idx, row_data in enumerate(json_data, 2):
+    for col_idx, col_name in enumerate(testplan_columns, 1):
+        value = row_data.get(col_name, "")
+        cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
+        cell.alignment = wrap_alignment
+
+# Freeze first row
+ws_tp.freeze_panes = "A2"
+
+# Auto-size columns with max width
+for col_idx in range(1, len(testplan_columns) + 1):
+    col_letter = get_column_letter(col_idx)
+    max_length = len(str(ws_tp.cell(row=1, column=col_idx).value or ""))
+    for row in ws_tp.iter_rows(min_row=2, max_row=ws_tp.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                lines = str(cell.value).split('\n')
+                for line in lines:
+                    max_length = max(max_length, len(line))
+    adjusted_width = min(max_length + 2, 60)
+    ws_tp.column_dimensions[col_letter].width = max(adjusted_width, 12)
+
+# --- MetaData Sheet ---
+ws_md = wb.create_sheet(title="MetaData")
+
+# Write headers
+for col_idx, col_name in enumerate(metadata_columns, 1):
+    cell = ws_md.cell(row=1, column=col_idx, value=col_name)
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = header_alignment
+
+# Write data rows
+for row_idx, row_data in enumerate(json_data, 2):
+    for col_idx, col_name in enumerate(metadata_columns, 1):
+        value = row_data.get(col_name, "")
+        cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
+        cell.alignment = wrap_alignment
+
+# Freeze first row
+ws_md.freeze_panes = "A2"
+
+# Auto-size columns with max width
+for col_idx in range(1, len(metadata_columns) + 1):
+    col_letter = get_column_letter(col_idx)
+    max_length = len(str(ws_md.cell(row=1, column=col_idx).value or ""))
+    for row in ws_md.iter_rows(min_row=2, max_row=ws_md.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                lines = str(cell.value).split('\n')
+                for line in lines:
+                    max_length = max(max_length, len(line))
+    adjusted_width = min(max_length + 2, 60)
+    ws_md.column_dimensions[col_letter].width = max(adjusted_width, 12)
+
+# Set MetaData sheet to veryHidden
+ws_md.sheet_state = 'veryHidden'
+
+# ============ SAVE WORKBOOK ============
+wb.save(FILEPATH)
+print(f"SAVED: {FILEPATH}")
+print(f"SIZE: {os.path.getsize(FILEPATH)} bytes")
+
+# ============ VALIDATE WORKBOOK ============
+wb2 = openpyxl.load_workbook(FILEPATH)
+sheets = wb2.sheetnames
+print(f"SHEETS: {sheets}")
+assert "TestPlan" in sheets, "TestPlan sheet missing"
+assert "MetaData" in sheets, "MetaData sheet missing"
+
+# Validate MetaData content
+ws_v = wb2["MetaData"]
+meta_fields = ["Meta Test Description", "Meta Test Steps / Procedure", 
+               "Meta Impacted Registers", "Meta Validation / Acceptance Criteria",
+               "Meta Headers", "Meta Macros", "Meta Arrays"]
+
+validation_passed = True
+for field in meta_fields:
+    col_idx = metadata_columns.index(field) + 1
+    cell_value = ws_v.cell(row=2, column=col_idx).value
+    expected = json_data[0].get(field, "")
+    if cell_value != expected:
+        print(f"VALIDATION FAILED for {field}")
+        validation_passed = False
+
+if validation_passed:
+    print("VALIDATION: PASSED")
+else:
+    print("VALIDATION: FAILED")
+
+# Output base64 for upload
+with open(FILEPATH, 'rb') as f:
+    b64 = base64.b64encode(f.read()).decode('utf-8')
+    
+print(f"BASE64_LENGTH: {len(b64)}")
+# Write base64 to file for retrieval
+b64_path = os.path.join(OUTPUT_DIR, "workbook_b64.txt")
+with open(b64_path, 'w') as f:
+    f.write(b64)
+print(f"BASE64_FILE: {b64_path}")
+print("GENERATION COMPLETE")
