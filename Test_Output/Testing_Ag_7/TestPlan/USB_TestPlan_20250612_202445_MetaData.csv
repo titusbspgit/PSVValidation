@@ -1,0 +1,66 @@
+Index,Test Case Name,Meta Test Description,Meta Test Steps / Procedure,Meta Impacted Registers,Meta Validation / Acceptance Criteria,Meta Headers,Meta Macros,Meta Arrays
+1,usb_host_enumeration_hs,"Initialize USB xHCI host controller. Configure USB2 PHY by writing 0x102407 to MIZAR_USB_BASE+0xC200. Read capability registers HCSPARAMS1, HCSPARAMS2, PAGESIZE, SUPTPRT2_DW2, SUPTPRT3_DW2, PORTSC_20. Configure operational registers CONFIG, DCBAAP_LO, DCBAAP_HI, CRCR_LO, CRCR_HI. Populate Device_Context_Base_Address_Array with Scratchpad_Buffer_Array and Device_Context_Array entries. Configure Event Ring Segment Table with Default_Event_Ring_Array base address and segment size 0x20. Set ERSTSZ, ERDP_LO, ERDP_HI, ERSTBA_LO, ERSTBA_HI, IMOD, IMAN. Enable interrupts via USBCMD and MIZAR_LSS_SYSREG_INTR_EN0. Run controller via USBCMD. Wait for interrupt. Read USBSTS and PORTSC_20 for port connect status. Perform port reset via PORTSC_20=0xe0006f1. Enable wake bits WCE, WDE, WOE on PORTSC_20. Read DBOFF for doorbell offset. Call set_address() which issues Enable Slot Command TRB (0x00002401) and Address Device Command TRB with Default_Input_Context. Configure Default_Input_Context Slot Context at offsets 0x40, 0x44 and Endpoint 0 Context at offsets 0x80, 0x84, 0x88, 0x90. Ring doorbell DB=0x0. Call enumeration() which issues GET_DESCRIPTOR Device (0x01000680), GET_DESCRIPTOR Qualifier (0x06000680) via EP0_TR_Dequeue_Pointer TRBs. Advance ERDP_LO through offsets 0x18, 0x28, 0x38, 0x48, 0x58, 0x68 as events are consumed. Call finish(0) on completion.","1. extern int int_pend;
+2. int test_case() {
+3.   int rd_data,port_count,db_offset;
+4.   int event_completion,usb_status,port_status;
+5.   int input_context_address;
+6.   int data_in[512],j,data_out[512],i;
+7.   int count = 0;
+8.   nic_programming();
+9.   GIC_EnableAllIRQ();
+10.  rd_data = read_reg(MIZAR_USB_BASE+0xc200);
+11.  write_reg(MIZAR_USB_BASE+0xc200, 0x102407);
+12.  port_count = read_reg(MIZAR_USB_HCSPARAMS1);
+13.  rd_data = read_reg(MIZAR_USB_SUPTPRT2_DW2);
+14.  rd_data = read_reg(MIZAR_USB_SUPTPRT3_DW2);
+15.  rd_data = read_reg(MIZAR_USB_PORTSC_20);
+16.  rd_data = read_reg(MIZAR_USB_HCSPARAMS2);
+17.  rd_data = read_reg(MIZAR_USB_PAGESIZE);
+18.  write_reg(MIZAR_USB_CONFIG, 0x10);
+19.  rd_data = read_reg(MIZAR_USB_CONFIG);
+20.  write_reg(MIZAR_USB_CONFIG, 0x110);","HCSPARAMS1, HCSPARAMS2, PAGESIZE, SUPTPRT2_DW2, SUPTPRT3_DW2, CONFIG, DCBAAP_LO, DCBAAP_HI, CRCR_LO, CRCR_HI, ERSTSZ, ERDP_LO, ERDP_HI, ERSTBA_LO, ERSTBA_HI, IMOD, IMAN, USBCMD, USBSTS, PORTSC_20, DBOFF","1. port_status = read_reg(MIZAR_USB_PORTSC_20) - port connect status (CCS bit 0) should be high after controller run.
+2. usb_status = read_reg(MIZAR_USB_USBSTS) - read after interrupt, then cleared by writing 0x8 (EINT bit 3 clear).
+3. event_completion = read_reg(Default_Event_Ring_Array+0x20) - Enable Slot Command completion event read in set_address().
+4. event_completion = read_reg(Default_Event_Ring_Array+0x30) - Address Device Command completion event read in set_address().
+5. event_completion = read_reg(Default_Event_Ring_Array+0x50) - GET_DESCRIPTOR completion event read in enumeration(), read twice (before and after interrupt wait).
+6. Default_IRQHandler checks rd_data && 0x80000000 from MIZAR_LSS_SYSREG_RAW_STCR0 to confirm USB interrupt source (bit 31).
+7. Default_IRQHandler writes MIZAR_USB_IMAN=0x1 and MIZAR_LSS_SYSREG_RAW_STCR0=0x80000000 to acknowledge interrupt.
+8. GIC_ClearIRQ(84) called in Default_IRQHandler to clear IRQ 84.
+9. finish(0) called at end indicating test pass.","#include <stdio.h>
+#include <stdlib.h>
+#include usb.h","MIZAR_USB_BASE, MIZAR_USB_HCSPARAMS1, MIZAR_USB_HCSPARAMS2, MIZAR_USB_PAGESIZE, MIZAR_USB_SUPTPRT2_DW2, MIZAR_USB_SUPTPRT3_DW2, MIZAR_USB_CONFIG, MIZAR_USB_DCBAAP_LO, MIZAR_USB_DCBAAP_HI, MIZAR_USB_CRCR_LO, MIZAR_USB_CRCR_HI, MIZAR_USB_ERSTSZ, MIZAR_USB_ERDP_LO, MIZAR_USB_ERDP_HI, MIZAR_USB_ERSTBA_LO, MIZAR_USB_ERSTBA_HI, MIZAR_USB_IMOD, MIZAR_USB_IMAN, MIZAR_USB_USBCMD, MIZAR_USB_USBSTS, MIZAR_USB_PORTSC_20, MIZAR_USB_DBOFF, MIZAR_LSS_SYSREG_INTR_EN0, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0, USB_PORTSC_20_WCE, USB_PORTSC_20_WDE, USB_PORTSC_20_WOE, DWORD, Device_Context_Base_Address_Array, Device_Context_Array, Default_Event_Ring_Array, Default_Command_Ring, Default_Input_Context, Event_Ring_Segment_Table","int data_in[512];
+int data_out[512];"
+2,USB_FS_Device_Bulk_Transfer_test,"Configure USB DWC3 device controller in device mode for full-speed bulk transfer. Clear buffer and TRB memory by zeroing 20 DWORD entries at Buffer_PointerLO and event_trb_addr. Configure event buffer: write MIZAR_USB_GEVNTADRLO=Default_Event_Ring_Array, MIZAR_USB_GEVNTADRHI=0x0, MIZAR_USB_GEVNTSIZ=0x30, MIZAR_USB_GEVNTCOUNT=0x0. Read MIZAR_USB_GCTL, then write MIZAR_USB_GCTL=0x30c12214 (device mode port direction). Read MIZAR_USB_DCFG, then write MIZAR_USB_DCFG=0x480801. Write MIZAR_USB_DEVTEN=0x1f to enable device events. Read MIZAR_USB_GUCTL, then write MIZAR_USB_GUCTL=0xa400010. Call set_configuration(0, 0, 0, 0x409) for START NEW CONFIGURATION (DEPSTARTCFG). Loop i=0 to 7: write MIZAR_USB_DEPCMDPAR0+(i*0x10)=0x1, write MIZAR_USB_DEPCMD+(i*0x10)=0x402 (DEPXFERCFG), poll MIZAR_USB_DEPCMD+(i*0x10) until completion. Write MIZAR_USB_DALEPENA=0x3 (enable physical EP 0 and 1). Write MIZAR_USB_DCTL=0x80f00000. Write MIZAR_LSS_SYSREG_INTR_EN0=0x80000000. Wait for interrupt. Bulk transfer: write event_trb_addr=Buffer_PointerLO_1, event_trb_addr+0x8=0x40, event_trb_addr+0xc=0x813. Write MIZAR_USB_DEPCMDPAR1+0x40=event_trb_addr, MIZAR_USB_DEPCMDPAR0+0x40=0x0, MIZAR_USB_DEPCMD+0x40=0x506 (StartXfer on EP4). Poll MIZAR_USB_DEPCMD+0x40 until completion. Wait for interrupt.","1. extern int int_pend;
+2. int event_counter;
+3. int test_case() {
+4.   int rd_data, wr_data, port_count, db_offset;
+5.   int buf_data[16], i, bulk, intr, event_comletion, j;
+6.   int hand_shake;
+7.   nic_programming();
+8.   GIC_EnableAllIRQ();
+9.   for(j=0; j<20; j++) {
+10.    write_reg(Buffer_PointerLO + j*DWORD, 0x0);
+11.    write_reg(event_trb_addr + j*DWORD, 0x0);
+12.  }
+13.  write_reg(MIZAR_USB_GEVNTADRLO, Default_Event_Ring_Array);
+14.  write_reg(MIZAR_USB_GEVNTADRHI, 0x0);
+15.  write_reg(MIZAR_USB_GEVNTSIZ, 0x30);
+16.  write_reg(MIZAR_USB_GEVNTCOUNT, 0x0);
+17.  rd_data = read_reg(MIZAR_USB_GCTL);
+18.  wr_data = 0x30c12214;
+19.  write_reg(MIZAR_USB_GCTL, wr_data);
+20.  rd_data = read_reg(MIZAR_USB_DCFG);","GCTL, DCTL, DALEPENA, DEVTEN, GUCTL, DSTS","1. MIZAR_USB_DEPCMD+(i*0x10) polled after writing 0x402 - DEPXFERCFG command must complete (register value changes from 0x402) for each of 8 endpoints.
+2. MIZAR_USB_DEPCMD+0x10 polled after writing 0x506 - StartXfer command on EP1 must complete (register value changes from 0x506).
+3. MIZAR_USB_DEPCMD polled after writing 0x506 in setup_stage() - StartXfer command must complete.
+4. MIZAR_USB_DEPCMD polled after writing 0x506 in status_stage() - StartXfer command must complete.
+5. MIZAR_USB_DEPCMD+trb_address polled after writing cmd in set_configuration() - command must complete (register value changes from cmd).
+6. MIZAR_USB_DEPCMD+0x40 polled after writing 0x506 - StartXfer command on EP4 for bulk transfer must complete.
+7. Default_IRQHandler reads event_count = read_reg(MIZAR_USB_GEVNTCOUNT), stores to event_counter, writes back event_count to MIZAR_USB_GEVNTCOUNT to acknowledge events.
+8. Default_IRQHandler checks rd_data && 0x80000000 from MIZAR_LSS_SYSREG_RAW_STCR0 to confirm USB interrupt source (bit 31).
+9. Default_IRQHandler writes MIZAR_LSS_SYSREG_RAW_STCR0=0x80000000 to acknowledge interrupt.
+10. GIC_ClearIRQ(84) called in Default_IRQHandler to clear IRQ 84.
+11. event_counter checked against 0x4 threshold - conditional interrupt waits based on event count.
+12. Configuration descriptor data written to Buffer_PointerLO: wTotalLength=0x003c (60 bytes), bNumInterfaces=1, bConfigurationValue=1.
+13. Bulk transfer TRB configured with Buffer_PointerLO_1, length=0x40 (64 bytes), control=0x813.","#include <stdio.h>
+#include <stdlib.h>
+#include usb.h","MIZAR_USB_GEVNTADRLO, MIZAR_USB_GEVNTADRHI, MIZAR_USB_GEVNTSIZ, MIZAR_USB_GEVNTCOUNT, MIZAR_USB_GCTL, MIZAR_USB_DCFG, MIZAR_USB_DSTS, MIZAR_USB_DCTL, MIZAR_USB_DALEPENA, MIZAR_USB_DEVTEN, MIZAR_USB_GUCTL, MIZAR_USB_DEPCMDPAR1, MIZAR_USB_DEPCMDPAR0, MIZAR_USB_DEPCMD, MIZAR_LSS_SYSREG_INTR_EN0, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0, Default_Event_Ring_Array, Buffer_PointerLO, Buffer_PointerLO_1, event_trb_addr, DWORD","int buf_data[16];"
