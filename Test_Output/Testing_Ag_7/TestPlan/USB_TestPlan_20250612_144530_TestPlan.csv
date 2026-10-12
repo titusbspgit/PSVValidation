@@ -1,0 +1,81 @@
+Index,SS / Module,Feature,Test Case Name,Test Description,Speed,Mode,Memory Start Offset,Memory End Offset,Remarks,Test Steps / Procedure,Impacted Registers,Validation / Acceptance Criteria
+1,USB,USB xHCI Host Controller High-Speed Device Enumeration,usb_host_enumeration_hs,"Initialize the USB xHCI host controller, configure the USB2 PHY, read capability registers (HCSPARAMS1, HCSPARAMS2, PAGESIZE, SUPTPRT2_DW2, SUPTPRT3_DW2), configure operational registers (CONFIG, DCBAAP, CRCR), set up the Event Ring Segment Table and Event Ring, enable interrupts, run the controller, perform a port reset on PORTSC_20, enable wake-on-connect/disconnect/overcurrent, call set_address to issue Enable Slot and Address Device commands, configure the Input Context (Slot Context and Endpoint 0 Context), ring the doorbell, and call enumeration to issue GET_DESCRIPTOR requests for Device and Qualifier descriptors. Verify port connect status and event completions. Finish with pass status.",High-Speed (HS),Host,RAM+0x0,RAM+0xE83F,"The Default_IRQHandler uses logical AND (&&) instead of bitwise AND (&) for checking bit 31 of MIZAR_LSS_SYSREG_RAW_STCR0, which is a potential bug. Three system register macros (MIZAR_LSS_SYSREG_INTR_EN0, MIZAR_LSS_SYSREG_MSK_STS0, MIZAR_LSS_SYSREG_RAW_STCR0) are unresolved as lss_sysreg headers are not in the available corpus. RAM-based memory macros have ambiguous base addresses due to conditional RAM definition in headers. GIC_EnableIRQ(84) is commented out in favor of GIC_EnableAllIRQ().","1. Call nic_programming() to initialize NIC subsystem.
+2. Call GIC_EnableAllIRQ() to enable all GIC interrupts.
+3. Read and write PHY Control Register at MIZAR_USB_BASE+0xC200 with value 0x102407.
+4. Read HCSPARAMS1 to obtain port_count.
+5. Read SUPTPRT2_DW2 and SUPTPRT3_DW2 for supported protocol information.
+6. Read PORTSC_20 for initial port status.
+7. Read HCSPARAMS2 and PAGESIZE for controller capabilities.
+8. Write CONFIG register with 0x10 (MaxSlotsEn), then read back and write 0x110 (CIE enabled).
+9. Populate Device Context Base Address Array.
+10. Write DCBAAP_LO/HI.
+11. Write CRCR_LO/HI.
+12. Configure Event Ring Segment Table.
+13. Write ERSTSZ, ERDP_LO/HI.
+14. Write ERSTBA_LO/HI.
+15. Write IMOD=0x0, IMAN=0x2.
+16. Write USBCMD=0x4.
+17. Enable wake bits on PORTSC_20.
+18. Read DBOFF.
+19. Write MIZAR_LSS_SYSREG_INTR_EN0=0x80000000.
+20. Write USBCMD=0x5 to Run.
+21. Wait for interrupt.
+22. Read USBSTS, clear, write IMAN.
+23. Read PORTSC_20.
+24. Advance ERDP_LO.
+25. Write PORTSC_20=0xe0006f1 port reset.
+26. Clear USBSTS, IMAN.
+27. Write PORTSC_20=0xe220200.
+28. Wait for interrupt.
+29. Call set_address().
+30. Configure Default_Input_Context.
+31. Write PORTSC_20=0xe200e01, ring doorbell.
+32. Wait for interrupt, clear, advance ERDP_LO.
+33. Call enumeration().
+34. Call finish(0).","HCSPARAMS1 (offset 0x4, read for port_count), HCSPARAMS2 (offset 0x8, read), PAGESIZE (offset 0x28, read), SUPTPRT2_DW2 (offset 0x898, read), SUPTPRT3_DW2 (offset 0x8A8, read), CONFIG (offset 0x58, write 0x10 then 0x110), DCBAAP_LO (offset 0x50, write), DCBAAP_HI (offset 0x54, write 0x0), CRCR_LO (offset 0x38, write), CRCR_HI (offset 0x3C, write 0x0), ERSTSZ (offset 0x468, write 0x1), ERDP_LO (offset 0x478, write/advance), ERDP_HI (offset 0x47C, write 0x0), ERSTBA_LO (offset 0x470, write), ERSTBA_HI (offset 0x474, write 0x0), IMOD (offset 0x464, write 0x0), IMAN (offset 0x460, write 0x2 and 0x1), USBCMD (offset 0x20, write 0x4 and 0x5), USBSTS (offset 0x24, read and write 0x8), PORTSC_20 (offset 0x420, read and write), DBOFF (offset 0x14, read)","1. After running the controller (USBCMD=0x5), the interrupt must fire and PORTSC_20 CCS should be high.
+2. USBSTS EINT bit must be clearable by writing 0x8.
+3. Enable Slot Command must complete successfully.
+4. Address Device Command must complete successfully.
+5. GET_DESCRIPTOR transfers must complete via event ring completion events.
+6. Interrupt handler must correctly identify USB interrupt source.
+7. Port reset must complete and port status must reflect connected high-speed device.
+8. Test completes with finish(0) indicating pass."
+2,USB,USB DWC3 Device Controller Full-Speed Bulk Transfer,USB_FS_Device_Bulk_Transfer_test,"Configure the USB DWC3 device controller in device mode for full-speed operation. Initialize the event buffer (GEVNTADRLO/HI/SIZ/COUNT), configure global control (GCTL) for device mode, set device configuration (DCFG), enable device events (DEVTEN), configure user control (GUCTL), issue DEPSTARTCFG command via set_configuration, configure transfer resources for 8 endpoints using DEPXFERCFG loop, enable physical endpoints 0 and 1 (DALEPENA), set device control (DCTL), enable system-level interrupt (INTR_EN0). Perform USB enumeration. Configure USB2 PHY (GUSB2PHYCFG). Set device address via DCFG. Execute bulk data transfer on EP4 with 64-byte max packet size. Verify transfer completion via interrupt-driven event processing.",Full-Speed (FS),Device,RAM+0xd00,RAM+0x3000,"The Default_IRQHandler uses logical AND (&&) instead of bitwise AND (&) for checking bit 31 of MIZAR_LSS_SYSREG_RAW_STCR0, which is a potential bug. Four system/device register macros are unresolved. Seven register macros have ambiguous offsets due to dual definitions in headers. RAM-based memory macros have ambiguous base addresses. MIZAR_USB_GUSB2PHYCFG is used in source but was not in the original macro list. The variable event_comletion appears to be a typo for event_completion. Debug markers 0xdeadbee4 and 0xdeadbee5 are written to address 0xA0243ffc. The DCFG register is written twice: first with 0x480801 during init, then with 0x480809 during SET ADDRESS.","1. Call nic_programming().
+2. Call GIC_EnableAllIRQ().
+3. Clear 20 DWORD entries at Buffer_PointerLO and event_trb_addr.
+4. Configure event buffer: GEVNTADRLO/HI/SIZ/COUNT.
+5. Read GCTL, write GCTL=0x30c12214.
+6. Read DCFG, write DCFG=0x480801.
+7. Write DEVTEN=0x1f.
+8. Read GUCTL, write GUCTL=0xa400010.
+9. Call set_configuration(0, 0, 0, 0x409).
+10. Loop i=0 to 7: DEPXFERCFG for each endpoint.
+11. Write DALEPENA=0x3.
+12. Write DCTL=0x80f00000.
+13. Write MIZAR_LSS_SYSREG_INTR_EN0=0x80000000.
+14. Wait for interrupt.
+15. Issue StartXfer on EP1.
+16. Wait for three successive interrupts.
+17. Call status_stage().
+18. Call setup_stage() for SET_CONFIGURATION.
+19. Wait for interrupt.
+20. Call setup_stage(), write GUSB2PHYCFG=0x40002547.
+21. Check event_counter<=0x4 twice.
+22. Call setup_stage() for GET_DESCRIPTOR.
+23. Wait for interrupt.
+24. Data stage: configure TRB, write config descriptor.
+25. Write DEPCMDPAR1/PAR0.
+26. SET ADDRESS: write DCFG=0x480809.
+27. Configure TRB for status.
+28. Bulk transfer: configure TRB with Buffer_PointerLO_1, length=0x40.
+29. Write DEPCMD+0x40=0x506 (StartXfer on EP4).
+30. Wait for interrupt.","GCTL (offset 0xC110, read then write 0x30c12214), DCTL (offset 0xC704, write 0x80f00000), DALEPENA (offset 0xC720, write 0x3), DEVTEN (offset 0xC708, write 0x1f), GUCTL (offset 0xC12C, read then write 0xa400010), DSTS (offset 0xC70C, read in IRQHandler)","1. All 8 endpoint DEPXFERCFG commands must complete successfully.
+2. All StartXfer commands on EP0, EP1, and EP4 must complete successfully.
+3. DEPSTARTCFG command must complete.
+4. Interrupt handler must correctly read GEVNTCOUNT and write back to acknowledge.
+5. Interrupt handler must identify USB interrupt source and clear via GIC_ClearIRQ(84).
+6. Configuration descriptor must be correctly written.
+7. SET ADDRESS must succeed by writing DCFG=0x480809.
+8. Bulk transfer on EP4 with 64-byte payload must complete.
+9. USB2 PHY must be configured with GUSB2PHYCFG=0x40002547.
+10. All interrupt-driven wait loops must be serviced."
