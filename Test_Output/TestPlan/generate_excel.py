@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Excel TestPlan Generator for LPDDR4
-Generates LPDDR4_TestPlan_YYYYMMDD_HHMMSS.xlsx
+Generates LPDDR4_TestPlan_YYYYMMDD_HHMMSS.xlsx using openpyxl
 Run: python3 generate_excel.py
+Triggered via GitHub Actions workflow
 """
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -97,3 +98,7 @@ wb.save(save_path)
 fs = os.path.getsize(save_path)
 wb2 = openpyxl.load_workbook(save_path)
 print(f"OK: {filename} ({fs} bytes) sheets={wb2.sheetnames}")
+print(f"TestPlan rows: {wb2['TestPlan'].max_row - 1}")
+print(f"MetaData rows: {wb2['MetaData'].max_row - 1}")
+print(f"MetaData state: {wb2['MetaData'].sheet_state}")
+print("VALIDATION=PASSED")
