@@ -1,201 +1,159 @@
 #!/usr/bin/env python3
-"""
-MIPI_CSI TestPlan Excel Generator
-Generates MIPI_CSI_TestPlan_YYYYMMDD_HHMMSS.xlsx with TestPlan and MetaData sheets.
-Run this script to produce the XLSX file, then push to GitHub.
-"""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from datetime import datetime, timezone, timedelta
-import os, sys, json
+import os, json, sys
 
+# IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 now_ist = datetime.now(IST)
-timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
-filename = f"MIPI_CSI_TestPlan_{timestamp}.xlsx"
-output_dir = os.path.dirname(os.path.abspath(__file__))
-filepath = os.path.join(output_dir, filename)
+timestamp = now_ist.strftime('%Y%m%d_%H%M%S')
+filename = f'MIPI_DSI_TestPlan_{timestamp}.xlsx'
 
-# === JSON DATA ===
+# Input JSON data
 json_data = [
-    {
-        "Index": "1",
-        "SS / Module": "MIPI_CSI",
-        "Test Case Name": "mipi_csi2_dphy_lanes_test",
-        "Feature": "DPHY Lane Configuration and Interrupt Enablement",
-        "Meta Headers": "NA",
-        "Meta Macros": "MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_HOST_N_LANES; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED; MIPI_CSI2_DMA_INTEN_OFFSET; MIPI_CSI2_DMA_INTMIS_OFFSET; MIPI_CSI2_DMA_INTCLR_OFFSET",
-        "Meta Arrays": "NA",
-        "Speed": "NA",
-        "Mode": "NA",
-        "Memory Start Offset": "NA",
-        "Memory End Offset": "NA",
-        "Meta Test Description": "This testcase validates MIPI CSI2 DPHY lane configuration and CSI2 host interrupt enablement. The test_case() function first writes to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL to configure the virtual channel, then writes to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA to set control data. A second set of writes to the same registers is performed. The test then polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop to wait for the PHY stop state condition. Once the PHY stop state is confirmed, MIZAR_MIPI_CSI2_HOST_N_LANES is written to configure the number of active DPHY lanes. A write to hardcoded address 0xa0243ffc is performed. The test calls csi2_enable_interrupt() which reads MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to check the main interrupt status, then writes to all CSI2 host interrupt mask registers (INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, INT_MSK_ECC_CORRECTED) to enable all interrupt masks. DMA interrupt enable, masked interrupt status read, and interrupt clear operations are performed using gdma_reg_base with offsets MIPI_CSI2_DMA_INTEN_OFFSET, MIPI_CSI2_DMA_INTMIS_OFFSET, and MIPI_CSI2_DMA_INTCLR_OFFSET. A read from hardcoded address 0xE6001000 is also performed. The DMA masked interrupt status is polled and cleared in a loop.",
-        "Test Description": "This test validates the MIPI CSI2 DPHY lane configuration and CSI2 host interrupt enablement flow. The test configures the virtual channel and control data registers in the CSI2 register block. It then polls the PHY_STOPSTATE register to wait for the PHY lanes to reach the stop state. Once confirmed, the N_LANES register is written to configure the number of active DPHY lanes. The test enables all CSI2 host interrupt masks by writing to INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, and INT_MSK_ECC_CORRECTED registers after reading the INT_ST_MAIN register. DMA interrupt enable, status polling, and interrupt clear operations are also performed. The test verifies that the DPHY lane configuration and interrupt setup complete successfully.",
-        "Meta Test Steps / Procedure": "1. Enter test_case() function. 2. Write to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL to configure the virtual channel setting. 3. Write to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA to set the control data value. 4. Write to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL again with a second virtual channel configuration. 5. Write to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA again with a second control data value. 6. Poll MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop, waiting for the PHY stop state condition to be met. 7. Write to MIZAR_MIPI_CSI2_HOST_N_LANES to configure the number of active DPHY lanes. 8. Write to hardcoded address 0xa0243ffc. 9. Write to gdma_reg_base + MIPI_CSI2_DMA_INTEN_OFFSET to enable DMA interrupts. 10. Call csi2_enable_interrupt() function. 11. Inside csi2_enable_interrupt(): Read MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to check the main interrupt status. 12. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL to enable PHY fatal interrupt mask. 13. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL to enable packet fatal interrupt mask. 14. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY to enable PHY interrupt mask. 15. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE to enable line interrupt mask. 16. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL to enable boundary frame fatal interrupt mask. 17. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL to enable sequence frame fatal interrupt mask. 18. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL to enable CRC frame fatal interrupt mask. 19. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL to enable payload CRC fatal interrupt mask. 20. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID to enable data ID interrupt mask. 21. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED to enable ECC corrected interrupt mask. 22. Return from csi2_enable_interrupt(). 23. Read from gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET to check DMA masked interrupt status. 24. Read from gdma_reg_base + 0x28 to read a DMA-related register. 25. Read from hardcoded address 0xE6001000. 26. Poll gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET in a loop to wait for DMA interrupt completion. 27. Write to gdma_reg_base + MIPI_CSI2_DMA_INTCLR_OFFSET to clear DMA interrupts. 28. Read gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET again to verify DMA interrupt cleared. 29. Write to gdma_reg_base + MIPI_CSI2_DMA_INTCLR_OFFSET again if needed. 30. Test completes and returns result.",
-        "Test Steps / Procedure": "1. Configure the virtual channel register with the first virtual channel setting. 2. Write the first control data value to the control data register. 3. Configure the virtual channel register with a second virtual channel setting. 4. Write the second control data value to the control data register. 5. Poll the PHY_STOPSTATE register until the PHY lanes reach the stop state. 6. Configure the N_LANES register to set the number of active DPHY lanes. 7. Perform a write to an external configuration address. 8. Enable DMA interrupts via the DMA interrupt enable register. 9. Read the INT_ST_MAIN register to check the main interrupt status. 10. Enable all CSI2 host interrupt masks by writing to INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, and INT_MSK_ECC_CORRECTED registers. 11. Read the DMA masked interrupt status register to check for DMA completion. 12. Read an external status register. 13. Poll the DMA masked interrupt status register until DMA transfer completes. 14. Clear DMA interrupts by writing to the DMA interrupt clear register. 15. Verify DMA interrupts are cleared by re-reading the DMA masked interrupt status register. 16. Confirm test completion.",
-        "Meta Impacted Registers": "MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_HOST_N_LANES; 0xa0243ffc; 0xE6001000; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED",
-        "Impacted Registers": "virtual_channel; control_data; PHY_STOPSTATE; N_LANES; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED",
-        "Meta Validation / Acceptance Criteria": "The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop to validate that the PHY lanes have reached the stop state before proceeding with lane configuration. After enabling all CSI2 host interrupt masks, the DMA masked interrupt status register (gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET) is polled in a loop to wait for DMA transfer completion. The DMA interrupt is then cleared via gdma_reg_base + MIPI_CSI2_DMA_INTCLR_OFFSET, and the masked interrupt status is re-read to verify the interrupt has been cleared. The test passes if PHY stop state is achieved, lane configuration completes, all interrupt masks are enabled, and DMA transfer completes with interrupts properly cleared.",
-        "Validation / Acceptance Criteria": "The test passes when: 1) The PHY_STOPSTATE register indicates that all configured DPHY lanes have reached the stop state. 2) The N_LANES register is successfully configured with the desired lane count. 3) All CSI2 host interrupt mask registers (INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, INT_MSK_ECC_CORRECTED) are enabled. 4) DMA transfer completes as indicated by the DMA masked interrupt status register. 5) DMA interrupts are properly cleared after completion.",
-        "Remarks": "The test uses polling on PHY_STOPSTATE to wait for DPHY lane readiness before configuring the number of lanes. Two hardcoded hex addresses (0xa0243ffc for write and 0xE6001000 for read) could not be mapped to canonical register names from the provided specification documents. DMA operations use a base address variable (gdma_reg_base) with offset macros for interrupt enable, masked interrupt status, and interrupt clear registers. The test enables a comprehensive set of CSI2 host interrupt masks covering PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected interrupt categories."
-    },
-    {
-        "Index": "2",
-        "SS / Module": "MIPI_CSI",
-        "Test Case Name": "mipi_csi2_test_pattern_generator",
-        "Feature": "Test Pattern Generation",
-        "Meta Headers": "NA",
-        "Meta Macros": "MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG; MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE; MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED; MIPI_CSI2_DMA_INTMIS_OFFSET",
-        "Meta Arrays": "NA",
-        "Speed": "NA",
-        "Mode": "NA",
-        "Memory Start Offset": "NA",
-        "Memory End Offset": "NA",
-        "Meta Test Description": "This testcase validates the MIPI CSI2 internal test pattern generator functionality. The csi2_ctrlr_pg_enable() function configures the pattern generator by writing the vertical resolution to MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES, the horizontal resolution to MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES, the pattern generator configuration to MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG, and enables the pattern generator by writing to MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE. The test_case() function writes to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL to configure the virtual channel and writes to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA to set control data. It polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop to wait for the PHY stop state condition. DMA channel 0 read and write address registers are configured by writing to MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA, MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION, MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA, and MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION. A write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 is performed. The pattern generator is disabled by writing 0 to MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE. The csi2_enable_interrupt() function reads MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN and writes to all CSI2 host interrupt mask registers (INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, INT_MSK_ECC_CORRECTED). DMA masked interrupt status is polled via gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET.",
-        "Test Description": "This test validates the MIPI CSI2 internal test pattern generator. The test configures the pattern generator vertical resolution, horizontal resolution, and configuration registers, then enables the pattern generator via the PPI_PG_ENABLE register. The virtual_channel and control_data registers are configured. The PHY_STOPSTATE register is polled to wait for PHY lane readiness. DMA channel 0 address registers (dma_m0_addr_ar_ch0_data, dma_m0_addr_ar_ch0_Instruction, dma_m0_addr_aw_ch0_data, dma_m0_addr_aw_ch0_Instruction) are configured for data transfer. All CSI2 host interrupt masks are enabled by writing to INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, and INT_MSK_ECC_CORRECTED after reading INT_ST_MAIN. The pattern generator is then disabled and DMA interrupt status is polled for completion.",
-        "Meta Test Steps / Procedure": "1. Enter csi2_ctrlr_pg_enable() function. 2. Write to MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES to set the vertical resolution for the test pattern. 3. Write to MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES to set the horizontal resolution for the test pattern. 4. Write to MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG to configure the pattern generator settings. 5. Write to MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE to enable the pattern generator. 6. Return from csi2_ctrlr_pg_enable(). 7. Enter test_case() function. 8. Write to MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL to configure the virtual channel. 9. Write to MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA to set the control data value. 10. Poll MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop, waiting for the PHY stop state condition to be met. 11. Write to MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA to configure DMA channel 0 read address for data. 12. Write to MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION to configure DMA channel 0 read address for instructions. 13. Write to MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA to configure DMA channel 0 write address for data. 14. Write to MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION to configure DMA channel 0 write address for instructions. 15. Write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 to configure an additional register block register. 16. Call csi2_enable_interrupt() function. 17. Inside csi2_enable_interrupt(): Read MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN to check the main interrupt status. 18. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL to enable PHY fatal interrupt mask. 19. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL to enable packet fatal interrupt mask. 20. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY to enable PHY interrupt mask. 21. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE to enable line interrupt mask. 22. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL to enable boundary frame fatal interrupt mask. 23. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL to enable sequence frame fatal interrupt mask. 24. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL to enable CRC frame fatal interrupt mask. 25. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL to enable payload CRC fatal interrupt mask. 26. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID to enable data ID interrupt mask. 27. Write to MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED to enable ECC corrected interrupt mask. 28. Return from csi2_enable_interrupt(). 29. Write 0 to MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE to disable the pattern generator. 30. Read gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET to check DMA masked interrupt status. 31. Poll gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET in a loop to wait for DMA completion. 32. Test completes and returns result.",
-        "Test Steps / Procedure": "1. Configure the test pattern generator vertical resolution by writing to the PPI_PG_PATTERN_VRES register. 2. Configure the test pattern generator horizontal resolution by writing to the PPI_PG_PATTERN_HRES register. 3. Configure the test pattern generator settings by writing to the PPI_PG_CONFIG register. 4. Enable the test pattern generator by writing to the PPI_PG_ENABLE register. 5. Configure the virtual_channel register with the desired virtual channel setting. 6. Write the control data value to the control_data register. 7. Poll the PHY_STOPSTATE register until the PHY lanes reach the stop state. 8. Configure DMA channel 0 read address registers by writing to dma_m0_addr_ar_ch0_data and dma_m0_addr_ar_ch0_Instruction registers. 9. Configure DMA channel 0 write address registers by writing to dma_m0_addr_aw_ch0_data and dma_m0_addr_aw_ch0_Instruction registers. 10. Configure an additional register block register for DMA operation. 11. Read the INT_ST_MAIN register to check the main interrupt status. 12. Enable all CSI2 host interrupt masks by writing to INT_MSK_PHY_FATAL, INT_MSK_PKT_FATAL, INT_MSK_PHY, INT_MSK_LINE, INT_MSK_BNDRY_FRAME_FATAL, INT_MSK_SEQ_FRAME_FATAL, INT_MSK_CRC_FRAME_FATAL, INT_MSK_PLD_CRC_FATAL, INT_MSK_DATA_ID, and INT_MSK_ECC_CORRECTED registers. 13. Disable the test pattern generator by writing to the PPI_PG_ENABLE register. 14. Poll the DMA masked interrupt status register until DMA transfer completes. 15. Confirm test completion.",
-        "Meta Impacted Registers": "MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_VRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_PATTERN_HRES; MIZAR_MIPI_CSI2_HOST_PPI_PG_CONFIG; MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE; MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL; MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA; MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AR_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_DATA; MIZAR_MIPI_CSI2_RB_REG_DMA_M0_ADDR_AW_CH0_INSTRUCTION; MIZAR_MIPI_CSI2_HOST_INT_ST_MAIN; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PKT_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PHY; MIZAR_MIPI_CSI2_HOST_INT_MSK_LINE; MIZAR_MIPI_CSI2_HOST_INT_MSK_BNDRY_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_SEQ_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_CRC_FRAME_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_PLD_CRC_FATAL; MIZAR_MIPI_CSI2_HOST_INT_MSK_DATA_ID; MIZAR_MIPI_CSI2_HOST_INT_MSK_ECC_CORRECTED",
-        "Impacted Registers": "PPI_PG_PATTERN_VRES; PPI_PG_PATTERN_HRES; PPI_PG_CONFIG; PPI_PG_ENABLE; virtual_channel; control_data; PHY_STOPSTATE; dma_m0_addr_ar_ch0_data; dma_m0_addr_ar_ch0_Instruction; dma_m0_addr_aw_ch0_data; dma_m0_addr_aw_ch0_Instruction; INT_ST_MAIN; INT_MSK_PHY_FATAL; INT_MSK_PKT_FATAL; INT_MSK_PHY; INT_MSK_LINE; INT_MSK_BNDRY_FRAME_FATAL; INT_MSK_SEQ_FRAME_FATAL; INT_MSK_CRC_FRAME_FATAL; INT_MSK_PLD_CRC_FATAL; INT_MSK_DATA_ID; INT_MSK_ECC_CORRECTED",
-        "Meta Validation / Acceptance Criteria": "The test polls MIZAR_MIPI_CSI2_HOST_PHY_STOPSTATE in a while loop to validate that the PHY lanes have reached the stop state before proceeding with DMA and pattern generator configuration. After enabling all CSI2 host interrupt masks, the DMA masked interrupt status register (gdma_reg_base + MIPI_CSI2_DMA_INTMIS_OFFSET) is polled in a loop to wait for DMA transfer completion. The pattern generator is enabled via MIZAR_MIPI_CSI2_HOST_PPI_PG_ENABLE and later disabled by writing 0 to the same register. The test passes if the PHY stop state is achieved, the pattern generator is successfully configured and enabled, DMA addresses are set, all interrupt masks are enabled, and DMA transfer completes successfully.",
-        "Validation / Acceptance Criteria": "The test passes when: 1) The PHY_STOPSTATE register indicates that all configured DPHY lanes have reached the stop state. 2) The test pattern generator is successfully configured with the desired vertical resolution (PPI_PG_PATTERN_VRES), horizontal resolution (PPI_PG_PATTERN_HRES), and configuration (PPI_PG_CONFIG), and enabled via PPI_PG_ENABLE. 3) DMA channel 0 address registers (dma_m0_addr_ar_ch0_data, dma_m0_addr_ar_ch0_Instruction, dma_m0_addr_aw_ch0_data, dma_m0_addr_aw_ch0_Instruction) are properly configured. 4) All CSI2 host interrupt mask registers are enabled. 5) DMA transfer completes as indicated by the DMA masked interrupt status register. 6) The pattern generator is successfully disabled after the test.",
-        "Remarks": "The test uses polling on PHY_STOPSTATE to wait for DPHY lane readiness before configuring DMA and pattern generator. The pattern generator is enabled and then disabled within the test flow, validating the enable/disable cycle. DMA operations use a base address variable (gdma_reg_base) with offset macros for masked interrupt status. A write to MIZAR_MIPI_CSI2_RB_REG_BASE + 0xf4 targets an additional register in the register block. The test enables a comprehensive set of CSI2 host interrupt masks covering PHY fatal, packet fatal, PHY, line, boundary frame fatal, sequence frame fatal, CRC frame fatal, payload CRC fatal, data ID, and ECC corrected interrupt categories. Source files in the repository folder did not contain the expected MIPI CSI2 test pattern generator code; testcase details are derived from upstream agent analysis."
-    }
+{
+"Index":"1",
+"SS / Module":"mipi_dsi",
+"Test Case Name":"mipi_dsi_basic_test",
+"Feature":"NA",
+"Meta Headers":"#include <stdio.h>\n#include <stdlib.h>\n#include \"test_common.h\"\n#include \"mipi_dsi.h\"",
+"Meta Macros":"MIZAR_MIPI_DSI_DMAC_INTEN, MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE, MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR, MIZAR_MIPI_DSI_HOST_PHY_IF_CFG, MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME, MIZAR_MIPI_DSI_HOST_PCKHDL_CFG, MIZAR_MIPI_DSI_HOST_CLKMGR_CFG, MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL, MIZAR_MIPI_DSI_DMAC_DBGINST0, MIZAR_MIPI_DSI_DMAC_DBGINST1, MIZAR_MIPI_DSI_DMAC_DBGCMD, MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK, MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR, MIZAR_MIPI_DSI_DMAC_INTMIS, MIZAR_MIPI_DSI_DMAC_INTCLR, MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW, DSI_INTR_NO, RAM_BASE, DMA_SAR, DMA_DAR, DSI_WRITE_MEMORY_START",
+"Meta Arrays":"desc_t data_tdbdcb[2];\ndesc_t data_rebdcb[2];\ndesc_t cmd_tdbdcb[2];\ndesc_t cmd_rebdcb[2];",
+"Speed":"NA",
+"Mode":"NA",
+"Memory Start Offset":"NA",
+"Memory End Offset":"NA",
+"Meta Test Description":"This testcase configures the MIPI DSI subsystem for a basic DBI (Display Bus Interface) write operation. It enables GIC and DMAC interrupts, configures PHY interface (n_lanes=3, phy_stop_wait_time=0x40), sets PCKHDL_CFG to 0x3d and CLKMGR_CFG to 0x107, disables DPI control, initializes PHY via phy_init(), configures DBI parameters (vcid=0x3, lut_size_conf=0x1, out_dbi_conf=0xb, in_dbi_conf=0x0, partitioning_en=0x1, allowed_cmd_size=0x7, num_of_pixel=40), programs DPI clock, sets up DMA descriptors for data channel (CH0) and command channel (CH1) with random data payload and write memory start command, launches both DMA channels via debug instruction registers (DBGINST0, DBGINST1, DBGCMD), waits for interrupt-driven completion by polling int_pend1, and finishes with err0 as the error count. The ISR (Default_IRQHandler) reads interrupt_mask to identify GDMA interrupt source, reads INTMIS for channel mask status, clears pending channels from int_pend1, clears DMAC interrupt via INTCLR, clears subsystem-level interrupt via interrupt_raw, and increments err0 on unexpected interrupts.",
+"Test Description":"Basic MIPI DSI DBI write test that configures PHY interface, DBI parameters, programs DMA descriptors for data and command channels, initiates DMA transfers via debug instruction registers, and validates completion through interrupt-driven handshake with error tracking.",
+"Meta Test Steps / Procedure":"1. GIC_EnableIRQ(DSI_INTR_NO);\n2. int_pend = 1;\n3. int_pend1 = 0x3;\n4. phy_stop_wait_time = 0x40;\n5. n_lanes = 3;\n6. write_reg(MIZAR_MIPI_DSI_DMAC_INTEN, 0x3);\n7. write_reg(MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_ENABLE, MIPI_DSI_SUBSYS_INTERRUPT_ENABLE_GDMA_INTR);\n8. unsigned int phy_if_cfg = n_lanes;\n9. phy_if_cfg = set_data_mask(phy_if_cfg, MIPI_DSI_HOST_PHY_IF_CFG_PHY_STOP_WAIT_TIME, phy_stop_wait_time);\n10. write_reg(MIZAR_MIPI_DSI_HOST_PHY_IF_CFG, phy_if_cfg);\n11. write_reg(MIZAR_MIPI_DSI_HOST_PCKHDL_CFG, 0x3d);\n12. write_reg(MIZAR_MIPI_DSI_HOST_CLKMGR_CFG, 0x107);\n13. write_reg(MIZAR_MIPI_DSI_SUBSYS_DPI_CONTROL, 0);\n14. phy_init();\n15. dbi_vcid = 0x3;\n16. load_cmd_or_data_to_sram = 1;\n17. lut_size_conf = 0x1;\n18. out_dbi_conf = 0xb;\n19. in_dbi_conf = 0x0;\n20. partitioning_en = 0x1;\n21. allowed_cmd_size = 0x7;\n22. wr_cmd_size = 192 + 1;\n23. unsigned int num_of_pixel = 40;\n24. pixel_num_bytes_wr_cmd_size_t pixel_attr = pixel_to_bytes_wr_cmd_size(num_of_pixel);\n25. wr_cmd_size = pixel_attr.wr_cmd_size;\n26. unsigned int num_bytes = pixel_attr.num_bytes;\n27. max_rd_pkt_size = 0x0;\n28. dcs_lw_tx = 0x0;\n29. dcs_sr_0p_tx = 0x0;\n30. dcs_sw_1p_tx = 0x0;\n31. dcs_sw_0p_tx = 0x0;\n32. gen_lw_tx = 0x0;\n33. gen_sr_2p_tx = 0x0;\n34. gen_sr_1p_tx = 0x0;\n35. gen_sr_0p_tx = 0x0;\n36. gen_sw_2p_tx = 0x0;\n37. gen_sw_1p_tx = 0x0;\n38. gen_sw_0p_tx = 0x0;\n39. ack_rqst_en = 0x0;\n40. tear_fx_en = 0x1;\n41. generic_vc_id = 0x2;\n42. dpi_clk_time_period = 16.012400;\n43. dpi_clk_freq = 1000000000/dpi_clk_time_period;\n44. program_dpi_clock(dpi_clk_freq);\n45. dbi_config();\n46. unsigned int num_descriptors = 1;\n47. ch0_desc_addr = RAM_BASE + 0x3F000;\n48. ch1_desc_addr = RAM_BASE + 0x3F800;\n49. ch0_desc_addr_act = ch0_desc_addr;\n50. ch1_desc_addr_act = ch1_desc_addr;\n51. for(unsigned int itter = 0; itter < num_descriptors; itter++) {\n52. data_tdbdcb[itter].addr = RAM_BASE + 0x10000;\n53. data_tdbdcb[itter].len = num_bytes;\n54. data_tdbdcb[itter].eop = (itter == (num_descriptors - 1));\n55. data_rebdcb[itter].addr = 0x10000000000;\n56. data_rebdcb[itter].len = num_bytes;\n57. cmd_tdbdcb[itter].addr = RAM_BASE + 0x0000;\n58. cmd_tdbdcb[itter].len = 4;\n59. cmd_tdbdcb[itter].eop = (itter == (num_descriptors - 1));\n60. cmd_rebdcb[itter].addr = 0x10000008000;\n61. cmd_rebdcb[itter].len = 4;\n62. DMAMOV(&ch0_desc_addr, DMA_SAR, data_tdbdcb[itter].addr);\n63. DMAMOV(&ch0_desc_addr, DMA_DAR, data_rebdcb[itter].addr);\n64. program_data_num_bytes(&ch0_desc_addr, data_tdbdcb[itter].len);\n65. DMAWMB(&ch0_desc_addr);\n66. DMASEV(&ch0_desc_addr, 0);\n67. DMAEND(&ch0_desc_addr);\n68. DMAMOV(&ch1_desc_addr, DMA_SAR, cmd_tdbdcb[itter].addr);\n69. DMAMOV(&ch1_desc_addr, DMA_DAR, cmd_rebdcb[itter].addr);\n70. program_data_num_bytes(&ch1_desc_addr, cmd_tdbdcb[itter].len);\n71. DMAWMB(&ch1_desc_addr);\n72. DMASEV(&ch1_desc_addr, 1);\n73. DMAEND(&ch1_desc_addr);\n74. load_rand_data(data_tdbdcb[itter]);\n75. load_wr_command(cmd_tdbdcb[itter].addr, num_bytes, DSI_WRITE_MEMORY_START);\n76. }\n77. write_reg(MIZAR_MIPI_DSI_DMAC_DBGINST0, 0x00A00000);\n78. write_reg(MIZAR_MIPI_DSI_DMAC_DBGINST1, ch0_desc_addr_act);\n79. write_reg(MIZAR_MIPI_DSI_DMAC_DBGCMD, 0x0);\n80. write_reg(MIZAR_MIPI_DSI_DMAC_DBGINST0, 0x01A00000);\n81. write_reg(MIZAR_MIPI_DSI_DMAC_DBGINST1, ch1_desc_addr_act);\n82. write_reg(MIZAR_MIPI_DSI_DMAC_DBGCMD, 0x0);\n83. while(int_pend1) { wait_on(10); }\n84. wait_on(10000);\n85. finish(err0);\n\nISR (void Default_IRQHandler()):\n86. unsigned int ch_mask_st;\n87. unsigned int dsi_subsys_mask_st;\n88. int_pend = 0;\n89. dsi_subsys_mask_st = read_reg(MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK);\n90. if(dsi_subsys_mask_st == MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR) {\n91. ch_mask_st = read_reg(MIZAR_MIPI_DSI_DMAC_INTMIS);\n92. if(ch_mask_st) {\n93. int_pend1 = int_pend1 & (~ch_mask_st);\n94. write_reg(MIZAR_MIPI_DSI_DMAC_INTCLR, ch_mask_st);\n95. } else {\n96. err0++;\n97. }\n98. write_reg(MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW, dsi_subsys_mask_st);\n99. } else {\n100. err0++;\n101. }\n102. GIC_ClearIRQ(DSI_INTR_NO);\n103. int_pend = 1;",
+"Test Steps / Procedure":"1. Enable GIC interrupt for DSI.\n2. Initialize interrupt pending flags (int_pend=1, int_pend1=0x3).\n3. Set PHY stop wait time to 0x40 and number of lanes to 3.\n4. Enable DMAC interrupts by writing 0x3 to INTEN register.\n5. Enable GDMA interrupt at subsystem level via interrupt_enable register.\n6. Configure PHY_IF_CFG register with n_lanes and phy_stop_wait_time.\n7. Configure PCKHDL_CFG register with 0x3d.\n8. Configure CLKMGR_CFG register with 0x107.\n9. Disable DPI by writing 0 to dpi_control register.\n10. Initialize PHY.\n11. Configure DBI parameters (vcid=0x3, LUT size, output/input DBI config, partitioning, command size, pixel count=40).\n12. Set DCS/generic packet transmission parameters to 0, enable tear effect.\n13. Program DPI clock based on 16.012400ns period.\n14. Apply DBI configuration.\n15. Set up DMA descriptor addresses for data channel (CH0) and command channel (CH1).\n16. For each descriptor: populate source/destination addresses, lengths, EOP flags; program DMA move, write memory barrier, send event, and end instructions; load random data payload; load write memory start command.\n17. Launch CH0 DMA by writing 0x00A00000 to DBGINST0, CH0 descriptor address to DBGINST1, and 0x0 to DBGCMD.\n18. Launch CH1 DMA by writing 0x01A00000 to DBGINST0, CH1 descriptor address to DBGINST1, and 0x0 to DBGCMD.\n19. Poll int_pend1 with wait_on(10) until both channels complete (cleared by ISR).\n20. Wait additional 10000 cycles.\n21. Finish test with err0 as error count.\n22. ISR: Read interrupt_mask to identify GDMA source, read INTMIS for channel status, clear pending channels from int_pend1, clear DMAC interrupt via INTCLR, clear subsystem interrupt via interrupt_raw, increment err0 on unexpected interrupts, clear GIC IRQ.",
+"Meta Impacted Registers":"INTEN, interrupt_enable, PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG, dpi_control, DBGINST0, DBGINST1, DBGCMD, interrupt_mask, INTMIS, INTCLR, interrupt_raw",
+"Impacted Registers":"INTEN, interrupt_enable, PHY_IF_CFG, PCKHDL_CFG, CLKMGR_CFG, dpi_control, DBGINST0, DBGINST1, DBGCMD, interrupt_mask, INTMIS, INTCLR, interrupt_raw",
+"Meta Validation / Acceptance Criteria":"1. ISR reads dsi_subsys_mask_st from MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_MASK and compares against MIPI_DSI_SUBSYS_INTERRUPT_MASK_GDMA_INTR; if not equal, err0 is incremented and printf(\"ERROR1: Unexpected interrupt dsi_subsys_mask_st = 0x%x\\n\", dsi_subsys_mask_st) is called.\n2. ISR reads ch_mask_st from MIZAR_MIPI_DSI_DMAC_INTMIS; if ch_mask_st is 0 (no channel interrupt pending), err0 is incremented and printf(\"ERROR2: Unexpected interrupt ch_mask_st = 0x%x \\n\", ch_mask_st) is called.\n3. If ch_mask_st is non-zero, int_pend1 = int_pend1 & (~ch_mask_st) clears the completed channel bits.\n4. DMAC interrupt is cleared by write_reg(MIZAR_MIPI_DSI_DMAC_INTCLR, ch_mask_st).\n5. Subsystem interrupt is cleared by write_reg(MIZAR_MIPI_DSI_SUBSYS_INTERRUPT_RAW, dsi_subsys_mask_st).\n6. Main loop exits when int_pend1 becomes 0 (both CH0 and CH1 interrupts received and cleared).\n7. Test passes when finish(err0) is called with err0 == 0 (no unexpected interrupts occurred).",
+"Validation / Acceptance Criteria":"1. The ISR must identify the interrupt source as GDMA via the interrupt_mask register; unexpected sources increment the error count.\n2. The ISR must read a non-zero channel mask from INTMIS; a zero value indicates an unexpected interrupt and increments the error count.\n3. Both DMA channels (CH0 and CH1) must complete and trigger interrupts that clear the corresponding bits in int_pend1.\n4. DMAC interrupts must be properly cleared via the INTCLR register.\n5. Subsystem-level interrupts must be properly cleared via the interrupt_raw register.\n6. The test passes when err0 is 0 at finish, indicating no unexpected interrupts occurred during the DBI write transfer.",
+"Remarks":"The testcase uses two DMA channels: CH0 for data transfer and CH1 for command transfer. int_pend1 is initialized to 0x3 representing both channels pending. The ISR clears individual channel bits as their interrupts arrive. The test uses desc_t typed descriptor arrays (data_tdbdcb, data_rebdcb, cmd_tdbdcb, cmd_rebdcb) each of size 2, though only 1 descriptor is used (num_descriptors=1). DPI clock period is set to 16.012400ns. The data destination address is 0x10000000000 and command destination address is 0x10000008000. extern int int_pend is declared as extern int; unsigned int int_pend1 and unsigned int err0 are file-scope unsigned int variables."
+}
 ]
 
-# === Column definitions ===
-testplan_columns = [
-    "Index", "SS / Module", "Feature", "Test Case Name", "Test Description",
-    "Speed", "Mode", "Memory Start Offset", "Memory End Offset", "Remarks",
-    "Test Steps / Procedure", "Impacted Registers", "Validation / Acceptance Criteria",
-    "Code Generation"
+# TestPlan columns
+tp_cols = [
+    'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Test Description',
+    'Speed', 'Mode', 'Memory Start Offset', 'Memory End Offset', 'Remarks',
+    'Test Steps / Procedure', 'Impacted Registers', 'Validation / Acceptance Criteria',
+    'Code Generation'
 ]
 
-metadata_columns = [
-    "Index", "Test Case Name", "Meta Test Description", "Meta Test Steps / Procedure",
-    "Meta Impacted Registers", "Meta Validation / Acceptance Criteria",
-    "Meta Headers", "Meta Macros", "Meta Arrays"
+# MetaData columns
+md_cols = [
+    'Index', 'Test Case Name', 'Meta Test Description', 'Meta Test Steps / Procedure',
+    'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria',
+    'Meta Headers', 'Meta Macros', 'Meta Arrays'
 ]
 
-# === Create workbook ===
+# Create workbook
 wb = openpyxl.Workbook()
 
-# --- TestPlan sheet ---
+# --- TestPlan Sheet ---
 ws_tp = wb.active
-ws_tp.title = "TestPlan"
+ws_tp.title = 'TestPlan'
 
-header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
-header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-wrap_alignment = Alignment(wrap_text=True, vertical="top")
+header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+wrap_align = Alignment(wrap_text=True, vertical='top')
 
 # Write headers
-for col_idx, col_name in enumerate(testplan_columns, 1):
+for col_idx, col_name in enumerate(tp_cols, 1):
     cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
     cell.font = header_font
     cell.fill = header_fill
-    cell.alignment = wrap_alignment
+    cell.alignment = wrap_align
 
-# Write data
-oversized = []
+# Write data rows
 for row_idx, row_data in enumerate(json_data, 2):
-    for col_idx, col_name in enumerate(testplan_columns, 1):
-        value = row_data.get(col_name, "")
-        if value is None:
-            value = ""
-        # Check 32767 limit
-        if isinstance(value, str) and len(value) > 32767:
-            original_len = len(value)
-            value = value[:32767]
-            oversized.append({
-                "sheet": "TestPlan",
-                "row": row_idx,
-                "column": col_name,
-                "original_length": original_len,
-                "characters_dropped": original_len - 32767
-            })
-        cell = ws_tp.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = wrap_alignment
+    for col_idx, col_name in enumerate(tp_cols, 1):
+        val = row_data.get(col_name, '')
+        if val is None:
+            val = ''
+        cell = ws_tp.cell(row=row_idx, column=col_idx, value=val)
+        cell.alignment = wrap_align
 
 # Freeze first row
-ws_tp.freeze_panes = "A2"
+ws_tp.freeze_panes = 'A2'
 
-# Auto-size columns
-for col_idx, col_name in enumerate(testplan_columns, 1):
-    max_len = len(col_name)
-    for row in ws_tp.iter_rows(min_row=2, max_row=ws_tp.max_row, min_col=col_idx, max_col=col_idx):
+# Auto-size columns with max width cap
+MAX_WIDTH = 60
+for col_idx, col_name in enumerate(tp_cols, 1):
+    max_len = len(str(col_name))
+    for row in ws_tp.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
         for cell in row:
             if cell.value:
-                max_len = max(max_len, min(len(str(cell.value)), 80))
-    col_letter = openpyxl.utils.get_column_letter(col_idx)
-    ws_tp.column_dimensions[col_letter].width = min(max_len + 4, 60)
+                lines = str(cell.value).split('\n')
+                longest_line = max(len(l) for l in lines)
+                if longest_line > max_len:
+                    max_len = longest_line
+    adjusted = min(max_len + 2, MAX_WIDTH)
+    ws_tp.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = adjusted
 
-# --- MetaData sheet ---
-ws_md = wb.create_sheet("MetaData")
+# --- MetaData Sheet ---
+ws_md = wb.create_sheet('MetaData')
 
-for col_idx, col_name in enumerate(metadata_columns, 1):
+# Write headers
+for col_idx, col_name in enumerate(md_cols, 1):
     cell = ws_md.cell(row=1, column=col_idx, value=col_name)
     cell.font = header_font
     cell.fill = header_fill
-    cell.alignment = wrap_alignment
+    cell.alignment = wrap_align
 
+# Write data rows
 for row_idx, row_data in enumerate(json_data, 2):
-    for col_idx, col_name in enumerate(metadata_columns, 1):
-        value = row_data.get(col_name, "")
-        if value is None:
-            value = ""
-        if isinstance(value, str) and len(value) > 32767:
-            original_len = len(value)
-            value = value[:32767]
-            oversized.append({
-                "sheet": "MetaData",
-                "row": row_idx,
-                "column": col_name,
-                "original_length": original_len,
-                "characters_dropped": original_len - 32767
-            })
-        cell = ws_md.cell(row=row_idx, column=col_idx, value=value)
-        cell.alignment = wrap_alignment
+    for col_idx, col_name in enumerate(md_cols, 1):
+        val = row_data.get(col_name, '')
+        if val is None:
+            val = ''
+        cell = ws_md.cell(row=row_idx, column=col_idx, value=val)
+        cell.alignment = wrap_align
 
-ws_md.freeze_panes = "A2"
+# Freeze first row
+ws_md.freeze_panes = 'A2'
 
-for col_idx, col_name in enumerate(metadata_columns, 1):
-    max_len = len(col_name)
-    for row in ws_md.iter_rows(min_row=2, max_row=ws_md.max_row, min_col=col_idx, max_col=col_idx):
+# Auto-size columns with max width cap
+for col_idx, col_name in enumerate(md_cols, 1):
+    max_len = len(str(col_name))
+    for row in ws_md.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
         for cell in row:
             if cell.value:
-                max_len = max(max_len, min(len(str(cell.value)), 80))
-    col_letter = openpyxl.utils.get_column_letter(col_idx)
-    ws_md.column_dimensions[col_letter].width = min(max_len + 4, 60)
+                lines = str(cell.value).split('\n')
+                longest_line = max(len(l) for l in lines)
+                if longest_line > max_len:
+                    max_len = longest_line
+    adjusted = min(max_len + 2, MAX_WIDTH)
+    ws_md.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = adjusted
 
 # Set MetaData sheet to veryHidden
-ws_md.sheet_state = "veryHidden"
+ws_md.sheet_state = 'veryHidden'
 
-# === Save ===
-wb.save(filepath)
-print(f"SUCCESS: {filepath}")
-print(f"FILENAME: {filename}")
-print(f"SIZE: {os.path.getsize(filepath)}")
+# Save workbook
+output_path = filename
+wb.save(output_path)
+wb.close()
 
-# === Validate ===
-wb2 = openpyxl.load_workbook(filepath)
-assert "TestPlan" in wb2.sheetnames
-assert "MetaData" in wb2.sheetnames
-print("VALIDATION: PASSED")
+# Post-save validation
+import os
+assert os.path.exists(output_path), 'File does not exist'
+assert os.path.getsize(output_path) > 0, 'File is empty'
 
-# Output base64 for GitHub push
-import base64
-with open(filepath, "rb") as f:
-    b64 = base64.b64encode(f.read()).decode()
-print(f"BASE64_LENGTH: {len(b64)}")
+# Reopen and validate
+wb_check = openpyxl.load_workbook(output_path)
+assert 'TestPlan' in wb_check.sheetnames, 'TestPlan sheet missing'
+assert 'MetaData' in wb_check.sheetnames, 'MetaData sheet missing'
+assert wb_check['MetaData'].sheet_state == 'veryHidden', 'MetaData not veryHidden'
+tp_rows = wb_check['TestPlan'].max_row - 1
+md_rows = wb_check['MetaData'].max_row - 1
+wb_check.close()
 
-# Write base64 to a text file for retrieval
-b64_path = os.path.join(output_dir, "xlsx_base64.txt")
-with open(b64_path, "w") as f:
-    f.write(b64)
-print(f"BASE64_FILE: {b64_path}")
-
-if oversized:
-    print(f"OVERSIZED: {json.dumps(oversized)}")
-else:
-    print("OVERSIZED: []")
+print(f'SUCCESS: {output_path}')
+print(f'Size: {os.path.getsize(output_path)} bytes')
+print(f'TestPlan rows: {tp_rows}')
+print(f'MetaData rows: {md_rows}')
+print(f'Validation: PASSED')
