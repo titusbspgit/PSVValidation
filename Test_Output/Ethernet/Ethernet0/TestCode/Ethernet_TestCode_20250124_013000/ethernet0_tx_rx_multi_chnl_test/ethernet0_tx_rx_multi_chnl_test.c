@@ -57,7 +57,7 @@ static eth0_multi_chnl_ctx_t g_ctx;
  *   None
  * Returns:
  *   void
- /
+ */
 void Default_IRQHandler(void)
 {
     int rdata;
@@ -101,7 +101,7 @@ void Default_IRQHandler(void)
     write_reg(mizar_ETHERNET0_DMA_CH3_TXDESC_TAIL_POINTER, 0xE60398a4);
 }
 
-/
+/*
  * Function: ethernet0_tx_rx_multi_chnl_test_init
  * Description: Initialize Ethernet0 multi-channel TX/RX test.
  *             Configures MAC, MTL, and DMA layers for all 4 channels
@@ -352,7 +352,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem *cfg)
     return 0;
 }
 
-/
+/*
  * Function: ethernet0_tx_rx_multi_chnl_test_run
  * Description: Execute multi-channel TX/RX test across CH0-CH3 sequentially.
  *             Each channel is activated, VIP sequencer triggered, and
@@ -501,7 +501,7 @@ int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput *out)
     return out->status;
 }
 
-/
+/*
  * Function: ethernet0_tx_rx_multi_chnl_test_teardown
  * Description: Teardown for Ethernet0 multi-channel TX/RX test.
  *             Reports final status based on failure counters.
