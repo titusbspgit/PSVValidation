@@ -1,6 +1,0 @@
-{
-  "workbook_generation": {
-    "status": "PENDING_PYTHON_GENERATION",
-    "note": "Excel binary requires Python openpyxl runtime"
-  }
-}
