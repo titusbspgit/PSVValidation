@@ -31,6 +31,8 @@ TESTPLAN = [{
 # ── META_JSON Data ────────────────────────────────────────────────────
 META = [{
     "Test Case Name": "USB_FS_Device_Bulk_Transfer_test",
+    "IP Name": "NA",
+    "Feature Information": "NA",
     "Meta Headers": '#include <stdio.h>\n#include <stdlib.h>\n#include "usb.h"',
     "Meta Macros": "Buffer_PointerLO\nDWORD\nevent_trb_addr\nMIZAR_USB_DCFG\nMIZAR_USB_DSTS\nMIZAR_USB_DCTL\nMIZAR_USB_DALEPENA\nMIZAR_USB_DEPCMDPAR1\nMIZAR_USB_DEPCMDPAR0\nMIZAR_USB_DEPCMD",
     "Meta Arrays": "int buf_data[16];",
@@ -41,11 +43,10 @@ META = [{
     "Meta Validation / Acceptance Criteria": "1. rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10); while(rd_data == 0x506) { wait_on(10); rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10); } \u2014 polling loop validates DEPCMD+0x10 value changes from 0x506 to confirm endpoint command completion.\n2. int_pend = 1; while(int_pend) { wait_on(5); } \u2014 polling loop validates int_pend is cleared by Default_IRQHandler to confirm interrupt event received. This pattern is repeated multiple times in the test.\n3. write_reg(0xA0243ffc, 0xdeadbee0) \u2014 debug marker written to validate test progress at enumeration start.\n4. write_reg(0xA0243ffc, 0xdeadbee3) \u2014 debug marker written to validate test progress at GET DESCRIPTOR USB CONFIGURATION.\n5. write_reg(0xA0243ffc, 0xdeadbee4) \u2014 debug marker written to validate test progress at SET CONFIGURATION or RESET TT.\n6. write_reg(0xA0243ffc, 0xdeadbee5) \u2014 debug marker written to validate test progress at subsequent GET DESCRIPTOR USB CONFIGURATION."
 }]
 
-# ── Validation ────────────────────────────────────────────────────────
-# Cross-dataset validation: verify Test Case Name alignment
+# ── Cross-Dataset Validation ─────────────────────────────────────────
 tp_names = {tc["Test Case Name"] for tc in TESTPLAN}
 meta_names = {m["Test Case Name"] for m in META}
-if not tp_names == meta_names:
+if tp_names != meta_names:
     print("VALIDATION FAILED: Test Case Name mismatch between TESTPLAN and META")
     sys.exit(1)
 print(f"Cross-dataset validation PASSED: {len(tp_names)} test case(s) matched")
@@ -78,10 +79,10 @@ for r, tc in enumerate(TESTPLAN, 2):
     ws_tp.cell(row=r, column=2, value=tc.get("SS / Module", "")).alignment = wrap
     ws_tp.cell(row=r, column=3, value=tc.get("Feature", "")).alignment = wrap
     ws_tp.cell(row=r, column=4, value=tc.get("Test Case Name", "")).alignment = wrap
-    ws_tp.cell(row=r, column=5, value="").alignment = wrap   # Speed
-    ws_tp.cell(row=r, column=6, value="").alignment = wrap   # Mode
-    ws_tp.cell(row=r, column=7, value="").alignment = wrap   # Memory Start Offset
-    ws_tp.cell(row=r, column=8, value="").alignment = wrap   # Memory End Offset
+    ws_tp.cell(row=r, column=5, value="").alignment = wrap
+    ws_tp.cell(row=r, column=6, value="").alignment = wrap
+    ws_tp.cell(row=r, column=7, value="").alignment = wrap
+    ws_tp.cell(row=r, column=8, value="").alignment = wrap
     ws_tp.cell(row=r, column=9, value=tc.get("Test Description", "")).alignment = wrap
     ws_tp.cell(row=r, column=10, value=tc.get("Test Steps / Procedure", "")).alignment = wrap
     ws_tp.cell(row=r, column=11, value=tc.get("Impacted Registers", "")).alignment = wrap
@@ -94,7 +95,8 @@ ws_tp.freeze_panes = "A2"
 ws_md = wb.create_sheet("MetaData")
 ws_md.sheet_state = "veryHidden"
 md_cols = [
-    "Test Case Name", "Meta Headers", "Meta Macros", "Meta Arrays",
+    "Test Case Name", "IP Name", "Feature Information",
+    "Meta Headers", "Meta Macros", "Meta Arrays",
     "Meta Types", "Meta Test Description", "Meta Test Steps / Procedure",
     "Meta Impacted Registers", "Meta Validation / Acceptance Criteria"
 ]
@@ -125,7 +127,7 @@ for ws in [ws_tp, ws_md]:
         ws.column_dimensions[col_letter].width = max(adjusted, 12)
 
 # ── Save Workbook ────────────────────────────────────────────────────
-output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+output_dir = os.path.dirname(os.path.abspath(__file__))
 filepath = os.path.join(output_dir, filename)
 wb.save(filepath)
 
@@ -137,7 +139,6 @@ if os.path.getsize(filepath) == 0:
     print("POST-SAVE VALIDATION FAILED: File size is 0")
     sys.exit(1)
 
-# Reopen and validate
 wb_check = openpyxl.load_workbook(filepath)
 sheet_names = wb_check.sheetnames
 if "TestPlan" not in sheet_names:
@@ -147,8 +148,8 @@ if "MetaData" not in sheet_names:
     print("POST-SAVE VALIDATION FAILED: MetaData sheet missing")
     sys.exit(1)
 
-tp_row_count = wb_check["TestPlan"].max_row - 1  # exclude header
-md_row_count = wb_check["MetaData"].max_row - 1  # exclude header
+tp_row_count = wb_check["TestPlan"].max_row - 1
+md_row_count = wb_check["MetaData"].max_row - 1
 
 if tp_row_count != len(TESTPLAN):
     print(f"POST-SAVE VALIDATION FAILED: TestPlan rows {tp_row_count} != {len(TESTPLAN)}")
@@ -157,7 +158,7 @@ if md_row_count != len(META):
     print(f"POST-SAVE VALIDATION FAILED: MetaData rows {md_row_count} != {len(META)}")
     sys.exit(1)
 
-print(f"POST-SAVE VALIDATION PASSED")
+print("POST-SAVE VALIDATION PASSED")
 print(f"GENERATED: {filepath}")
 print(f"FILENAME: {filename}")
 print(f"TESTPLAN_ROWS: {len(TESTPLAN)}")
