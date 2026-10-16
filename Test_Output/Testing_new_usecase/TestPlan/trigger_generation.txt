@@ -1,0 +1,4 @@
+TRIGGER: Generate MIPI_CSI TestPlan Excel
+Timestamp: 2025-06-12
+IP_NAME: MIPI_CSI
+TestCase: mipi_csi2_test_pattern_generator
