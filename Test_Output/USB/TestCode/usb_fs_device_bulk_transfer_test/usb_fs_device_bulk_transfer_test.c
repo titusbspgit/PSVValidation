@@ -23,7 +23,7 @@ void nic_programming(void);
  * cmd - DEPCMD command value
  * Returns:
  * void
- /
+ */
 void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
  int read_data;
@@ -38,8 +38,7 @@ void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
  }
 }
 
-/
- * Function: Default_IRQHandler
+/* Function: Default_IRQHandler
  * Description: Interrupt handler. Clears int_pend flag, reads system register
  * status, reads and acknowledges GEVNTCOUNT, conditionally clears
  * raw status bit, clears GIC IRQ 84.
@@ -47,7 +46,7 @@ void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int rd_data;
@@ -66,8 +65,7 @@ void Default_IRQHandler(void)
  GIC_ClearIRQ(84);
 }
 
-/
- * Function: setup_stage
+/* Function: setup_stage
  * Description: Configures a SETUP stage TRB at event_trb_addr with control
  * 0x823, issues DEPCMD Start Transfer command 0x506, polls for
  * command completion, waits for interrupt completion via int_pend.
@@ -75,7 +73,7 @@ void Default_IRQHandler(void)
  * none
  * Returns:
  * void
- /
+ */
 void setup_stage(void)
 {
  int rd_data;
@@ -97,8 +95,7 @@ void setup_stage(void)
  }
 }
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: Configures a STATUS stage TRB at event_trb_addr with control
  * 0x843, issues DEPCMD Start Transfer command 0x506, polls for
  * command completion, waits for interrupt completion via int_pend,
@@ -107,7 +104,7 @@ void setup_stage(void)
  * none
  * Returns:
  * void
- /
+ */
 void status_stage(void)
 {
  int rd_data;
@@ -130,8 +127,7 @@ void status_stage(void)
  for (volatile int d = 0; d < 5000; d++);
 }
 
-/
- * Function: nic_programming
+/* Function: nic_programming
  * Description: Programs the USB device controller. Configures event ring,
  * global control, PHY, device configuration, endpoint
  * configurations, and enables interrupts.
@@ -139,7 +135,7 @@ void status_stage(void)
  * none
  * Returns:
  * void
- /
+ */
 void nic_programming(void)
 {
  int rd_data;
@@ -198,15 +194,14 @@ void nic_programming(void)
  write_reg(MIZAR_LSS_SYSREG_INTR_EN0, 0x80000000);
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_init
+/* Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initializes USB device controller and enables GIC interrupts.
  * Parameters:
  * cfg - pointer to test configuration
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  (void)cfg;
 
@@ -222,8 +217,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  return 0;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_run
+/* Function: usb_fs_device_bulk_transfer_test_run
  * Description: Main testcase execution. Clears buffer/event TRB memory,
  * performs USB device enumeration (GET_DESCRIPTOR device descriptor,
  * GET_DESCRIPTOR configuration descriptor, SET_CONFIGURATION),
@@ -234,7 +228,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  volatile int rd_data;
  volatile unsigned int j;
@@ -551,8 +545,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Teardown for USB FS Device Bulk Transfer test.
  * Parameters:
  * cfg - pointer to test configuration
