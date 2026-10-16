@@ -6,12 +6,17 @@ on:
       - 'Test_Output/Testing_new_usecase/TestPlan/generate_testplan.py'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -26,9 +31,8 @@ jobs:
 
       - name: Commit and push Excel
         run: |
-          cd Test_Output/Testing_new_usecase/TestPlan/
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add *.xlsx
-          git commit -m 'Added generated TestPlan Excel' || echo 'No changes'
+          git add 'Test_Output/Testing_new_usecase/TestPlan/*.xlsx'
+          git commit -m 'Added generated TestPlan Excel' || echo 'No changes to commit'
           git push
