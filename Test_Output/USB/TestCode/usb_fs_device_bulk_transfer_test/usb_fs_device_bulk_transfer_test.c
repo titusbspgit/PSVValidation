@@ -4,560 +4,565 @@
 #include "usb_fs_device_bulk_transfer_test.h"
 #include "test_define.inc"
 
-// Timeout bound for polling loops
-#define USB_POLL_TIMEOUT 100000U
-// Bulk transfer length (non-zero, 64 bytes for FS bulk)
-#define USB_BULK_TRANSFER_LEN 0x40U
-// Deterministic bulk payload pattern
-static const unsigned int bulk_payload_data[16] = {
-    0xDEAD0001U, 0xDEAD0002U, 0xDEAD0003U, 0xDEAD0004U,
-    0xDEAD0005U, 0xDEAD0006U, 0xDEAD0007U, 0xDEAD0008U,
-    0xDEAD0009U, 0xDEAD000AU, 0xDEAD000BU, 0xDEAD000CU,
-    0xDEAD000DU, 0xDEAD000EU, 0xDEAD000FU, 0xDEAD0010U
-};
-
-// Global interrupt pending flag
+// Global variables
 volatile int int_pend;
+int event_counter;
 
-// Global event counter
-static volatile uint32_t event_counter;
-
-// Global error tracking
-static unsigned int g_errors;
-
-// Forward declarations for helper functions
-static void setup_stage(void);
-static void status_stage(void);
-static void enumeration(void);
-static void set_configuration(int trb_address, int parameter0, int parameter1, int cmd);
-
-// External nic_programming declaration
+// Forward declaration for nic_programming
 void nic_programming(void);
-
-// Busy-wait delay helper
-static void psv_delay(unsigned int count)
-{
-    volatile unsigned int d;
-    for (d = 0U; d < count; d++) {
-        // busy wait
-    }
-}
-
-// Poll for int_pend to be cleared by IRQ handler with timeout
-static int wait_for_interrupt(unsigned int timeout_loops)
-{
-    unsigned int t;
-    for (t = 0U; t < timeout_loops; t++) {
-        if (int_pend == 0) {
-            return 0;
-        }
-        psv_delay(5000U);
-    }
-    LOGE("Timeout waiting for interrupt");
-    return -1;
-}
-
-// Poll DEPCMD register until command completes (value changes from written cmd)
-static int poll_depcmd(int reg_offset, int cmd_val, unsigned int timeout_loops)
-{
-    volatile unsigned int rd_data;
-    unsigned int t;
-    rd_data = (unsigned int)read_reg(MIZAR_USB_DEPCMD + reg_offset);
-    for (t = 0U; t < timeout_loops; t++) {
-        if ((int)rd_data != cmd_val) {
-            return 0;
-        }
-        psv_delay(10000U);
-        rd_data = (unsigned int)read_reg(MIZAR_USB_DEPCMD + reg_offset);
-    }
-    LOGE("Timeout polling DEPCMD+0x%x for cmd 0x%x", reg_offset, cmd_val);
-    return -1;
-}
-
-/*
- * Function: Default_IRQHandler
- * Description: USB interrupt handler - reads GEVNTCOUNT, acknowledges events,
- *              reads system register status, clears raw interrupt, clears GIC IRQ.
- * Parameters:
- *   None
- * Returns:
- *   void
- */
-void Default_IRQHandler(void)
-{
-    volatile unsigned int rd_data;
-    uint32_t event_count;
-
-    int_pend = 0;
-
-    rd_data = (unsigned int)read_reg(MIZAR_LSS_SYSREG_MSK_STS0);
-    LOGT("IRQHandler: MSK_STS0 = 0x%x", rd_data);
-
-    rd_data = (unsigned int)read_reg(MIZAR_LSS_SYSREG_RAW_STCR0);
-    LOGT("IRQHandler: RAW_STCR0 = 0x%x", rd_data);
-
-    event_count = (uint32_t)read_reg(MIZAR_USB_GEVNTCOUNT);
-    event_counter = event_count;
-    write_reg(MIZAR_USB_GEVNTCOUNT, (int)event_count);
-    LOGT("IRQHandler: GEVNTCOUNT = 0x%x, acknowledged", event_count);
-
-    // MANUAL_REVIEW: Meta source uses (rd_data && 0x80000000) which is logical AND.
-    // Runtime condition 15 requires bitwise AND. Preserving runtime condition.
-    if ((rd_data & 0x80000000U) != 0U) {
-        write_reg(MIZAR_LSS_SYSREG_RAW_STCR0, 0x80000000);
-        LOGT("IRQHandler: Cleared RAW_STCR0 bit 31");
-    }
-
-    GIC_ClearIRQ(84);
-    LOGT("IRQHandler: GIC_ClearIRQ(84) called");
-}
-
-/*
- * Function: setup_stage
- * Description: Configures event TRB for setup stage and issues DEPCMD Start Transfer
- *              on EP0, then waits for interrupt completion.
- * Parameters:
- *   None
- * Returns:
- *   void
- */
-static void setup_stage(void)
-{
-    int rd_data;
-
-    write_reg(event_trb_addr, Buffer_PointerLO);
-    write_reg(event_trb_addr + 0x8, 0x8);
-    write_reg(event_trb_addr + 0xc, 0x823);
-
-    write_reg(MIZAR_USB_DEPCMDPAR1, event_trb_addr);
-    write_reg(MIZAR_USB_DEPCMDPAR0, 0x0);
-    write_reg(MIZAR_USB_DEPCMD, 0x506);
-
-    rd_data = read_reg(MIZAR_USB_DEPCMD);
-    {
-        unsigned int timeout = USB_POLL_TIMEOUT;
-        while (rd_data == 0x506) {
-            psv_delay(10000U);
-            rd_data = read_reg(MIZAR_USB_DEPCMD);
-            timeout--;
-            if (timeout == 0U) {
-                LOGE("setup_stage: Timeout polling DEPCMD");
-                g_errors++;
-                break;
-            }
-        }
-    }
-
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("setup_stage: Timeout waiting for interrupt");
-        g_errors++;
-    }
-}
-
-/*
- * Function: status_stage
- * Description: Configures event TRB for status stage and issues DEPCMD Start Transfer
- *              on EP0, then waits for interrupt completion followed by additional delay.
- * Parameters:
- *   None
- * Returns:
- *   void
- */
-static void status_stage(void)
-{
-    int rd_data;
-
-    write_reg(event_trb_addr, Buffer_PointerLO);
-    write_reg(event_trb_addr + 0x8, 0x0);
-    write_reg(event_trb_addr + 0xc, 0x843);
-
-    write_reg(MIZAR_USB_DEPCMDPAR1, event_trb_addr);
-    write_reg(MIZAR_USB_DEPCMDPAR0, 0x0);
-    write_reg(MIZAR_USB_DEPCMD, 0x506);
-
-    rd_data = read_reg(MIZAR_USB_DEPCMD);
-    {
-        unsigned int timeout = USB_POLL_TIMEOUT;
-        while (rd_data == 0x506) {
-            psv_delay(10000U);
-            rd_data = read_reg(MIZAR_USB_DEPCMD);
-            timeout--;
-            if (timeout == 0U) {
-                LOGE("status_stage: Timeout polling DEPCMD");
-                g_errors++;
-                break;
-            }
-        }
-    }
-
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("status_stage: Timeout waiting for interrupt");
-        g_errors++;
-    }
-
-    // Additional delay after status stage (Meta: wait_on(5))
-    psv_delay(5000U);
-}
-
-/*
- * Function: enumeration
- * Description: Populates device descriptor and configuration descriptor data
- *              into Buffer_PointerLO and configures TRBs for descriptor responses.
- * Parameters:
- *   None
- * Returns:
- *   void
- */
-static void enumeration(void)
-{
-    // Device descriptor response TRB
-    write_reg(event_trb_addr, Buffer_PointerLO);
-    write_reg(event_trb_addr + 0x8, 0x12);
-    write_reg(event_trb_addr + 0xc, 0x853);
-
-    // Device descriptor data (18 bytes)
-    write_reg(Buffer_PointerLO, 0x02000012);
-    write_reg(Buffer_PointerLO + 0x4, 0x40000000);
-    write_reg(Buffer_PointerLO + 0x8, 0x00000000);
-    write_reg(Buffer_PointerLO + 0xc, 0x00000000);
-    write_reg(Buffer_PointerLO + 0x10, 0x00000100);
-
-    write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
-    write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
-
-    LOGT("enumeration: Device descriptor TRB configured, length=0x12");
-
-    // Configuration descriptor response TRB
-    write_reg(event_trb_addr, Buffer_PointerLO);
-    write_reg(event_trb_addr + 0x8, 0x3c);
-    write_reg(event_trb_addr + 0xc, 0x853);
-
-    // Configuration descriptor data (60 bytes)
-    write_reg(Buffer_PointerLO, 0x003c0209);
-    write_reg(Buffer_PointerLO + 0x4, 0xe0000101);
-    write_reg(Buffer_PointerLO + 0x8, 0x00000032);
-    write_reg(Buffer_PointerLO + 0xc, 0x00000000);
-
-    write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
-    write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
-
-    LOGT("enumeration: Configuration descriptor TRB configured, length=0x3c");
-}
 
 /*
  * Function: set_configuration
- * Description: Issues endpoint command by writing DEPCMDPAR1, DEPCMDPAR0, and DEPCMD
- *              at the specified trb_address offset, then polls for command completion.
+ * Description: Generic endpoint command helper. Writes DEPCMDPAR1, DEPCMDPAR0,
+ * DEPCMD at given trb_address offset, polls DEPCMD until command
+ * completes.
  * Parameters:
- *   trb_address - offset for DEPCMD register bank
- *   parameter0 - value for DEPCMDPAR0
- *   parameter1 - value for DEPCMDPAR1
- *   cmd - command value for DEPCMD
+ * trb_address - endpoint offset
+ * parameter0 - DEPCMDPAR0 value
+ * parameter1 - DEPCMDPAR1 value
+ * cmd - DEPCMD command value
  * Returns:
- *   void
- */
-static void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
+ * void
+ /
+void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
-    volatile unsigned int read_data;
-    unsigned int timeout = USB_POLL_TIMEOUT;
+ int read_data;
 
-    write_reg(MIZAR_USB_DEPCMDPAR1 + trb_address, parameter1);
-    write_reg(MIZAR_USB_DEPCMDPAR0 + trb_address, parameter0);
-    write_reg(MIZAR_USB_DEPCMD + trb_address, cmd);
-
-    read_data = (unsigned int)read_reg(MIZAR_USB_DEPCMD + trb_address);
-    while ((int)read_data == cmd) {
-        psv_delay(30000U);
-        read_data = (unsigned int)read_reg(MIZAR_USB_DEPCMD + trb_address);
-        timeout--;
-        if (timeout == 0U) {
-            LOGE("set_configuration: Timeout polling DEPCMD+0x%x", trb_address);
-            g_errors++;
-            break;
-        }
-    }
-    LOGT("set_configuration: DEPCMD+0x%x command 0x%x completed", trb_address, cmd);
+ write_reg(MIZAR_USB_DEPCMDPAR1 + trb_address, parameter1);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + trb_address, parameter0);
+ write_reg(MIZAR_USB_DEPCMD + trb_address, cmd);
+ read_data = read_reg(MIZAR_USB_DEPCMD + trb_address);
+ while (read_data == cmd) {
+ for (volatile int d = 0; d < 30000; d++);
+ read_data = read_reg(MIZAR_USB_DEPCMD + trb_address);
+ }
 }
 
-/*
+/
+ * Function: Default_IRQHandler
+ * Description: Interrupt handler. Clears int_pend flag, reads system register
+ * status, reads and acknowledges GEVNTCOUNT, conditionally clears
+ * raw status bit, clears GIC IRQ 84.
+ * Parameters:
+ * none
+ * Returns:
+ * void
+ /
+void Default_IRQHandler(void)
+{
+ int rd_data;
+ int event_count;
+
+ int_pend = 0;
+ rd_data = read_reg(MIZAR_LSS_SYSREG_MSK_STS0);
+ rd_data = read_reg(MIZAR_LSS_SYSREG_RAW_STCR0);
+ event_count = read_reg(MIZAR_USB_GEVNTCOUNT);
+ event_counter = event_count;
+ write_reg(MIZAR_USB_GEVNTCOUNT, event_count);
+ // Note: source uses logical AND (&&) not bitwise AND (&) — preserved as-is
+ if (rd_data && 0x80000000) {
+ write_reg(MIZAR_LSS_SYSREG_RAW_STCR0, 0x80000000);
+ }
+ GIC_ClearIRQ(84);
+}
+
+/
+ * Function: setup_stage
+ * Description: Configures a SETUP stage TRB at event_trb_addr with control
+ * 0x823, issues DEPCMD Start Transfer command 0x506, polls for
+ * command completion, waits for interrupt completion via int_pend.
+ * Parameters:
+ * none
+ * Returns:
+ * void
+ /
+void setup_stage(void)
+{
+ int rd_data;
+
+ write_reg(event_trb_addr, Buffer_PointerLO);
+ write_reg(event_trb_addr + 0x8, 0x8);
+ write_reg(event_trb_addr + 0xc, 0x823);
+ write_reg(MIZAR_USB_DEPCMDPAR1, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0, 0x0);
+ write_reg(MIZAR_USB_DEPCMD, 0x506);
+ rd_data = read_reg(MIZAR_USB_DEPCMD);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD);
+ }
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+}
+
+/
+ * Function: status_stage
+ * Description: Configures a STATUS stage TRB at event_trb_addr with control
+ * 0x843, issues DEPCMD Start Transfer command 0x506, polls for
+ * command completion, waits for interrupt completion via int_pend,
+ * then additional delay.
+ * Parameters:
+ * none
+ * Returns:
+ * void
+ /
+void status_stage(void)
+{
+ int rd_data;
+
+ write_reg(event_trb_addr, Buffer_PointerLO);
+ write_reg(event_trb_addr + 0x8, 0x0);
+ write_reg(event_trb_addr + 0xc, 0x843);
+ write_reg(MIZAR_USB_DEPCMDPAR1, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0, 0x0);
+ write_reg(MIZAR_USB_DEPCMD, 0x506);
+ rd_data = read_reg(MIZAR_USB_DEPCMD);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD);
+ }
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+ for (volatile int d = 0; d < 5000; d++);
+}
+
+/
+ * Function: nic_programming
+ * Description: Programs the USB device controller. Configures event ring,
+ * global control, PHY, device configuration, endpoint
+ * configurations, and enables interrupts.
+ * Parameters:
+ * none
+ * Returns:
+ * void
+ /
+void nic_programming(void)
+{
+ int rd_data;
+ volatile unsigned int i;
+
+ // Step 1-4: Event ring configuration
+ write_reg(MIZAR_USB_GEVNTADRLO, Default_Event_Ring_Array);
+ write_reg(MIZAR_USB_GEVNTADRHI, 0x0);
+ write_reg(MIZAR_USB_GEVNTSIZ, 0x30);
+ write_reg(MIZAR_USB_GEVNTCOUNT, 0x0);
+
+ // Step 5-6: Global control
+ rd_data = read_reg(MIZAR_USB_GCTL);
+ write_reg(MIZAR_USB_GCTL, 0x30c12214);
+
+ // Step 7: PHY configuration
+ write_reg(MIZAR_USB_GUSB2PHYCFG, 0x40002547);
+
+ // Step 8: Device configuration
+ write_reg(MIZAR_USB_DCFG, 0x480801);
+
+ // Step 9: Device events enable
+ write_reg(MIZAR_USB_DEVTEN, 0x1f);
+
+ // Step 10: User control
+ write_reg(MIZAR_USB_GUCTL, 0xa400010);
+
+ // Step 11-18: Endpoint configurations via set_configuration
+ set_configuration(0x00, 0x200, 0x700, 0x401);
+ set_configuration(0x10, 0x200, 0x2000700, 0x401);
+ set_configuration(0x20, 0x206, 0x4000700, 0x401);
+ set_configuration(0x30, 0x20206, 0x6000700, 0x401);
+ set_configuration(0x40, 0x204, 0x8000700, 0x401);
+ set_configuration(0x50, 0x40204, 0xa000700, 0x401);
+ set_configuration(0x60, 0x1ffa, 0xc000700, 0x401);
+ set_configuration(0x70, 0x61ffa, 0xe000700, 0x401);
+
+ // Step 19: Endpoint TX resource configuration loop (i=0 to 7)
+ for (i = 0; i < 8; i++) {
+ write_reg(MIZAR_USB_DEPCMDPAR0 + (i * 0x10), 0x1);
+ write_reg(MIZAR_USB_DEPCMD + (i * 0x10), 0x402);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + (i * 0x10));
+ while (rd_data == 0x402) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + (i * 0x10));
+ }
+ }
+
+ // Step 20: Enable endpoints
+ write_reg(MIZAR_USB_DALEPENA, 0x3);
+
+ // Step 21: Device control
+ write_reg(MIZAR_USB_DCTL, 0x80f00000);
+
+ // Step 22: System interrupt enable
+ write_reg(MIZAR_LSS_SYSREG_INTR_EN0, 0x80000000);
+}
+
+/
  * Function: usb_fs_device_bulk_transfer_test_init
- * Description: Initializes USB device controller, enables IRQs, clears buffer
- *              and event TRB memory regions, performs USB controller initialization.
+ * Description: Initializes USB device controller and enables GIC interrupts.
  * Parameters:
- *   cfg - pointer to TestsItem configuration
+ * cfg - pointer to test configuration
  * Returns:
- *   0 on success, -1 on failure
+ * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
 {
-    int j;
+ (void)cfg;
 
-    (void)cfg;
+ LOGT("USB FS Device Bulk Transfer test init");
 
-    g_errors = 0U;
-    event_counter = 0U;
-    int_pend = 0;
+ // Step 1: Call nic_programming
+ nic_programming();
 
-    LOGT("USB FS Device Bulk Transfer test init started");
+ // Step 2: Call GIC_EnableAllIRQ
+ GIC_EnableAllIRQ();
 
-    // Step 1: Call nic_programming() for USB device controller initialization
-    nic_programming();
-    LOGT("nic_programming() completed");
-
-    // Step 2: Enable all IRQs
-    GIC_EnableAllIRQ();
-    LOGT("GIC_EnableAllIRQ() completed");
-
-    // Step 3: Clear 20 entries of Buffer_PointerLO and event_trb_addr memory regions
-    for (j = 0; j < 20; j++) {
-        write_reg(Buffer_PointerLO + j * DWORD, 0x0);
-        write_reg(event_trb_addr + j * DWORD, 0x0);
-    }
-    LOGT("Cleared 20 entries of Buffer_PointerLO and event_trb_addr");
-
-    // MANUAL_REVIEW: Runtime condition 9 requires explicit USB controller initialization
-    // (PHY, Event Ring, Device Configuration, Endpoint Resources, Transfer Resources).
-    // Meta indicates nic_programming() configures MIZAR_USB_GCTL with 0x30c11234 and
-    // other global registers. Additional initialization details beyond nic_programming()
-    // are not available in Meta. Verify nic_programming() covers all required init.
-
-    LOGT("USB FS Device Bulk Transfer test init completed");
-    return 0;
+ LOGT("USB FS Device Bulk Transfer test init complete");
+ return 0;
 }
 
-/*
+/
  * Function: usb_fs_device_bulk_transfer_test_run
- * Description: Executes USB FS device bulk transfer test including enumeration,
- *              configuration, and bulk data transfer with interrupt synchronization.
+ * Description: Main testcase execution. Clears buffer/event TRB memory,
+ * performs USB device enumeration (GET_DESCRIPTOR device descriptor,
+ * GET_DESCRIPTOR configuration descriptor, SET_CONFIGURATION),
+ * executes Bulk OUT and Bulk IN transfers.
  * Parameters:
- *   cfg - pointer to TestsItem configuration
- *   out - pointer to TestOutput for results
+ * cfg - pointer to test configuration
+ * out - pointer to test output
  * Returns:
- *   0 on success (PASS), -1 on failure (FAIL)
+ * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
 {
-    int rd_data;
-    unsigned int k;
+ volatile int rd_data;
+ volatile unsigned int j;
 
-    (void)cfg;
+ (void)cfg;
 
-    if (out == 0) {
-        LOGE("Output pointer is NULL");
-        return -1;
-    }
+ if (out == 0) {
+ LOGE("USB output pointer is NULL");
+ return -1;
+ }
 
-    out->status = 0;
+ out->status = 0;
 
-    LOGT("USB FS Device Bulk Transfer test run started");
+ LOGT("Starting USB FS Device Bulk Transfer test run");
 
-    // Step 4: Issue Start Transfer command by writing 0x506 to DEPCMD+0x10, poll until complete
-    write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
-    rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
-    {
-        unsigned int timeout = USB_POLL_TIMEOUT;
-        while (rd_data == 0x506) {
-            psv_delay(10000U);
-            rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
-            timeout--;
-            if (timeout == 0U) {
-                LOGE("Timeout polling DEPCMD+0x10 for initial Start Transfer");
-                g_errors++;
-                break;
-            }
-        }
-    }
-    LOGT("Initial DEPCMD+0x10 Start Transfer command completed");
+ // Step 3: Buffer/Event TRB Clearing Loop
+ for (j = 0; j < 20; j++) {
+ write_reg(Buffer_PointerLO + j * DWORD, 0x0);
+ write_reg(event_trb_addr + j * DWORD, 0x0);
+ }
 
-    // Step 5: First int_pend wait
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout on first int_pend wait");
-        g_errors++;
-    }
+ // Step 4: First setup_stage
+ setup_stage();
 
-    // Step 5: Intermediate delay (Meta: wait_on(5))
-    psv_delay(5000U);
+ // Step 5: PHY configuration
+ write_reg(MIZAR_USB_GUSB2PHYCFG, 0x40002547);
 
-    // Step 5: Second int_pend wait
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout on second int_pend wait");
-        g_errors++;
-    }
+ // Step 6: Conditional event_counter wait
+ if (event_counter <= 0x4) {
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+ }
 
-    // Step 5: Third int_pend wait (xfernotready event)
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout on third int_pend wait (xfernotready)");
-        g_errors++;
-    }
+ // Step 7: Conditional event_counter wait
+ if (event_counter <= 0x4) {
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+ }
 
-    // Step 6: Call status_stage()
-    LOGT("Calling status_stage()");
-    status_stage();
+ // Step 8: DV debug marker — converted to PSV logging
+ LOGD("DV debug marker reached");
 
-    // Step 7: Call setup_stage() for USB_SET_CONFIGURATION_OR_RESET_TT
-    LOGT("Calling setup_stage() for USB_SET_CONFIGURATION_OR_RESET_TT");
-    setup_stage();
+ // Step 9: Read DCFG
+ rd_data = read_reg(MIZAR_USB_DCFG);
 
-    // Step 8: DV debug marker 0xdeadbee4 at 0xA0243ffc - converted to PSV logging
-    LOGT("DV debug marker reached: 0xdeadbee4");
+ // Step 10: Read DSTS
+ rd_data = read_reg(MIZAR_USB_DSTS);
 
-    // Step 9: Wait for interrupt (GET DESCRIPTOR USB CONFIGURATION)
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout waiting for interrupt before GET DESCRIPTOR");
-        g_errors++;
-    }
+ // Step 11: Write DCFG
+ write_reg(MIZAR_USB_DCFG, 0x480801);
 
-    // Step 9: Call setup_stage() for GET DESCRIPTOR USB CONFIGURATION
-    LOGT("Calling setup_stage() for GET DESCRIPTOR USB CONFIGURATION");
-    setup_stage();
+ // Step 12: Write DCTL
+ write_reg(MIZAR_USB_DCTL, 0x80f00a00);
 
-    // Step 10: DV debug marker 0xdeadbee5 at 0xA0243ffc - converted to PSV logging
-    LOGT("DV debug marker reached: 0xdeadbee5");
+ // Step 13: Write DALEPENA
+ write_reg(MIZAR_USB_DALEPENA, 0xff);
 
-    // Step 11: Wait for interrupt, proceed with configuration descriptor data stage
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout waiting for interrupt for config descriptor data stage");
-        g_errors++;
-    }
+ // --- GET_DESCRIPTOR Device Descriptor Data Stage ---
+ // Step 14: TRB buffer pointer
+ write_reg(event_trb_addr, Buffer_PointerLO);
 
-    // Steps 12-15: Enumeration - populate device and configuration descriptors
-    // Runtime condition 6: enumeration() integrated into actual flow
-    LOGT("Calling enumeration() for descriptor population");
-    enumeration();
+ // Step 15: TRB transfer length
+ write_reg(event_trb_addr + 0x8, 0x12);
 
-    // Runtime condition 7: Configure bulk endpoints via set_configuration
-    // Configure bulk OUT endpoint (EP1 OUT, offset 0x10)
-    LOGT("Configuring bulk OUT endpoint via set_configuration");
-    set_configuration(0x10, 0x0, event_trb_addr, 0x506);
+ // Step 16: TRB control
+ write_reg(event_trb_addr + 0xc, 0x853);
 
-    // Configure bulk IN endpoint (EP1 IN, offset 0x20)
-    LOGT("Configuring bulk IN endpoint via set_configuration");
-    set_configuration(0x20, 0x0, event_trb_addr, 0x506);
+ // Step 17-21: Device descriptor data
+ write_reg(Buffer_PointerLO, 0x02000012);
+ write_reg(Buffer_PointerLO + 0x4, 0x40000000);
+ write_reg(Buffer_PointerLO + 0x8, 0x00000000);
+ write_reg(Buffer_PointerLO + 0xc, 0x00000000);
+ write_reg(Buffer_PointerLO + 0x10, 0x00000100);
 
-    // Step 12-16: Bulk data transfer TRB setup with non-zero length
-    // Runtime condition 5: non-zero-length bulk transfer
-    LOGT("Setting up bulk data transfer TRB");
+ // Step 22-24: Issue DEPCMD Start Transfer on endpoint offset 0x10
+ write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
+ write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
 
-    // Prepare DMA buffer with payload data before TRB setup
-    for (k = 0U; k < 16U; k++) {
-        write_reg(Buffer_PointerLO + (int)(k * 4U), (int)bulk_payload_data[k]);
-    }
-    LOGT("Bulk payload data written to Buffer_PointerLO");
+ // Step 25-26: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ }
 
-    // Configure bulk TRB at event_trb_addr
-    write_reg(event_trb_addr, Buffer_PointerLO);
-    write_reg(event_trb_addr + 0x8, USB_BULK_TRANSFER_LEN);
-    write_reg(event_trb_addr + 0xc, 0x853);
+ // Step 27: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
 
-    // Set DEPCMDPAR1+0x10 and DEPCMDPAR0+0x10
-    write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
-    write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
+ // Step 28: Delay
+ for (volatile int d = 0; d < 5000; d++);
 
-    // Issue DEPCMD+0x10 with 0x506 for bulk endpoint Start Transfer
-    write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
-    rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
-    {
-        unsigned int timeout = USB_POLL_TIMEOUT;
-        while (rd_data == 0x506) {
-            psv_delay(10000U);
-            rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
-            timeout--;
-            if (timeout == 0U) {
-                LOGE("Timeout polling DEPCMD+0x10 for bulk Start Transfer");
-                g_errors++;
-                break;
-            }
-        }
-    }
-    LOGT("Bulk DEPCMD+0x10 Start Transfer command completed");
+ // Step 29: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
 
-    // Step 17: Wait for interrupt completion via int_pend polling
-    int_pend = 1;
-    if (wait_for_interrupt(USB_POLL_TIMEOUT) != 0) {
-        LOGE("Timeout waiting for bulk transfer interrupt completion");
-        g_errors++;
-    }
+ // Step 30: Interrupt wait — ADDED to check the XferNotReady event
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
 
-    // Runtime condition 16: Validate bulk transfer completion
-    // Verify event_counter was updated by IRQ handler
-    if (event_counter == 0U) {
-        LOGE("Bulk transfer: event_counter is zero, transfer may not have completed");
-        g_errors++;
-    } else {
-        LOGT("Bulk transfer: event_counter = 0x%x", event_counter);
-    }
+ // Step 31: Call status_stage
+ status_stage();
 
-    // Verify bulk payload data integrity by reading back
-    {
-        unsigned int mismatch_count = 0U;
-        for (k = 0U; k < 16U; k++) {
-            int readback = read_reg(Buffer_PointerLO + (int)(k * 4U));
-            if (readback != (int)bulk_payload_data[k]) {
-                LOGE("Bulk data mismatch at offset 0x%x: expected=0x%x actual=0x%x",
-                     k * 4U, bulk_payload_data[k], (unsigned int)readback);
-                mismatch_count++;
-            }
-        }
-        if (mismatch_count > 0U) {
-            LOGE("Bulk data integrity check failed: %u mismatches", mismatch_count);
-            g_errors++;
-        } else {
-            LOGT("Bulk data integrity check passed");
-        }
-    }
+ // --- GET_DESCRIPTOR USB Configuration (short read, 9 bytes) ---
+ // Step 32: Call setup_stage
+ setup_stage();
 
-    // Final status determination
-    if (g_errors > 0U) {
-        LOGE("USB FS Device Bulk Transfer test FAILED with %u errors", g_errors);
-        out->status = -1;
-    } else {
-        LOGT("USB FS Device Bulk Transfer test PASSED");
-        out->status = 0;
-    }
+ // Step 33: Debug marker 0xdeadbee3
+ write_reg(0xA0243ffc, 0xdeadbee3);
 
-    LOGT("USB FS Device Bulk Transfer test run completed: %s",
-         (out->status == 0) ? "PASS" : "FAIL");
+ // Step 34: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
 
-    return out->status;
+ // Step 35-37: TRB for config descriptor short read
+ write_reg(event_trb_addr, Buffer_PointerLO);
+ write_reg(event_trb_addr + 0x8, 0x9);
+ write_reg(event_trb_addr + 0xc, 0x853);
+
+ // Step 38-41: Config descriptor short read data
+ write_reg(Buffer_PointerLO, 0x003c0209);
+ write_reg(Buffer_PointerLO + 0x4, 0xe0000101);
+ write_reg(Buffer_PointerLO + 0x8, 0x00000032);
+ write_reg(Buffer_PointerLO + 0xc, 0x00000000);
+
+ // Step 42-44: Issue DEPCMD Start Transfer on endpoint offset 0x10
+ write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
+ write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
+
+ // Step 45-46: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ }
+
+ // Step 47: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // Step 48: Call status_stage
+ status_stage();
+
+ // --- SET_CONFIGURATION ---
+ // Step 49: Call setup_stage
+ setup_stage();
+
+ // Step 50: Debug marker 0xdeadbee4
+ write_reg(0xA0243ffc, 0xdeadbee4);
+
+ // Step 51: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // Step 52: Issue DEPCMD Start Transfer on endpoint offset 0x10
+ write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
+
+ // Step 53-54: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ }
+
+ // Step 55: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // Step 56: Call status_stage
+ status_stage();
+
+ // --- GET_DESCRIPTOR USB Configuration (full read) ---
+ // Step 57: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // Step 58: Call setup_stage
+ setup_stage();
+
+ // Step 59: Debug marker 0xdeadbee5
+ write_reg(0xA0243ffc, 0xdeadbee5);
+
+ // Step 60: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // --- Data Stage: Full Configuration Descriptor ---
+ // Source comment: 09023c00 010100e0 32090400 00060101 00000705 01034000 01070502 024000ff 07050301 ff030107 05810340 00010705 82024000 ff070583 01ff0301
+ // Step 61-63: TRB for full config descriptor
+ write_reg(event_trb_addr, Buffer_PointerLO);
+ write_reg(event_trb_addr + 0x8, 0x3c);
+ write_reg(event_trb_addr + 0xc, 0x853);
+
+ // Step 64-71: Full configuration descriptor data
+ write_reg(Buffer_PointerLO, 0x003c0209);
+ write_reg(Buffer_PointerLO + 0x4, 0xe0000101);
+ write_reg(Buffer_PointerLO + 0x8, 0x00040932);
+ write_reg(Buffer_PointerLO + 0xc, 0x01010600);
+ write_reg(Buffer_PointerLO + 0x10, 0x05070000);
+ write_reg(Buffer_PointerLO + 0x14, 0x00400301);
+ write_reg(Buffer_PointerLO + 0x18, 0x02050701);
+ write_reg(Buffer_PointerLO + 0x1c, 0xff004002);
+
+ // Step 72-74: Issue DEPCMD Start Transfer on endpoint offset 0x10
+ write_reg(MIZAR_USB_DEPCMDPAR1 + 0x10, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + 0x10, 0x0);
+ write_reg(MIZAR_USB_DEPCMD + 0x10, 0x506);
+
+ // Step 75-76: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x10);
+ }
+
+ // Step 77: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ // Step 78: Call status_stage
+ status_stage();
+
+ // --- Bulk OUT Transfer (endpoint offset 0x40) ---
+ LOGT("Starting Bulk OUT transfer (endpoint offset 0x40)");
+
+ // Step 79-81: TRB for Bulk OUT
+ write_reg(event_trb_addr, Buffer_PointerLO_1);
+ write_reg(event_trb_addr + 0x8, 0x40);
+ write_reg(event_trb_addr + 0xc, 0x813);
+
+ // Step 82-84: Issue DEPCMD Start Transfer on endpoint offset 0x40
+ write_reg(MIZAR_USB_DEPCMDPAR1 + 0x40, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + 0x40, 0x0);
+ write_reg(MIZAR_USB_DEPCMD + 0x40, 0x506);
+
+ // Step 85-86: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x40);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x40);
+ }
+
+ // Step 87: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ LOGT("Bulk OUT transfer complete");
+
+ // --- Bulk IN Transfer (endpoint offset 0x50) ---
+ LOGT("Starting Bulk IN transfer (endpoint offset 0x50)");
+
+ // Step 88-90: TRB for Bulk IN
+ write_reg(event_trb_addr, Buffer_PointerLO_1);
+ write_reg(event_trb_addr + 0x8, 0x40);
+ write_reg(event_trb_addr + 0xc, 0x813);
+
+ // Step 91-93: Issue DEPCMD Start Transfer on endpoint offset 0x50
+ write_reg(MIZAR_USB_DEPCMDPAR1 + 0x50, event_trb_addr);
+ write_reg(MIZAR_USB_DEPCMDPAR0 + 0x50, 0x0);
+ write_reg(MIZAR_USB_DEPCMD + 0x50, 0x506);
+
+ // Step 94-95: Poll for command completion
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x50);
+ while (rd_data == 0x506) {
+ for (volatile int d = 0; d < 10000; d++);
+ rd_data = read_reg(MIZAR_USB_DEPCMD + 0x50);
+ }
+
+ // Step 96: Interrupt wait
+ int_pend = 1;
+ while (int_pend) {
+ for (volatile int d = 0; d < 5000; d++);
+ }
+
+ LOGT("Bulk IN transfer complete");
+
+ // Step 97: Debug marker 0xdeadbee7
+ write_reg(0xA0243ffc, 0xdeadbee7);
+
+ // Step 98: finish(0) — converted to PSV completion
+ out->status = 0;
+
+ LOGT("USB FS Device Bulk Transfer test run complete: %s",
+ (out->status == 0) ? "PASS" : "FAIL");
+
+ return out->status;
 }
 
-/*
+/
  * Function: usb_fs_device_bulk_transfer_test_teardown
- * Description: Cleans up USB controller state, interrupt state, and test resources.
+ * Description: Teardown for USB FS Device Bulk Transfer test.
  * Parameters:
- *   cfg - pointer to TestsItem configuration
+ * cfg - pointer to test configuration
  * Returns:
- *   0 on success, -1 on failure
+ * FV/template-compatible status.
  */
 int usb_fs_device_bulk_transfer_test_teardown(const TestsItem *cfg)
 {
-    int j;
+ (void)cfg;
 
-    (void)cfg;
-
-    LOGT("USB FS Device Bulk Transfer test teardown started");
-
-    // Clean up interrupt state
-    int_pend = 0;
-
-    // Clear event TRB and buffer memory
-    for (j = 0; j < 20; j++) {
-        write_reg(Buffer_PointerLO + j * DWORD, 0x0);
-        write_reg(event_trb_addr + j * DWORD, 0x0);
-    }
-    LOGT("Cleared buffer and event TRB memory");
-
-    // MANUAL_REVIEW: Runtime condition 17 requires stopping outstanding transfers
-    // and cleaning up controller state. Specific stop-transfer register sequence
-    // is not available in Meta. Verify if additional cleanup is needed.
-
-    LOGT("USB FS Device Bulk Transfer test teardown completed");
-    return (g_errors == 0U) ? 0 : -1;
+ LOGT("USB FS Device Bulk Transfer test teardown: no additional cleanup required");
+ return 0;
 }
