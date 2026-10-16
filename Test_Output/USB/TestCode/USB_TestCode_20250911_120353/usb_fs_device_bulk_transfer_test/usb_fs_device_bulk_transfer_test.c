@@ -14,7 +14,7 @@ int event_counter;
  * None
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int rd_data;
@@ -50,14 +50,13 @@ void Default_IRQHandler(void)
  GIC_ClearIRQ(84);
 }
 
-/
- * Function: setup_stage
+/* Function: setup_stage
  * Description: USB setup stage - programs TRB and starts transfer on endpoint 0
  * Parameters:
  * None
  * Returns:
  * void
- /
+ */
 void setup_stage(void)
 {
  int rd_data;
@@ -112,14 +111,13 @@ void setup_stage(void)
  }
 }
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: USB status stage - programs TRB and starts transfer on endpoint 0
  * Parameters:
  * None
  * Returns:
  * void
- /
+ */
 void status_stage(void)
 {
  int rd_data;
@@ -177,8 +175,7 @@ void status_stage(void)
  for (volatile int d = 0; d < 500; d++);
 }
 
-/
- * Function: set_configuration
+/* Function: set_configuration
  * Description: Writes DEPCMD parameters and polls for command completion
  * Parameters:
  * trb_address - endpoint offset
@@ -187,7 +184,7 @@ void status_stage(void)
  * cmd - DEPCMD command value
  * Returns:
  * void
- /
+ */
 void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
  int read_data;
@@ -233,15 +230,14 @@ void enumeration(void)
  // MANUAL_REVIEW: enumeration() body not provided in Meta Test Steps - implement per USB enumeration requirements
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_init
+/* Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initializes USB FS Device Bulk Transfer test - NIC programming, GIC enable, buffer/event ring clear, event ring setup, controller configuration, endpoint setup
  * Parameters:
  * cfg - pointer to TestsItem configuration
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  int rd_data;
  int wr_data;
@@ -357,7 +353,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  int rd_data;
  volatile unsigned int timeout;
@@ -722,8 +718,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Teardown for USB FS Device Bulk Transfer test
  * Parameters:
  * cfg - pointer to TestsItem configuration
