@@ -1,4 +1,4 @@
-/
+/*
  * File: usb_fs_device_bulk_transfer_test.c
  * Description: PSV testcase - USB FS Device Bulk Transfer Test
  * Performs CDC bulk data transfer.
@@ -270,7 +270,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
     return 0;
 }
 
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
     int rd_data;
     volatile unsigned int i;
