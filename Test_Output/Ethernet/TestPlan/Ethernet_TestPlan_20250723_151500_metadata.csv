@@ -1,0 +1,153 @@
+Test Case Name,Meta Headers,Meta Macros,Meta Arrays,Meta Types,Meta Test Description,Meta Test Steps / Procedure,Meta Impacted Registers,Meta Validation / Acceptance Criteria
+ethernet0_tx_rx_multi_chnl_test,"Source File: program.c
+1. #include <stdio.h>
+2. #include <stdlib.h>
+3. #include <math.h>
+4. #include <test_common.h>
+5. #include <ethernet0/ethernet0_def.h>
+6. #include <ethernet0/ethernet0_offset.h>
+7. #include <ethernet0/ethernet0_funcs.h>
+8. #include <ethernet0/ethernet0_programming_sequence.h>","Source File: program.c
+
+Conditional Compilation Macros (used in #ifdef/#elif directives, definitions not supplied in source):
+1. ETH_10M
+2. ETH_100M
+3. HALF_DUPLEX
+4. PRELOAD_AGAIN
+5. SEL_ENET0
+6. SEL_ENET1
+7. SEL_ENET2
+8. SEL_ENET3
+
+Register-address macros (definitions not supplied in this source file; resolved via header files):
+mizar_ETHERNET0_MAC_CONFIGURATION
+mizar_ETHERNET0_MAC_EXT_CONFIGURATION
+mizar_ETHERNET0_MAC_PACKET_FILTER
+mizar_ETHERNET0_MAC_RXQ_CTRL0
+mizar_ETHERNET0_MAC_RXQ_CTRL1
+mizar_ETHERNET0_MAC_RXQ_CTRL2
+mizar_ETHERNET0_MAC_VLAN_TAG_CTRL
+mizar_ETHERNET0_MAC_ADDRESS0_HIGH
+mizar_ETHERNET0_MAC_ADDRESS0_LOW
+mizar_ETHERNET0_MAC_ADDRESS1_HIGH
+mizar_ETHERNET0_MAC_ADDRESS1_LOW
+mizar_ETHERNET0_MAC_ADDRESS2_HIGH
+mizar_ETHERNET0_MAC_ADDRESS2_LOW
+mizar_ETHERNET0_MAC_ADDRESS3_HIGH
+mizar_ETHERNET0_MAC_ADDRESS3_LOW
+mizar_ETHERNET0_MMC_IPC_RX_INTERRUPT_MASK
+mizar_ETHERNET0_MTL_OPERATION_MODE
+mizar_ETHERNET0_MTL_TXQ0_OPERATION_MODE
+mizar_ETHERNET0_MTL_TXQ1_OPERATION_MODE
+mizar_ETHERNET0_MTL_TXQ2_OPERATION_MODE
+mizar_ETHERNET0_MTL_TXQ3_OPERATION_MODE
+mizar_ETHERNET0_MTL_TXQ0_QUANTUM_WEIGHT
+mizar_ETHERNET0_MTL_TXQ1_QUANTUM_WEIGHT
+mizar_ETHERNET0_MTL_TXQ2_QUANTUM_WEIGHT
+mizar_ETHERNET0_MTL_TXQ3_QUANTUM_WEIGHT
+mizar_ETHERNET0_MTL_RXQ0_OPERATION_MODE
+mizar_ETHERNET0_MTL_RXQ1_OPERATION_MODE
+mizar_ETHERNET0_MTL_RXQ2_OPERATION_MODE
+mizar_ETHERNET0_MTL_RXQ3_OPERATION_MODE
+mizar_ETHERNET0_MTL_RXQ0_CONTROL
+mizar_ETHERNET0_MTL_RXQ1_CONTROL
+mizar_ETHERNET0_MTL_RXQ2_CONTROL
+mizar_ETHERNET0_MTL_RXQ3_CONTROL
+mizar_ETHERNET0_MTL_RXQ_DMA_MAP0
+mizar_ETHERNET0_MTL_Q0_INTERRUPT_CONTROL_STATUS
+mizar_ETHERNET0_MTL_Q1_INTERRUPT_CONTROL_STATUS
+mizar_ETHERNET0_MTL_Q2_INTERRUPT_CONTROL_STATUS
+mizar_ETHERNET0_MTL_Q3_INTERRUPT_CONTROL_STATUS
+mizar_ETHERNET0_DMA_MODE
+mizar_ETHERNET0_DMA_SYSBUS_MODE
+mizar_ETHERNET0_DMA_CH0_CONTROL
+mizar_ETHERNET0_DMA_CH1_CONTROL
+mizar_ETHERNET0_DMA_CH2_CONTROL
+mizar_ETHERNET0_DMA_CH3_CONTROL
+mizar_ETHERNET0_DMA_CH0_TX_CONTROL
+mizar_ETHERNET0_DMA_CH1_TX_CONTROL
+mizar_ETHERNET0_DMA_CH2_TX_CONTROL
+mizar_ETHERNET0_DMA_CH3_TX_CONTROL
+mizar_ETHERNET0_DMA_CH0_RX_CONTROL
+mizar_ETHERNET0_DMA_CH1_RX_CONTROL
+mizar_ETHERNET0_DMA_CH2_RX_CONTROL
+mizar_ETHERNET0_DMA_CH3_RX_CONTROL
+mizar_ETHERNET0_DMA_CH0_RX_CONTROL2
+mizar_ETHERNET0_DMA_CH1_RX_CONTROL2
+mizar_ETHERNET0_DMA_CH2_RX_CONTROL2
+mizar_ETHERNET0_DMA_CH3_RX_CONTROL2
+mizar_ETHERNET0_DMA_CH0_TXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH1_TXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH2_TXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH3_TXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH0_RXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH1_RXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH2_RXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH3_RXDESC_LIST_ADDRESS
+mizar_ETHERNET0_DMA_CH0_TXDESC_RING_LENGTH
+mizar_ETHERNET0_DMA_CH1_TXDESC_RING_LENGTH
+mizar_ETHERNET0_DMA_CH2_TXDESC_RING_LENGTH
+mizar_ETHERNET0_DMA_CH3_TXDESC_RING_LENGTH
+mizar_ETHERNET0_DMA_CH0_TXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH1_TXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH2_TXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH3_TXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH0_RXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH1_RXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH2_RXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH3_RXDESC_TAIL_POINTER
+mizar_ETHERNET0_DMA_CH0_INTERRUPT_ENABLE
+mizar_ETHERNET0_DMA_CH1_INTERRUPT_ENABLE
+mizar_ETHERNET0_DMA_CH2_INTERRUPT_ENABLE
+mizar_ETHERNET0_DMA_CH3_INTERRUPT_ENABLE
+mizar_ETHERNET0_DMA_CH0_CURRENT_APP_TXDESC
+mizar_ETHERNET0_DMA_CH0_CURRENT_APP_TXBUFFER
+mizar_ETHERNET0_DMA_CH1_CURRENT_APP_TXDESC
+mizar_ETHERNET0_DMA_CH1_CURRENT_APP_TXBUFFER
+mizar_ETHERNET0_DMA_CH2_CURRENT_APP_TXDESC
+mizar_ETHERNET0_DMA_CH2_CURRENT_APP_TXBUFFER
+mizar_ETHERNET0_DMA_CH3_CURRENT_APP_TXDESC
+mizar_ETHERNET0_DMA_CH3_CURRENT_APP_TXBUFFER
+mizar_ETHERNET0_DMA_CH0_CURRENT_APP_RXDESC
+mizar_ETHERNET0_DMA_CH1_CURRENT_APP_RXDESC
+mizar_ETHERNET0_DMA_CH2_CURRENT_APP_RXDESC
+mizar_ETHERNET0_DMA_CH3_CURRENT_APP_RXDESC
+mizar_ETHERNET0_RX_PACKETS_COUNT_GOOD_BAD
+mizar_ETHERNET0_TX_PACKET_COUNT_GOOD_BAD",NA,"TYPE_DEFINITIONS
+No typedef, struct, union, or enum definitions visible in supplied source.
+
+OTHER_DECLARATIONS
+Source File: program.c
+Function: test_case()
+
+Local variable declarations:
+  int wdata,rdata,i,txpkt,rxpkt;
+  int address,read;
+
+Global/external variable usage (declarations not visible in supplied source, used at file/function scope):
+  int_pend
+  enetsel_randvar
+  sel_enet
+  enet_sel
+  rdata_tailpointer
+  rdata_desc
+  power","This testcase (ethernet0_tx_rx_multi_chnl_test) validates multi-channel TX and RX operation on the DWC Ethernet QoS IP (Ethernet0). The test configures MAC, MTL, and DMA subsystems across 4 DMA channels (CH0-CH3). It sets up MAC configuration (speed/duplex via conditional compilation for 10M/100M/1G), MAC addresses with per-channel DMA selection, MTL TX/RX queue operation modes, quantum weights, RX queue-to-DMA channel mapping, and DMA channel control registers. TX and RX descriptors are preloaded for all 4 channels. The test then sequentially activates each channel (CH3 first, then CH2, CH1, CH0), triggers the ETH VIP sequencer via write_reg to 0xA0243ff8, and polls TX/RX packet count registers in while(int_pend) loops. Validation checks cumulative packet counts at 10, 20, 30, and 40 (10 packets per channel). Conditional PRELOAD_AGAIN logic reloads RX descriptors when the tail pointer reaches the end of the ring. The test completes with wait_on(2000) and finish(0).","SOURCE_FILE: program.c
+[Full test source code as extracted by Agent 5A]","Agent 4 Output — Register Mappings (base_value=0xE6B00000 for all resolved registers):
+
+1. ETH_10M — unresolved (conditional compilation flag)
+2. ETH_100M — unresolved (conditional compilation flag)
+3. HALF_DUPLEX — unresolved (conditional compilation flag)
+4. PRELOAD_AGAIN — unresolved (conditional compilation flag)
+5. mizar_ETHERNET0_MAC_CONFIGURATION -> MAC_Configuration (offset 0x0) — matched
+6. mizar_ETHERNET0_MAC_EXT_CONFIGURATION -> MAC_Ext_Configuration (offset 0x4) — matched
+7-96. [All remaining register mappings as produced by Agent 4]
+
+Total resolved: 92 of 96 tokens matched. 4 unresolved (conditional compilation flags).","Source File: program.c
+Function: test_case()
+
+Validation 1 — CH3 packet count check: if(rxpkt == 10 && txpkt == 10){ break; }
+Validation 2 — CH2 packet count check: if(rxpkt == 20 && txpkt == 20){ break; }
+Validation 3 — CH1 packet count check: if(rxpkt == 30 && txpkt == 30){ break; }
+Validation 4 — CH0 packet count check: if(rxpkt == 40 && txpkt == 40){ break; }
+Validation 5 — MTL_RXQ_DMA_MAP0 readback verification
+Test Completion: wait_on(2000); finish(0);"
