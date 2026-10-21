@@ -40,7 +40,7 @@ static usb_test_ctx_t g_usb_ctx;
  * cmd_val - command value written
  * Returns:
  * 0 on success, -1 on timeout
- /
+ */
 static int wait_for_cmd_completion(unsigned int reg_addr, unsigned int cmd_val)
 {
  volatile unsigned int rd_data;
@@ -63,7 +63,7 @@ static int wait_for_cmd_completion(unsigned int reg_addr, unsigned int cmd_val)
 }
 
 
-/
+/*
  * Function: wait_for_interrupt
  * Description: Wait for int_pend to be cleared by ISR with timeout protection.
  * Runtime condition: interrupt race prevention - set int_pend before
@@ -72,7 +72,7 @@ static int wait_for_cmd_completion(unsigned int reg_addr, unsigned int cmd_val)
  * None
  * Returns:
  * 0 on success, -1 on timeout
- /
+ */
 static int wait_for_interrupt(void)
 {
  volatile unsigned int timeout = 0U;
@@ -91,7 +91,7 @@ static int wait_for_interrupt(void)
 }
 
 
-/
+/*
  * Function: set_configuration
  * Description: Configure endpoint using DEPCMDPAR1, DEPCMDPAR0, DEPCMD with polling.
  * Parameters:
@@ -101,7 +101,7 @@ static int wait_for_interrupt(void)
  * cmd - command value
  * Returns:
  * void
- /
+ */
 static void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
  write_reg(MIZAR_USB_DEPCMDPAR1 + trb_address, parameter1);
@@ -111,7 +111,7 @@ static void set_configuration(int trb_address, int parameter0, int parameter1, i
 }
 
 
-/
+/*
  * Function: setup_stage
  * Description: Perform USB control transfer setup stage.
  * Programs TRB and issues Start Transfer command 0x506.
@@ -119,7 +119,7 @@ static void set_configuration(int trb_address, int parameter0, int parameter1, i
  * None
  * Returns:
  * void
- /
+ */
 static void setup_stage(void)
 {
  write_reg(event_trb_addr, Buffer_PointerLO);
@@ -135,15 +135,14 @@ static void setup_stage(void)
 }
 
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: Perform USB control transfer status stage.
  * Programs TRB and issues Start Transfer command 0x506.
  * Parameters:
  * None
  * Returns:
  * void
- /
+ */
 static void status_stage(void)
 {
  write_reg(event_trb_addr, Buffer_PointerLO);
@@ -161,8 +160,7 @@ static void status_stage(void)
 }
 
 
-/
- * Function: enumeration
+/* Function: enumeration
  * Description: Perform USB device enumeration sequence including event buffer
  * configuration, device/configuration descriptor data stages,
  * setup and status stages.
@@ -170,7 +168,7 @@ static void status_stage(void)
  * None
  * Returns:
  * void
- /
+ */
 static void enumeration(void)
 {
  volatile unsigned int rd_data;
@@ -319,8 +317,7 @@ static void enumeration(void)
 }
 
 
-/
- * Function: Default_IRQHandler
+/* Function: Default_IRQHandler
  * Description: USB interrupt handler. Clears int_pend, reads system interrupt
  * status, acknowledges event count, clears system interrupt,
  * clears GIC IRQ 84.
@@ -328,7 +325,7 @@ static void enumeration(void)
  * None
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  volatile unsigned int rd_data;
@@ -357,8 +354,7 @@ void Default_IRQHandler(void)
 }
 
 
-/
- * Function: usb_fs_device_bulk_transfer_test_init
+/* Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initialize USB FS device bulk transfer test.
  * Calls nic_programming, enables GIC, clears buffers,
  * configures endpoints.
@@ -367,7 +363,7 @@ void Default_IRQHandler(void)
  * Returns:
  * 0 on success, -1 on failure
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  volatile unsigned int rd_data;
  volatile unsigned int i;
@@ -438,8 +434,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
 }
 
 
-/
- * Function: usb_fs_device_bulk_transfer_test_run
+/* Function: usb_fs_device_bulk_transfer_test_run
  * Description: Execute USB FS device bulk transfer test.
  * Performs enumeration, PHY configuration, and bulk transfers.
  * Parameters:
@@ -448,7 +443,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * 0 on PASS, -1 on FAIL
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  volatile unsigned int rd_data;
 
@@ -579,8 +574,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
 }
 
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Teardown USB FS device bulk transfer test.
  * Cleans up interrupts, endpoints, event queues, controller state.
  * Parameters:
