@@ -14,7 +14,7 @@ int usb_fs_device_bulk_transfer_test_run(
 );
 
 int usb_fs_device_bulk_transfer_test_teardown(
- const TestsItem *cfg
+ const TestsItem cfg
 );
 
-#endif / USB_FS_DEVICE_BULK_TRANSFER_TEST_H */
+#endif / USB_FS_DEVICE_BULK_TRANSFER_TEST_H /
