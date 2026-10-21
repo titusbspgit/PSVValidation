@@ -14,7 +14,7 @@ int ethernet0_tx_rx_multi_chnl_test_run(
 );
 
 int ethernet0_tx_rx_multi_chnl_test_teardown(
-    const TestsItem cfg
+    const TestsItem *cfg
 );
 
 void Default_IRQHandler(void);
