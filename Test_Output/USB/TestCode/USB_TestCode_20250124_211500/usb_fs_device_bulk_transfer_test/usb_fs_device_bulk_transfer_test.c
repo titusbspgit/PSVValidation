@@ -46,7 +46,7 @@ static void wait_delay(int count)
  * Returns:
  *   0 on success, -1 on timeout
  */
-static int wait_for_int_pend_with_timeout(const char label)
+static int wait_for_int_pend_with_timeout(const char *label)
 {
     unsigned int timeout = 0;
     while (int_pend) {
