@@ -35,7 +35,7 @@ static int rdata_tailpointer;
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int wdata;
@@ -121,8 +121,7 @@ void Default_IRQHandler(void)
  LOGT("Clearing Interrupt");
 }
 
-/
- * Function: ethernet0_tx_rx_multi_chnl_test_init
+/* Function: ethernet0_tx_rx_multi_chnl_test_init
  * Description: Initializes GIC, selects Ethernet interface,
  * preloads TX and RX descriptors for all 4 DMA channels,
  * and configures DMA control registers.
@@ -259,8 +258,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem *cfg)
  return 0;
 }
 
-/
- * Function: ethernet0_tx_rx_multi_chnl_test_run
+/* Function: ethernet0_tx_rx_multi_chnl_test_run
  * Description: Executes multi-channel TX/RX test with progressive
  * channel enablement and packet count validation.
  * Validates end-to-end Ethernet traffic across CH0-CH3.
@@ -270,7 +268,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem *cfg)
  * Returns:
  * 0 on PASS, -1 on FAIL
  */
-int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput out)
+int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput *out)
 {
  int wdata, rdata, i, txpkt, rxpkt;
  int address, read;
@@ -521,8 +519,7 @@ int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: ethernet0_tx_rx_multi_chnl_test_teardown
+/* Function: ethernet0_tx_rx_multi_chnl_test_teardown
  * Description: Final cleanup and status reporting.
  * Parameters:
  * cfg - pointer to TestsItem configuration
