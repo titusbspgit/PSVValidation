@@ -25,7 +25,7 @@ static unsigned int g_checks_failed;
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int rd_data;
@@ -48,8 +48,7 @@ void Default_IRQHandler(void)
  GIC_ClearIRQ(84);
 }
 
-/
- * Function: setup_stage
+/* Function: setup_stage
  * Description: Issues Start Transfer endpoint command (0x506) via DEPCMD
  * for EP0 control endpoint, programs TRB with control word 0x823,
  * polls DEPCMD for command completion using CmdAct bit, then
@@ -58,7 +57,7 @@ void Default_IRQHandler(void)
  * none
  * Returns:
  * void
- /
+ */
 void setup_stage(void)
 {
  int rd_data;
@@ -100,8 +99,7 @@ void setup_stage(void)
  }
 }
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: Handles USB control transfer status phase with TRB control
  * word 0x843, issues Start Transfer command (0x506) via DEPCMD,
  * polls for completion, waits for interrupt, then additional delay.
@@ -110,7 +108,7 @@ void setup_stage(void)
  * none
  * Returns:
  * void
- /
+ */
 void status_stage(void)
 {
  int rd_data;
@@ -154,8 +152,7 @@ void status_stage(void)
  for (volatile int d = 0; d < 10000; d++);
 }
 
-/
- * Function: set_configuration
+/* Function: set_configuration
  * Description: Writes endpoint command parameters and polls DEPCMD for
  * completion using CmdAct bit. Preserved from DV Excerpt 16.
  * Parameters:
@@ -165,7 +162,7 @@ void status_stage(void)
  * cmd - DEPCMD command value
  * Returns:
  * void
- /
+ */
 void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
  int read_data;
@@ -190,8 +187,7 @@ void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
  }
 }
 
-/
- * Function: enumeration
+/* Function: enumeration
  * Description: USB device enumeration register configuration sequence.
  * Writes DCFG, DCTL, DALEPENA, prints Buffer_PointerLO, waits.
  * Preserved from DV Excerpt 4. Body partially retrieved.
@@ -199,7 +195,7 @@ void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
  * none
  * Returns:
  * void
- /
+ */
 void enumeration(void)
 {
  int rd_data;
@@ -222,8 +218,7 @@ void enumeration(void)
  // Additional enumeration steps may exist in the unretrieved portion.
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_init
+/* Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initializes USB device controller - calls nic_programming(),
  * enables IRQs, clears buffer and event TRB regions, configures
  * global event buffer registers, reads GCTL, runs enumeration.
@@ -233,7 +228,7 @@ void enumeration(void)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  int rd_data;
  int j;
@@ -273,8 +268,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  return 0;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_run
+/* Function: usb_fs_device_bulk_transfer_test_run
  * Description: Main testcase stimulus - USB enumeration including GET DESCRIPTOR
  * requests for device and configuration descriptors, SET_CONFIGURATION,
  * endpoint configuration, and CDC bulk data transfer.
@@ -285,7 +279,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  int rd_data;
  int timeout;
@@ -533,8 +527,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Cleans up interrupts, endpoints, transfers, TRBs, event queues,
  * pending events, and controller state. Runtime Condition 22.
  * Parameters:
