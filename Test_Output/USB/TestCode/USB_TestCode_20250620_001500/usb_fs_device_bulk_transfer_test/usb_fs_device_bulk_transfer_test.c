@@ -26,7 +26,7 @@ static int g_events_validated;
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int rd_data;
@@ -50,7 +50,7 @@ void Default_IRQHandler(void)
  GIC_ClearIRQ(84);
 }
 
-/
+/*
  * Function: setup_stage
  * Description: Issues Start Transfer endpoint command (0x506) via DEPCMD
  * for EP0 and polls for completion, then waits for interrupt.
@@ -59,7 +59,7 @@ void Default_IRQHandler(void)
  * none
  * Returns:
  * void
- /
+ */
 void setup_stage(void)
 {
  int rd_data;
@@ -100,8 +100,7 @@ void setup_stage(void)
  }
 }
 
-/
- * Function: set_configuration
+/* Function: set_configuration
  * Description: Writes endpoint command parameters and polls DEPCMD for completion.
  * Preserved from DV Excerpt 14.
  * Parameters:
@@ -111,7 +110,7 @@ void setup_stage(void)
  * cmd - DEPCMD command value
  * Returns:
  * void
- /
+ */
 void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
 {
  int read_data;
@@ -135,15 +134,14 @@ void set_configuration(int trb_address, int parameter0, int parameter1, int cmd)
  }
 }
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: Performs USB control transfer status stage.
  * DV body was not retrieved.
  * Parameters:
  * none
  * Returns:
  * void
- /
+ */
 void status_stage(void)
 {
  // MANUAL_REVIEW: status_stage() body was not retrieved from DV source.
@@ -153,7 +151,7 @@ void status_stage(void)
  // MANUAL_REVIEW: Implement status_stage() per DV source.
 }
 
-/
+/*
  * Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initializes USB device controller - calls nic_programming(),
  * enables IRQs, clears buffer and event TRB regions, configures
@@ -164,7 +162,7 @@ void status_stage(void)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  int rd_data;
  int j;
@@ -203,8 +201,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  return 0;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_run
+/* Function: usb_fs_device_bulk_transfer_test_run
  * Description: Main testcase stimulus - USB enumeration including GET DESCRIPTOR
  * requests for device and configuration descriptors, SET_CONFIGURATION,
  * endpoint configuration, and CDC bulk data transfer.
@@ -215,7 +212,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * FV/template-compatible status.
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  int rd_data;
  int timeout;
@@ -444,8 +441,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Cleans up interrupts, endpoints, transfers, TRBs, event queues,
  * pending events, and controller state.
  * Runtime Condition 22.
