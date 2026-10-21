@@ -17,4 +17,4 @@ int ethernet0_tx_rx_multi_chnl_test_teardown(
  const TestsItem *cfg
 );
 
-#endif / ETHERNET0_TX_RX_MULTI_CHNL_TEST_H */
+#endif // ETHERNET0_TX_RX_MULTI_CHNL_TEST_H */
