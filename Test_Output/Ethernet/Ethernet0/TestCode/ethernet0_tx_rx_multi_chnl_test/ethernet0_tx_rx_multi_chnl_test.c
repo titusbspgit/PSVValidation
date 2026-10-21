@@ -38,7 +38,7 @@ static volatile int enet_sel;
  * Returns:
  * 0 on success, -1 on failure
  */
-int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem cfg)
+int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem *cfg)
 {
  volatile unsigned int rdata;
 
@@ -348,8 +348,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem cfg)
 }
 
 
-/
- * Function: ethernet0_tx_rx_multi_chnl_test_run
+/* Function: ethernet0_tx_rx_multi_chnl_test_run
  * Description: Execute Ethernet0 multi-channel TX/RX test.
  * Writes tail pointers, reads TX/RX descriptors,
  * polls RX descriptor rings for CH0-CH2, reads final status.
@@ -359,7 +358,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem cfg)
  * Returns:
  * 0 on PASS, -1 on FAIL
  */
-int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput out)
+int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput *out)
 {
  volatile unsigned int rdata;
  volatile unsigned int rdata_desc;
@@ -534,7 +533,7 @@ int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput out)
 }
 
 
-/
+/*
  * Function: ethernet0_tx_rx_multi_chnl_test_teardown
  * Description: Teardown Ethernet0 multi-channel TX/RX test.
  * Disables interrupts, stops TX/RX on all channels,
