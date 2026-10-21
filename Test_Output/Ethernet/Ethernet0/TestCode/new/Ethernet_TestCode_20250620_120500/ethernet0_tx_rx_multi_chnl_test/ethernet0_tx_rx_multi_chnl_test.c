@@ -285,7 +285,7 @@ int ethernet0_tx_rx_multi_chnl_test_init(const TestsItem *cfg)
  * Returns:
  *   0 on PASS, -1 on FAIL
  */
-int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput out)
+int ethernet0_tx_rx_multi_chnl_test_run(const TestsItem *cfg, TestOutput *out)
 {
     int wdata, rdata, i, txpkt, rxpkt;
     int address, read;
