@@ -76,7 +76,7 @@ static const unsigned int bulk_tx_pattern[16] = {
  * count - relative delay multiplier
  * Returns:
  * void
- /
+ */
 static void psv_delay(unsigned int count)
 {
  unsigned int c;
@@ -85,15 +85,14 @@ static void psv_delay(unsigned int count)
  }
 }
 
-/
- * Function: wait_for_interrupt
+/* Function: wait_for_interrupt
  * Description: Wait for int_pend to be cleared by ISR with timeout protection
  * Parameters:
  * timeout_label - descriptive label for timeout diagnostics
  * Returns:
  * 0 on success, -1 on timeout
  */
-static int wait_for_interrupt(const char timeout_label)
+static int wait_for_interrupt(const char *timeout_label)
 {
  volatile unsigned int timeout = TIMEOUT_INT_WAIT;
  while (int_pend != 0) {
@@ -108,15 +107,14 @@ static int wait_for_interrupt(const char timeout_label)
  return 0;
 }
 
-/
- * Function: process_event_ring
+/* Function: process_event_ring
  * Description: Process event ring entries sequentially, decode DWC3 events,
  * advance read pointer, validate expected USB events.
  * Parameters:
  * event_count_bytes - number of bytes of new events from GEVNTCOUNT
  * Returns:
  * void
- /
+ */
 static void process_event_ring(unsigned int event_count_bytes)
 {
  unsigned int num_events = event_count_bytes / EVENT_RING_ENTRY_SIZE;
@@ -165,8 +163,7 @@ static void process_event_ring(unsigned int event_count_bytes)
  }
 }
 
-/
- * Function: set_configuration
+/* Function: set_configuration
  * Description: Program endpoint configuration via DEPCMD with command completion polling
  * Parameters:
  * trb_address - endpoint offset
@@ -175,7 +172,7 @@ static void process_event_ring(unsigned int event_count_bytes)
  * cmd - DEPCMD command value
  * Returns:
  * void
- /
+ */
 static void set_configuration(unsigned int trb_address, unsigned int parameter0, unsigned int parameter1, unsigned int cmd)
 {
  unsigned int read_data;
@@ -198,8 +195,7 @@ static void set_configuration(unsigned int trb_address, unsigned int parameter0,
  }
 }
 
-/
- * Function: Default_IRQHandler
+/* Function: Default_IRQHandler
  * Description: Interrupt handler - clears int_pend, reads sysreg status,
  * reads/acknowledges event count, processes event ring, clears
  * sysreg raw status, clears GIC IRQ 84.
@@ -207,7 +203,7 @@ static void set_configuration(unsigned int trb_address, unsigned int parameter0,
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  unsigned int rd_data;
@@ -235,8 +231,7 @@ void Default_IRQHandler(void)
  GIC_ClearIRQ(84);
 }
 
-/
- * Function: setup_stage
+/* Function: setup_stage
  * Description: USB control transfer setup stage - programs TRB and issues
  * DEPCMD start transfer on EP0 with command completion polling
  * and interrupt wait.
@@ -244,7 +239,7 @@ void Default_IRQHandler(void)
  * none
  * Returns:
  * void
- /
+ */
 static void setup_stage(void)
 {
  unsigned int rd_data;
@@ -273,8 +268,7 @@ static void setup_stage(void)
  (void)wait_for_interrupt("setup_stage int_pend");
 }
 
-/
- * Function: status_stage
+/* Function: status_stage
  * Description: USB control transfer status stage - programs TRB and issues
  * DEPCMD start transfer on EP0 with command completion polling
  * and multiple interrupt waits.
@@ -282,7 +276,7 @@ static void setup_stage(void)
  * none
  * Returns:
  * void
- /
+ */
 static void status_stage(void)
 {
  unsigned int rd_data;
@@ -316,8 +310,7 @@ static void status_stage(void)
  (void)wait_for_interrupt("status_stage int_pend 2");
 }
 
-/
- * Function: enumeration
+/* Function: enumeration
  * Description: USB enumeration sequence - handles device descriptor response,
  * GET DESCRIPTOR USB CONFIGURATION (short and full),
  * USB_SET_CONFIGURATION_OR_RESET_TT, and status stages.
@@ -325,7 +318,7 @@ static void status_stage(void)
  * none
  * Returns:
  * void
- /
+ */
 static void enumeration(void)
 {
  unsigned int rd_data;
@@ -513,8 +506,7 @@ static void enumeration(void)
  status_stage();
 }
 
-/
- * Function: validate_bulk_payload
+/* Function: validate_bulk_payload
  * Description: Validate bulk transfer payload by reading from receive buffer
  * and comparing against expected deterministic pattern.
  * Parameters:
@@ -549,8 +541,7 @@ static int validate_bulk_payload(unsigned int rx_buf_addr,
  return 0;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_init
+/* Function: usb_fs_device_bulk_transfer_test_init
  * Description: Initialize USB FS device bulk transfer test - NIC programming,
  * GIC enable, buffer zeroing, controller soft reset, PHY config,
  * event buffer setup, global/device config, endpoint configuration.
@@ -559,7 +550,7 @@ static int validate_bulk_payload(unsigned int rx_buf_addr,
  * Returns:
  * 0 on success, -1 on failure
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
  unsigned int rd_data;
  unsigned int wr_data;
@@ -688,8 +679,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  return 0;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_run
+/* Function: usb_fs_device_bulk_transfer_test_run
  * Description: Main testcase execution - enumeration, SET ADDRESS,
  * GET DESCRIPTOR, SET CONFIGURATION, bulk OUT/IN transfers,
  * payload validation, event validation.
@@ -699,7 +689,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  * 0 on PASS, -1 on FAIL
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
  unsigned int rd_data;
  volatile unsigned int timeout;
@@ -1038,8 +1028,7 @@ int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
  return out->status;
 }
 
-/
- * Function: usb_fs_device_bulk_transfer_test_teardown
+/* Function: usb_fs_device_bulk_transfer_test_teardown
  * Description: Teardown - disable interrupts, endpoints, clear event queue,
  * reset controller state.
  * Parameters:
