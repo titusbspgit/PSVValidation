@@ -1,0 +1,33 @@
+name: Generate MIPI_CSI TestPlan XLSX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install openpyxl
+      
+      - name: Generate XLSX
+        run: |
+          cd Test_Output/Testing_new_usecase/TestPlan
+          python3 build_xlsx_base64.py > /tmp/xlsx.b64
+          base64 -d /tmp/xlsx.b64 > "MIPI_CSI_TestPlan_$(TZ='Asia/Kolkata' date +%Y%m%d_%H%M%S).xlsx"
+          ls -la *.xlsx
+      
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Test_Output/Testing_new_usecase/TestPlan/*.xlsx"
+          git commit -m "Generated TestPlan Excel Workbook"
+          git push
