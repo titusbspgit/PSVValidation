@@ -475,7 +475,7 @@ static int validate_bulk_payload(unsigned int base_addr, unsigned int size,
  * Returns:
  *   0 on success, -1 on failure
  */
-int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
+int usb_fs_device_bulk_transfer_test_init(const TestsItem *cfg)
 {
     (void)cfg;
 
@@ -509,7 +509,7 @@ int usb_fs_device_bulk_transfer_test_init(const TestsItem cfg)
  * Returns:
  *   0 on PASS, -1 on FAIL
  */
-int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput out)
+int usb_fs_device_bulk_transfer_test_run(const TestsItem *cfg, TestOutput *out)
 {
     volatile unsigned int rd_data;
     unsigned int wr_data;
