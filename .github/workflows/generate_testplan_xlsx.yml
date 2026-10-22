@@ -2,6 +2,9 @@ name: Generate MIPI_CSI TestPlan XLSX
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/Testing_new_usecase/TestPlan/trigger_generation.txt'
 
 permissions:
   contents: write
@@ -34,28 +37,28 @@ jobs:
         run: |
           cd Test_Output/Testing_new_usecase/TestPlan
           python3 -c "
-from openpyxl import load_workbook
-wb = load_workbook('${{ env.XLSX_FILENAME }}')
-sheets = wb.sheetnames
-print(f'Sheets: {sheets}')
-assert 'TestPlan' in sheets, 'TestPlan sheet missing'
-assert 'MetaData' in sheets, 'MetaData sheet missing'
-ws_tp = wb['TestPlan']
-ws_meta = wb['MetaData']
-tp_rows = ws_tp.max_row - 1
-meta_rows = ws_meta.max_row - 1
-print(f'TestPlan rows: {tp_rows}')
-print(f'MetaData rows: {meta_rows}')
-assert tp_rows == 2, f'Expected 2 TestPlan rows, got {tp_rows}'
-assert meta_rows == 2, f'Expected 2 MetaData rows, got {meta_rows}'
-assert ws_meta.sheet_state == 'veryHidden', f'MetaData sheet state: {ws_meta.sheet_state}'
-print('Validation PASSED')
-"
+          from openpyxl import load_workbook
+          wb = load_workbook('${{ env.XLSX_FILENAME }}')
+          sheets = wb.sheetnames
+          print(f'Sheets: {sheets}')
+          assert 'TestPlan' in sheets, 'TestPlan sheet missing'
+          assert 'MetaData' in sheets, 'MetaData sheet missing'
+          ws_tp = wb['TestPlan']
+          ws_meta = wb['MetaData']
+          tp_rows = ws_tp.max_row - 1
+          meta_rows = ws_meta.max_row - 1
+          print(f'TestPlan rows: {tp_rows}')
+          print(f'MetaData rows: {meta_rows}')
+          assert tp_rows == 2, f'Expected 2 TestPlan rows, got {tp_rows}'
+          assert meta_rows == 2, f'Expected 2 MetaData rows, got {meta_rows}'
+          assert ws_meta.sheet_state == 'veryHidden', f'MetaData sheet state: {ws_meta.sheet_state}'
+          print('Validation PASSED')
+          "
       
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "Test_Output/Testing_new_usecase/TestPlan/*.xlsx"
-          git commit -m "Generated TestPlan Excel Workbook"
+          git commit -m "Generated TestPlan Excel Workbook" || echo "No changes to commit"
           git push
