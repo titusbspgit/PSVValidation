@@ -3,6 +3,9 @@ name: Generate MIPI_CSI TestPlan XLSX
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -20,9 +23,34 @@ jobs:
       - name: Generate XLSX
         run: |
           cd Test_Output/Testing_new_usecase/TestPlan
-          python3 build_xlsx_base64.py > /tmp/xlsx.b64
-          base64 -d /tmp/xlsx.b64 > "MIPI_CSI_TestPlan_$(TZ='Asia/Kolkata' date +%Y%m%d_%H%M%S).xlsx"
+          FILENAME="MIPI_CSI_TestPlan_$(TZ='Asia/Kolkata' date +%Y%m%d_%H%M%S).xlsx"
+          python3 build_xlsx_base64.py | base64 -d > "$FILENAME"
+          echo "Generated: $FILENAME"
+          echo "File size: $(stat --printf='%s' "$FILENAME") bytes"
           ls -la *.xlsx
+          echo "XLSX_FILENAME=$FILENAME" >> $GITHUB_ENV
+      
+      - name: Validate XLSX
+        run: |
+          cd Test_Output/Testing_new_usecase/TestPlan
+          python3 -c "
+from openpyxl import load_workbook
+wb = load_workbook('${{ env.XLSX_FILENAME }}')
+sheets = wb.sheetnames
+print(f'Sheets: {sheets}')
+assert 'TestPlan' in sheets, 'TestPlan sheet missing'
+assert 'MetaData' in sheets, 'MetaData sheet missing'
+ws_tp = wb['TestPlan']
+ws_meta = wb['MetaData']
+tp_rows = ws_tp.max_row - 1
+meta_rows = ws_meta.max_row - 1
+print(f'TestPlan rows: {tp_rows}')
+print(f'MetaData rows: {meta_rows}')
+assert tp_rows == 2, f'Expected 2 TestPlan rows, got {tp_rows}'
+assert meta_rows == 2, f'Expected 2 MetaData rows, got {meta_rows}'
+assert ws_meta.sheet_state == 'veryHidden', f'MetaData sheet state: {ws_meta.sheet_state}'
+print('Validation PASSED')
+"
       
       - name: Commit and push
         run: |
