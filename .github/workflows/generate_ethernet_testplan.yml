@@ -2,9 +2,6 @@ name: Generate Ethernet TestPlan Excel Workbook
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/generate_ethernet_testplan.yml'
 
 jobs:
   generate-excel:
@@ -24,12 +21,7 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Workbook
-        run: python Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_agent7_inline.py
-        working-directory: ${{ github.workspace }}
-
-      - name: Move workbook to output directory
-        run: |
-          mv Ethernet_TestPlan_*.xlsx Test_Output/Ethernet/Ethernet0/TestPlan/ 2>/dev/null || true
+        run: python Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_agent7_v2.py
 
       - name: Commit and Push
         run: |
