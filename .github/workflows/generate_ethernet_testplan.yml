@@ -1,13 +1,13 @@
-name: Generate Ethernet TestPlan Excel
+name: Generate Ethernet TestPlan Excel Workbook
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_v3.py'
+      - '.github/workflows/generate_ethernet_testplan.yml'
 
 jobs:
-  generate:
+  generate-excel:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,23 +15,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install openpyxl
         run: pip install openpyxl
 
-      - name: Generate workbook
-        run: |
-          cd Test_Output/Ethernet/Ethernet0/TestPlan
-          python generate_workbook_v3.py
+      - name: Generate Workbook
+        run: python Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_agent7_inline.py
+        working-directory: ${{ github.workspace }}
 
-      - name: Commit and push
+      - name: Move workbook to output directory
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 'Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx'
-          git commit -m 'Generated TestPlan Excel Workbook' || echo 'No changes'
+          mv Ethernet_TestPlan_*.xlsx Test_Output/Ethernet/Ethernet0/TestPlan/ 2>/dev/null || true
+
+      - name: Commit and Push
+        run: |
+          git config user.name 'Agent7-Excel-Generator'
+          git config user.email 'agent7@generator.bot'
+          git add Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_*.xlsx
+          git commit -m 'Generated TestPlan Excel Workbook' || echo 'No changes to commit'
           git push
