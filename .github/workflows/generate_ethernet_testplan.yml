@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_v2.py'
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_v3.py'
 
 jobs:
   generate:
@@ -26,7 +26,7 @@ jobs:
       - name: Generate workbook
         run: |
           cd Test_Output/Ethernet/Ethernet0/TestPlan
-          python generate_workbook_v2.py
+          python generate_workbook_v3.py
 
       - name: Commit and push
         run: |
