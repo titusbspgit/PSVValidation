@@ -1,7 +1,13 @@
 name: Generate MIPI CSI TestPlan XLSX
 
 on:
+  push:
+    paths:
+      - '.github/workflows/generate_xlsx_mipi_csi.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   generate:
@@ -16,11 +22,10 @@ jobs:
       - name: Generate XLSX
         run: |
           cd Test_Output/MIPI/TestPlan
-          python generate_mipi_csi_testplan_20261027_173000.py
-      - name: Commit and push XLSX
+          python agent7_generate_xlsx_inline.py
+      - name: Find and commit generated XLSX
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "Test_Output/MIPI/TestPlan/MIPI_CSI_TestPlan_*.xlsx"
-          git commit -m "Generated TestPlan Excel Workbook" || echo "No changes"
-          git push
+          git diff --cached --quiet || (git commit -m "Generated TestPlan Excel Workbook" && git push)
