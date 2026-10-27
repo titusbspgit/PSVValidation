@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/Ethernet/Ethernet0/TestPlan/generate_and_push.py'
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_generate_xlsx.py'
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_testplan_data.json'
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_metadata.json'
 
 permissions:
   contents: write
@@ -27,24 +29,12 @@ jobs:
       - name: Generate Excel Workbook
         run: |
           cd Test_Output/Ethernet/Ethernet0/TestPlan
-          python -c "
-import generate_and_push as g
-import base64, datetime, os
-b64 = g.generate()
-raw = base64.b64decode(b64)
-now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
-ts = now.strftime('%Y%m%d_%H%M%S')
-fname = f'Ethernet_TestPlan_{ts}.xlsx'
-with open(fname, 'wb') as f:
-    f.write(raw)
-print(f'Generated: {fname}')
-print(f'Size: {os.path.getsize(fname)} bytes')
-"
+          python agent7_generate_xlsx.py
 
       - name: Commit and push generated workbook
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 'Test_Output/Ethernet/Ethernet0/TestPlan/*.xlsx'
+          git add 'Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_*.xlsx'
           git diff --cached --quiet || git commit -m 'Generated TestPlan Excel Workbook'
           git push
