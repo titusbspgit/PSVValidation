@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""
+Inline workbook generator - generates Excel and outputs base64 to stdout.
+Run: python3 workbook_generator_inline.py
+Output: base64 encoded xlsx content and filename
+"""
+import json, sys, os, base64, io
+from datetime import datetime, timezone, timedelta
+
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.utils import get_column_letter
+
+TESTPLAN_JSON = [{"Index":"1","SS / Module":"USB","Test Case Name":"USB_FS_Device_Bulk_Transfer_test","Feature":"Full-Speed Device Bulk Transfer","Speed":"Full-Speed","Mode":"Device","Memory Start Offset":"NA","Memory End Offset":"NA","Test Description":"This test validates USB Full-Speed Device mode Bulk Transfer functionality on the Mizar platform. The test initializes the USB controller by performing NIC programming and enabling GIC interrupts, clears buffer and event TRB memory regions, executes a USB controller soft reset and polls for its completion, configures the USB 2.0 PHY, sets up the event buffer (address low/high, size, and count), and programs global controller settings including port direction, device configuration, device event enable, and user control registers. The test then configures 8 device endpoints (START NEW CONFIGURATION followed by 8 endpoint configurations) and allocates TX resources for each endpoint. Physical endpoints 0 and 1 are enabled, the controller is placed into run state, and system-level interrupts are enabled. The test handles link state, connect, and reset events via interrupt-driven handshaking. USB enumeration is performed including SET ADDRESS, GET DESCRIPTOR (device descriptor and configuration descriptor), and USB SET CONFIGURATION. After enumeration, bulk data transfers are initiated on two bulk endpoints. An interrupt handler services USB events by reading the event count, acknowledging the event buffer, clearing system register interrupt status, and clearing the GIC IRQ. The test completes successfully upon finishing all bulk transfers.","Test Steps / Procedure":"1. Perform NIC programming and enable all GIC interrupts.\\n2. Clear buffer and event TRB memory regions by writing zeros in a loop (20 iterations).\\n3. Initiate USB controller soft reset by writing to the Device Control register (DCTL) and poll until the reset completes.\\n4. Configure the USB 2.0 PHY via the PHY Configuration register (GUSB2PHYCFG).\\n5. Set up the event buffer by programming the Event Address Low (GEVNTADRLO), Event Address High (GEVNTADRHI), Event Size (GEVNTSIZ), and Event Count (GEVNTCOUNT) registers.\\n6. Read the Global Control register (GCTL), then write the port direction configuration value.\\n7. Read and program the Device Configuration register (DCFG) for Full-Speed operation.\\n8. Enable device events (disconnect, reset, connection done, link state change, wakeup) via the Device Event Enable register (DEVTEN).\\n9. Read and program the User Control register (GUCTL).\\n10. Issue START NEW CONFIGURATION command via the endpoint command interface (DEPCMDPAR1, DEPCMDPAR0, DEPCMD).\\n11. Configure 8 endpoints by issuing endpoint configuration commands with appropriate parameters and polling for command completion.\\n12. Configure TX resources for all 8 endpoints in a loop, issuing resource allocation commands and polling for completion.\\n13. Enable physical endpoints 0 and 1 via the Active Endpoint Enable register (DALEPENA).\\n14. Set the controller to run state via the Device Control register (DCTL).\\n15. Enable system-level USB interrupt via the System Register Interrupt Enable register.\\n16. Wait for link state, connect, and reset events via interrupt-driven handshaking; conditionally wait for additional events based on event counter value.\\n17. Re-program the Device Configuration register (DCFG) after reset events. Read Device Status register (DSTS).\\n18. Perform USB enumeration Setup Stage (prepare TRB, issue Start Transfer command via DEPCMDPAR1/DEPCMDPAR0/DEPCMD, wait for interrupt completion).\\n19. Update PHY configuration (GUSB2PHYCFG) and Device Configuration (DCFG) for SET ADDRESS.\\n20. Prepare SET ADDRESS data TRB and issue Start Transfer command on the IN endpoint; poll for command completion.\\n21. Wait for handshake synchronization from the external agent.\\n22. Execute full enumeration sequence: GET DESCRIPTOR (device descriptor) with setup, data, and status stages; GET DESCRIPTOR (short configuration descriptor) with setup, data, and status stages.\\n23. Wait for second handshake synchronization.\\n24. Perform GET DESCRIPTOR (short configuration descriptor) with setup, data, and status stages.\\n25. Perform USB SET CONFIGURATION with setup and status data stages; wait for event completion and handshake synchronization.\\n26. Execute second full enumeration sequence (device and configuration descriptors).\\n27. Perform GET DESCRIPTOR (full configuration descriptor with interface and endpoint descriptors) with setup, data, and status stages.\\n28. Initiate Bulk OUT transfer on the first bulk endpoint: prepare TRB with buffer pointer, issue Start Transfer command, poll for completion, and wait for transfer complete interrupt.\\n29. Initiate Bulk OUT transfer on the second bulk endpoint: prepare TRB with buffer pointer, issue Start Transfer command, poll for completion, and wait for transfer complete interrupt.\\n30. Signal test completion and call finish with pass status.\\n\\nInterrupt Handler Steps:\\na. On interrupt, clear the interrupt pending flag.\\nb. Read the System Register Masked Status and Raw Status registers.\\nc. Read the Event Count register (GEVNTCOUNT) and store the event count.\\nd. Write back the event count to GEVNTCOUNT to acknowledge processed events.\\ne. If the raw status indicates a USB interrupt, clear the raw status bit.\\nf. Clear the GIC IRQ.","Impacted Registers":"GCTL, GUCTL, DALEPENA, DCFG, DCTL, DEVTEN, DSTS, GUSB2PHYCFG, GEVNTADRLO, GEVNTADRHI, GEVNTSIZ, GEVNTCOUNT, DEPCMDPAR2, DEPCMDPAR1, DEPCMDPAR0, DEPCMD","Validation / Acceptance Criteria":"1. USB controller soft reset must complete successfully: the DCTL register must reflect the expected post-reset value after polling.\\n2. All endpoint configuration commands (START NEW CONFIGURATION and 8 endpoint configs) must complete: the DEPCMD register must clear the active command indicator for each command.\\n3. All endpoint TX resource allocation commands (for 8 endpoints) must complete: the DEPCMD register must transition away from the issued command value.\\n4. All Start Transfer commands issued during enumeration (setup stage, data stage, status stage) must complete: the DEPCMD register must clear the active bit.\\n5. Link state, connect, and reset events must be received via interrupts: the interrupt pending flag must be cleared by the interrupt handler.\\n6. Event counter checks must pass: if the event counter is within the expected threshold, additional interrupt events must be successfully received.\\n7. Handshake synchronization with the external agent must succeed: the handshake memory locations must return non-zero values.\\n8. All bulk transfer Start Transfer commands on both bulk endpoints must complete: the DEPCMD register must clear the active command indicator.\\n9. The interrupt handler must correctly read the event count from GEVNTCOUNT, acknowledge processed events by writing back to GEVNTCOUNT, clear the system register raw status, and clear the GIC IRQ.\\n10. The test must reach completion and call finish with a pass (0) argument, indicating all transfers and enumeration steps completed without error.","Remarks":"The test includes a commented-out DEVICE QUALIFIER descriptor response section that is not active in the current implementation. Handshake synchronization with an external agent is performed via memory-mapped polling at dedicated handshake locations. The interrupt handler uses GIC IRQ 84 for USB event servicing. Multiple conditional event counter checks are used to handle variable timing of link state and reset events. The PHY configuration (GUSB2PHYCFG) is updated during SET ADDRESS to adjust for Full-Speed operation parameters. Three system-level registers (LSS_SYSREG_INTR_EN0, LSS_SYSREG_MSK_STS0, LSS_SYSREG_RAW_STCR0) are used for interrupt management but could not be mapped to the USB register specification as they belong to a separate LSS SYSREG module."}]
+
+META_JSON = [{"Test Case Name":"USB_FS_Device_Bulk_Transfer_test","Meta Headers":"File: program.c\\n#include <stdio.h>\\n#include <stdlib.h>\\n#include \\"usb.h\\"","Meta Macros":"No macro definitions are visible in the supplied source. The following macros are used in program.c but their definitions are not supplied (expected to be defined in \\"usb.h\\" or its transitive includes):\\nMIZAR_USB_DCTL\\nMIZAR_USB_GUSB2PHYCFG\\nMIZAR_USB_GEVNTADRLO\\nMIZAR_USB_GEVNTADRHI\\nMIZAR_USB_GEVNTSIZ\\nMIZAR_USB_GEVNTCOUNT\\nMIZAR_USB_GCTL\\nMIZAR_USB_DCFG\\nMIZAR_USB_DEVTEN\\nMIZAR_USB_GUCTL\\nMIZAR_USB_DALEPENA\\nMIZAR_USB_DSTS\\nMIZAR_USB_DEPCMDPAR1\\nMIZAR_USB_DEPCMDPAR0\\nMIZAR_USB_DEPCMD\\nMIZAR_LSS_SYSREG_INTR_EN0\\nMIZAR_LSS_SYSREG_MSK_STS0\\nMIZAR_LSS_SYSREG_RAW_STCR0\\nBuffer_PointerLO\\nBuffer_PointerLO_1\\nDefault_Event_Ring_Array\\nevent_trb_addr\\nDWORD\\nThe header file \\"usb.h\\" content was not retrieved.","Meta Arrays":"File: program.c, Function: test_case()\\nint buf_data[16];","Meta Types":"TYPE_DEFINITIONS\\nNA\\n\\nOTHER_DECLARATIONS\\nFile: program.c, file scope:\\nextern int int_pend;\\nint event_counter;","Meta Function Inventory":"File: program.c\\n\\n1. Function Definition: void Default_IRQHandler()\\n...","Meta Test Description":"USB Full-Speed Device Bulk Transfer test for the USB IP (Mizar platform)...","Meta Test Steps / Procedure":"SOURCE_FILE: program.c\\nSOURCE_CONTENT:\\n#include <stdio.h>...","Meta Impacted Registers":"Agent 4 Output (register mapping):\\n1. MIZAR_USB_DCTL -> register_name: NA, status: ambiguous...","Meta Validation / Acceptance Criteria":"File: program.c\\n\\n1. Function: test_case()\\n Soft reset completion check:..."}]
+
+IP_NAME = "Ethernet"
+
+TESTPLAN_COLUMNS = ["Index","SS / Module","Feature","Test Case Name","Speed","Mode","Memory Start Offset","Memory End Offset","Test Description","Test Steps / Procedure","Impacted Registers","Validation / Acceptance Criteria","Remarks","Code Generation (Required / Not)"]
+METADATA_COLUMNS = ["Test Case Name","Meta Headers","Meta Macros","Meta Arrays","Meta Types","Meta Test Description","Meta Test Steps / Procedure","Meta Impacted Registers","Meta Validation / Acceptance Criteria"]
+
+IST = timezone(timedelta(hours=5, minutes=30))
+now_ist = datetime.now(IST)
+timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
+filename = f"{IP_NAME}_TestPlan_{timestamp}.xlsx"
+
+wb = Workbook()
+ws_tp = wb.active
+ws_tp.title = "TestPlan"
+
+header_font = Font(bold=True, color="FFFFFF")
+header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+wrap_align = Alignment(wrap_text=True, vertical="top")
+
+for col_idx, col_name in enumerate(TESTPLAN_COLUMNS, 1):
+    cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = wrap_align
+
+for row_idx, tc in enumerate(TESTPLAN_JSON, 2):
+    for col_idx, col_name in enumerate(TESTPLAN_COLUMNS, 1):
+        if col_name == "Code Generation (Required / Not)":
+            cell = ws_tp.cell(row=row_idx, column=col_idx, value="")
+        else:
+            cell = ws_tp.cell(row=row_idx, column=col_idx, value=tc.get(col_name, ""))
+        cell.alignment = wrap_align
+
+dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True)
+dv.error = "Please select Required or Not Required"
+dv.errorTitle = "Invalid Entry"
+col_letter = get_column_letter(len(TESTPLAN_COLUMNS))
+dv.add(f"{col_letter}2:{col_letter}{len(TESTPLAN_JSON)+1}")
+ws_tp.add_data_validation(dv)
+ws_tp.freeze_panes = "A2"
+
+for col_idx in range(1, len(TESTPLAN_COLUMNS)+1):
+    max_len = len(str(TESTPLAN_COLUMNS[col_idx-1]))
+    for row in ws_tp.iter_rows(min_row=2, max_row=ws_tp.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                for line in str(cell.value).split("\\n"):
+                    max_len = max(max_len, len(line))
+    ws_tp.column_dimensions[get_column_letter(col_idx)].width = min(max_len+2, 80)
+
+ws_meta = wb.create_sheet("MetaData")
+ws_meta.sheet_state = "veryHidden"
+
+for col_idx, col_name in enumerate(METADATA_COLUMNS, 1):
+    cell = ws_meta.cell(row=1, column=col_idx, value=col_name)
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = wrap_align
+
+for row_idx, meta in enumerate(META_JSON, 2):
+    for col_idx, col_name in enumerate(METADATA_COLUMNS, 1):
+        cell = ws_meta.cell(row=row_idx, column=col_idx, value=meta.get(col_name, ""))
+        cell.alignment = wrap_align
+
+ws_meta.freeze_panes = "A2"
+
+for col_idx in range(1, len(METADATA_COLUMNS)+1):
+    max_len = len(str(METADATA_COLUMNS[col_idx-1]))
+    for row in ws_meta.iter_rows(min_row=2, max_row=ws_meta.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            if cell.value:
+                for line in str(cell.value).split("\\n"):
+                    max_len = max(max_len, len(line))
+    ws_meta.column_dimensions[get_column_letter(col_idx)].width = min(max_len+2, 80)
+
+buf = io.BytesIO()
+wb.save(buf)
+buf.seek(0)
+b64 = base64.b64encode(buf.read()).decode()
+print(f"FILENAME={filename}")
+print(f"BASE64_START")
+print(b64)
+print(f"BASE64_END")
+print(f"ROWS_TP={len(TESTPLAN_JSON)}")
+print(f"ROWS_META={len(META_JSON)}")
