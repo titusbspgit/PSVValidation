@@ -14,10 +14,10 @@ int ethernet0_tx_basic_test_run(
 );
 
 int ethernet0_tx_basic_test_teardown(
- const TestsItem cfg
+ const TestsItem *cfg
 );
 
 // Interrupt handler - must be visible to interrupt vector table
 void Default_IRQHandler(void);
 
-#endif / ETHERNET0_TX_BASIC_TEST_H */
+#endif /*ETHERNET0_TX_BASIC_TEST_H */
