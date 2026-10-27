@@ -4,37 +4,6 @@
 #include "ethernet0_tx_basic_test.h"
 #include "test_define.inc"
 
-// MANUAL_REVIEW: Runtime condition 1 (External Ethernet Validation) - ATP requires external Ethernet
-// endpoint (RJ45 cable, network switch, traffic generator). DV uses VIP-driven packet stimulus.
-// PSV must configure external Ethernet endpoint and validate communication path establishment.
-// External endpoint configuration and topology initialization must be implemented here.
-
-// MANUAL_REVIEW: Runtime condition 2 (End-to-End Ethernet Validation) - ATP requires actual Ethernet
-// traffic validation including TX frame verification, payload integrity, MAC address correctness,
-// frame length, and packet content. DV source has no explicit packet content validation (unconditional
-// finish(0)). PSV must add end-to-end packet verification for PASS criteria.
-
-// MANUAL_REVIEW: Runtime condition 3 (Duplex Validation) - ATP requires half-duplex and full-duplex
-// mode validation. DV uses #ifdef HALF_DUPLEX conditional compilation. PSV must verify programmed
-// duplex mode through MAC_CONFIGURATION status readback after configuration.
-
-// MANUAL_REVIEW: Runtime condition 5 (RX Descriptor Ring Maintenance) - This is a TX-only test.
-// DV source does not contain RX descriptor ring management. Runtime condition preserved for
-// traceability but not applicable to this TX basic test.
-
-// MANUAL_REVIEW: Runtime condition 8 (Packet Stimulus Preservation) - DV uses VIP sequencer triggered
-// by write_reg(0xA0243ffc,enet_sel) and write_reg(0xA0243ff8,0xdeadbeef). PSV must generate equivalent
-// external packet stimulus or use external traffic generator/loopback for TX validation.
-
-// MANUAL_REVIEW: Runtime condition 9 (Hardware Counter Verification) - DV source does not show
-// TX/RX packet counter reads or MAC/DMA statistics validation in visible excerpts. PSV must add
-// hardware counter verification to supplement packet verification per ATP requirements.
-
-// MANUAL_REVIEW: Runtime condition 14 (Variable Type Requirements) - Runtime requires unsigned int
-// for all variables. Meta DV source uses signed int for data_rd, data_wr, def_fail_cnt, wr_fail_cnt,
-// wdata, rdata, i, address, read. Preserving Meta source types to maintain DV functional equivalence.
-// Signed behavior is used in DV for int_pend comparison and loop control.
-
 // File-scope variables from DV source
 int data_rd;
 int data_wr;
@@ -65,7 +34,7 @@ static unsigned int irq_received_count = 0;
  * none
  * Returns:
  * void
- /
+ */
 void Default_IRQHandler(void)
 {
  int rdata, wdata;
@@ -126,7 +95,7 @@ void Default_IRQHandler(void)
 }
 
 
-/
+/*
  * Function: ethernet0_tx_basic_test_init
  * Description: Initializes GIC, selects Ethernet interface and speed/duplex mode,
  * calls non_secure_prot_nic, programs MAC address registers
@@ -135,7 +104,7 @@ void Default_IRQHandler(void)
  * Returns:
  * 0 on success, -1 on failure
  */
-int ethernet0_tx_basic_test_init(const TestsItem cfg)
+int ethernet0_tx_basic_test_init(const TestsItem *cfg)
 {
  (void)cfg;
 
@@ -199,8 +168,7 @@ int ethernet0_tx_basic_test_init(const TestsItem cfg)
 }
 
 
-/
- * Function: ethernet0_tx_basic_test_run
+/* Function: ethernet0_tx_basic_test_run
  * Description: Programs MAC, MTL, DMA registers, preloads TX descriptors, starts TX,
  * waits for transfer complete interrupts
  * Parameters:
@@ -209,7 +177,7 @@ int ethernet0_tx_basic_test_init(const TestsItem cfg)
  * Returns:
  * 0 on success (PASS), -1 on failure (FAIL)
  */
-int ethernet0_tx_basic_test_run(const TestsItem *cfg, TestOutput out)
+int ethernet0_tx_basic_test_run(const TestsItem *cfg, TestOutput *out)
 {
  (void)cfg;
  int wdata, rdata, i;
@@ -401,8 +369,7 @@ int ethernet0_tx_basic_test_run(const TestsItem *cfg, TestOutput out)
 }
 
 
-/
- * Function: ethernet0_tx_basic_test_teardown
+/* Function: ethernet0_tx_basic_test_teardown
  * Description: Teardown for the Ethernet0 TX basic test
  * Parameters:
  * cfg - pointer to test configuration
