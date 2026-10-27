@@ -1,0 +1,89 @@
+// Author - AI Force 2.3. Date in IST
+// (EMBENGG-SYSAPPS)
+
+#include <test.h>
+#include <stdint.h>
+#include "log.h"
+#include "reg_access.h"
+#include <ethernet0/ethernet0_def.h>
+#include <ethernet0/ethernet0_offset.h>
+
+#define CNT 434
+
+// MANUAL_REVIEW: Arrays declared with 434 elements but only partial initializer entries visible
+// in retrieved source. Remaining elements will be zero-initialized by C standard.
+// Ensure the complete initializer lists are provided from the full DV source.
+
+const unsigned long int addr_array[434] = {
+ mizar_ETHERNET0_MAC_CONFIGURATION,
+ mizar_ETHERNET0_MAC_EXT_CONFIGURATION,
+ mizar_ETHERNET0_MAC_PACKET_FILTER,
+ mizar_ETHERNET0_MAC_WD_JB_TIMEOUT,
+ mizar_ETHERNET0_MAC_HASH_TABLE_REG0,
+ mizar_ETHERNET0_MAC_HASH_TABLE_REG1,
+ mizar_ETHERNET0_MAC_VLAN_TAG_CTRL,
+ mizar_ETHERNET0_MAC_VLAN_TAG_DATA,
+ mizar_ETHERNET0_MAC_VLAN_HASH_TABLE,
+ mizar_ETHERNET0_MAC_Q0_TX_FLOW_CTRL,
+ mizar_ETHERNET0_MAC_Q1_TX_FLOW_CTRL,
+ mizar_ETHERNET0_MAC_Q2_TX_FLOW_CTRL,
+ mizar_ETHERNET0_MAC_Q3_TX_FLOW_CTRL,
+ mizar_ETHERNET0_MAC_RX_FLOW_CTRL,
+ // MANUAL_REVIEW: Remaining 420 initializer entries not visible in retrieved source
+};
+
+const int default_value_array[434] = {
+ ETHERNET0_MAC_CONFIGURATION_DEFAULT_VAL,
+ ETHERNET0_MAC_EXT_CONFIGURATION_DEFAULT_VAL,
+ ETHERNET0_MAC_PACKET_FILTER_DEFAULT_VAL,
+ ETHERNET0_MAC_WD_JB_TIMEOUT_DEFAULT_VAL,
+ ETHERNET0_MAC_HASH_TABLE_REG0_DEFAULT_VAL,
+ ETHERNET0_MAC_HASH_TABLE_REG1_DEFAULT_VAL,
+ ETHERNET0_MAC_VLAN_TAG_CTRL_DEFAULT_VAL,
+ ETHERNET0_MAC_VLAN_TAG_DATA_DEFAULT_VAL,
+ ETHERNET0_MAC_VLAN_HASH_TABLE_DEFAULT_VAL,
+ ETHERNET0_MAC_Q0_TX_FLOW_CTRL_DEFAULT_VAL,
+ // MANUAL_REVIEW: Remaining 424 initializer entries not visible in retrieved source
+};
+
+const int read_mask_array[434] = {
+ ETHERNET0_MAC_CONFIGURATION_READ_MASK,
+ ETHERNET0_MAC_EXT_CONFIGURATION_READ_MASK,
+ ETHERNET0_MAC_PACKET_FILTER_READ_MASK,
+ ETHERNET0_MAC_WD_JB_TIMEOUT_READ_MASK,
+ ETHERNET0_MAC_HASH_TABLE_REG0_READ_MASK,
+ ETHERNET0_MAC_HASH_TABLE_REG1_READ_MASK,
+ ETHERNET0_MAC_VLAN_TAG_CTRL_READ_MASK,
+ ETHERNET0_MAC_VLAN_TAG_DATA_READ_MASK,
+ ETHERNET0_MAC_VLAN_HASH_TABLE_READ_MASK,
+ ETHERNET0_MAC_Q0_TX_FLOW_CTRL_READ_MASK,
+ ETHERNET0_MAC_Q1_TX_FLOW_CTRL_READ_MASK,
+ ETHERNET0_MAC_Q2_TX_FLOW_CTRL_READ_MASK,
+ ETHERNET0_MAC_Q3_TX_FLOW_CTRL_READ_MASK,
+ ETHERNET0_MAC_RX_FLOW_CTRL_READ_MASK,
+ // MANUAL_REVIEW: Remaining 420 initializer entries not visible in retrieved source
+};
+
+const int write_mask_array[434] = {
+ ETHERNET0_MAC_CONFIGURATION_WRITE_MASK,
+ ETHERNET0_MAC_EXT_CONFIGURATION_WRITE_MASK,
+ ETHERNET0_MAC_PACKET_FILTER_WRITE_MASK,
+ ETHERNET0_MAC_WD_JB_TIMEOUT_WRITE_MASK,
+ ETHERNET0_MAC_HASH_TABLE_REG0_WRITE_MASK,
+ ETHERNET0_MAC_HASH_TABLE_REG1_WRITE_MASK,
+ ETHERNET0_MAC_VLAN_TAG_CTRL_WRITE_MASK,
+ ETHERNET0_MAC_VLAN_TAG_DATA_WRITE_MASK,
+ ETHERNET0_MAC_VLAN_HASH_TABLE_WRITE_MASK,
+ ETHERNET0_MAC_Q0_TX_FLOW_CTRL_WRITE_MASK,
+ // MANUAL_REVIEW: Remaining 424 initializer entries not visible in retrieved source
+};
+
+const int skip_array[434] = {
+ 0, 0, 0, 0, 0, 0, 1, 1, 0, 1,
+ // MANUAL_REVIEW: Remaining 424 initializer entries not visible in retrieved source
+};
+
+const int skip_rst_array[434] = {
+ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ // MANUAL_REVIEW: Remaining 421 initializer entries not visible in retrieved source
+};
