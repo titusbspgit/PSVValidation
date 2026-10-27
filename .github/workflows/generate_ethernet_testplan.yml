@@ -1,33 +1,22 @@
 name: Generate Ethernet TestPlan Excel Workbook
-
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_final_generator.py'
-
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_workbook_gen.py'
 jobs:
   generate-excel:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install openpyxl
-        run: pip install openpyxl
-
-      - name: Generate Workbook
-        run: python Test_Output/Ethernet/Ethernet0/TestPlan/agent7_final_generator.py
-
-      - name: Commit and Push
-        run: |
+      - run: pip install openpyxl
+      - run: python Test_Output/Ethernet/Ethernet0/TestPlan/agent7_workbook_gen.py
+      - run: |
           git config user.name 'Agent7-Excel-Generator'
           git config user.email 'agent7@generator.bot'
           git add 'Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_*.xlsx'
