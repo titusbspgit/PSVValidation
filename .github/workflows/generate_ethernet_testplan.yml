@@ -2,6 +2,9 @@ name: Generate Ethernet TestPlan Excel Workbook
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/agent7_final_generator.py'
 
 jobs:
   generate-excel:
@@ -21,12 +24,12 @@ jobs:
         run: pip install openpyxl
 
       - name: Generate Workbook
-        run: python Test_Output/Ethernet/Ethernet0/TestPlan/generate_workbook_agent7_v2.py
+        run: python Test_Output/Ethernet/Ethernet0/TestPlan/agent7_final_generator.py
 
       - name: Commit and Push
         run: |
           git config user.name 'Agent7-Excel-Generator'
           git config user.email 'agent7@generator.bot'
-          git add Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_*.xlsx
-          git commit -m 'Generated TestPlan Excel Workbook' || echo 'No changes to commit'
+          git add 'Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_*.xlsx'
+          git commit -m 'Generated TestPlan Excel Workbook' || echo 'No changes'
           git push
