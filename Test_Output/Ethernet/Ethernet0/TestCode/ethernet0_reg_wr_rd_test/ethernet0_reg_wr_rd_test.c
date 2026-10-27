@@ -4,39 +4,6 @@
 #include "ethernet0_reg_wr_rd_test.h"
 #include "test_define.inc"
 
-// MANUAL_REVIEW: Runtime condition 1 (External Ethernet Validation) requires external Ethernet endpoint
-// configuration and communication path validation. This Meta testcase is a register write/read access
-// test only. No external Ethernet endpoint or traffic path is present in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 2 (End-to-End Ethernet Validation) requires TX/RX frame validation,
-// payload integrity, MAC address verification, and packet content checks. This Meta testcase performs
-// only register default-value and write/read-back validation. No Ethernet traffic is present in DV source.
-
-// MANUAL_REVIEW: Runtime condition 3 (Duplex Validation) requires half-duplex and full-duplex mode
-// configuration and verification. This Meta testcase is register access only. No duplex configuration
-// is present in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 4 (DMA Descriptor Initialization) requires DMA descriptor setup.
-// This Meta testcase does not contain any DMA descriptor operations in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 5 (RX Descriptor Ring Maintenance) requires RX descriptor ring
-// management. This Meta testcase does not contain any descriptor ring operations in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 6 (DMA Interrupt Status Handling) requires DMA interrupt processing
-// and clearing. This Meta testcase does not contain any DMA interrupt operations in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 7 (GIC Interrupt Handling Preservation) requires interrupt controller
-// interactions. This Meta testcase does not contain any GIC/interrupt operations in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 8 (Packet Stimulus Preservation) requires packet generation.
-// This Meta testcase does not contain any packet stimulus in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 9 (Hardware Counter Verification) requires TX/RX/DMA/MAC counter
-// validation. This Meta testcase does not contain any counter verification in the DV source.
-
-// MANUAL_REVIEW: Runtime condition 10 (Interrupt Handler Preservation) requires interrupt handler with
-// DMA event processing. This Meta testcase does not contain any interrupt handler in the DV source.
-
 #define SOFT_RST_REG_ADDRESS 0x00000000
 #define SOFT_RST_REG_DATA 0x00000000
 
