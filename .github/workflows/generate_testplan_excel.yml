@@ -2,6 +2,12 @@ name: Generate TestPlan Excel Workbook
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Test_Output/Ethernet/Ethernet0/TestPlan/Ethernet_TestPlan_Generator_v2.py'
+
+permissions:
+  contents: write
 
 jobs:
   generate:
