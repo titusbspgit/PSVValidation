@@ -1,104 +1,235 @@
 #!/usr/bin/env python3
-"""Build and upload Ethernet1 TestPlan xlsx to GitHub."""
-import os, sys, base64, json, subprocess
-subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'openpyxl', 'PyGithub', '-q'])
+"""
+Build and upload Ethernet1 TestPlan Excel Workbook.
 
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.utils import get_column_letter
-from datetime import datetime, timezone, timedelta
-from github import Github
+Run this script from any machine with Python 3 + openpyxl + requests:
+    pip install openpyxl requests
+    python build_xlsx.py
 
-IP_NAME = "Ethernet1"
-IST = timezone(timedelta(hours=5, minutes=30))
-now_ist = datetime.now(IST)
-FILENAME = f"{IP_NAME}_TestPlan_{now_ist.strftime('%Y%m%d_%H%M%S')}.xlsx"
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
-REPO_NAME = "titusbspgit/PSVValidation"
-BRANCH = "main"
-OUTPUT_DIR = "Test_Output/Ethernet/Ethernet1/TestPlan/"
+It will:
+1. Read testplan_data.json and metadata_data.json from the same directory
+2. Generate a formatted .xlsx workbook
+3. Upload it to GitHub via the API
+"""
+import json, os, sys, datetime, base64
 
-# Load data from JSON files in same directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-tp_path = os.path.join(script_dir, 'testplan_data.json')
-md_path = os.path.join(script_dir, 'metadata_data.json')
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+except ImportError:
+    print("ERROR: openpyxl not installed. Run: pip install openpyxl")
+    sys.exit(1)
 
-with open(tp_path, 'r') as f:
-    TESTPLAN = json.load(f)
-with open(md_path, 'r') as f:
-    META = json.load(f)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-TP_COLS = ['Index','SS / Module','Feature','Test Case Name','Speed','Mode',
-           'Memory Start Offset','Memory End Offset','Test Description',
-           'Test Steps / Procedure','Impacted Registers',
-           'Validation / Acceptance Criteria','Remarks',
-           'Code Generation (Required / Not)']
-MD_COLS = ['Test Case Name','Meta Headers','Meta Macros','Meta Arrays',
-           'Meta Types','Meta Test Description','Meta Test Steps / Procedure',
-           'Meta Impacted Registers','Meta Validation / Acceptance Criteria']
+GITHUB_OWNER = "titusbspgit"
+GITHUB_REPO = "PSVValidation"
+GITHUB_BRANCH = "main"
+GITHUB_DIR = "Test_Output/Ethernet/Ethernet1/TestPlan"
 
-hf = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
-hfill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-wa = Alignment(wrap_text=True, vertical='top')
+def load_json(filename):
+    with open(os.path.join(SCRIPT_DIR, filename), 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-wb = Workbook()
-ws = wb.active
-ws.title = 'TestPlan'
-for ci, cn in enumerate(TP_COLS, 1):
-    c = ws.cell(row=1, column=ci, value=cn); c.font=hf; c.fill=hfill; c.alignment=wa
-for ri, rd in enumerate(TESTPLAN, 2):
-    for ci, cn in enumerate(TP_COLS, 1):
-        v = '' if cn == 'Code Generation (Required / Not)' else rd.get(cn, '')
-        ws.cell(row=ri, column=ci, value=v or '').alignment = wa
+def auto_width(ws, max_width=80):
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.value:
+                lines = str(cell.value).split('\n')
+                longest = max(len(l) for l in lines)
+                if longest > max_len:
+                    max_len = longest
+        ws.column_dimensions[col_letter].width = min(max_len + 4, max_width)
 
-dv = DataValidation(type='list', formula1='"Required,Not Required"', allow_blank=True)
-cg = len(TP_COLS)
-for ri in range(2, len(TESTPLAN)+2): dv.add(ws.cell(row=ri, column=cg))
-ws.add_data_validation(dv)
-ws.freeze_panes = 'A2'
-for ci in range(1, len(TP_COLS)+1):
-    ml = max(len(str(ws.cell(row=1,column=ci).value or '')),
-             max((max((len(l) for l in str(ws.cell(row=ri,column=ci).value or '').split('\n')), default=0)
-                  for ri in range(2, len(TESTPLAN)+2)), default=0))
-    ws.column_dimensions[get_column_letter(ci)].width = min(ml+4, 80)
+def generate_workbook():
+    tp = load_json('testplan_data.json')
+    md = load_json('metadata_data.json')
 
-wm = wb.create_sheet('MetaData')
-wm.sheet_state = 'veryHidden'
-for ci, cn in enumerate(MD_COLS, 1):
-    c = wm.cell(row=1, column=ci, value=cn); c.font=hf; c.fill=hfill; c.alignment=wa
-for ri, rd in enumerate(META, 2):
-    for ci, cn in enumerate(MD_COLS, 1):
-        wm.cell(row=ri, column=ci, value=rd.get(cn, '') or '').alignment = wa
-wm.freeze_panes = 'A2'
-for ci in range(1, len(MD_COLS)+1):
-    ml = max(len(str(wm.cell(row=1,column=ci).value or '')),
-             max((max((len(l) for l in str(wm.cell(row=ri,column=ci).value or '').split('\n')), default=0)
-                  for ri in range(2, len(META)+2)), default=0))
-    wm.column_dimensions[get_column_letter(ci)].width = min(ml+4, 80)
+    # Cross-validate
+    tp_names = {r['Test Case Name'] for r in tp}
+    md_names = {r['Test Case Name'] for r in md}
+    if not tp_names.issubset(md_names):
+        print(f"VALIDATION FAILED: TestPlan names not in MetaData: {tp_names - md_names}")
+        return None, None, 0, 0
 
-outpath = os.path.join(script_dir, FILENAME)
-wb.save(outpath)
+    # IST timestamp
+    ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    ts = datetime.datetime.now(ist).strftime('%Y%m%d_%H%M%S')
+    filename = f'Ethernet1_TestPlan_{ts}.xlsx'
 
-# Validate
-wb2 = load_workbook(outpath)
-assert 'TestPlan' in wb2.sheetnames
-assert 'MetaData' in wb2.sheetnames
-assert wb2['MetaData'].sheet_state == 'veryHidden'
-assert wb2['TestPlan'].max_row - 1 == len(TESTPLAN)
-assert wb2['MetaData'].max_row - 1 == len(META)
-print(f"VALIDATED: {FILENAME}")
+    wb = Workbook()
 
-# Upload to GitHub
-if GITHUB_TOKEN:
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(REPO_NAME)
-    with open(outpath, 'rb') as f:
-        content = f.read()
-    path = OUTPUT_DIR + FILENAME
-    result = repo.create_file(path, "Generated TestPlan Excel Workbook", content, branch=BRANCH)
-    print(f"Uploaded: {result['content'].html_url}")
-    print(f"SHA: {result['commit'].sha}")
-else:
-    print(f"No GITHUB_TOKEN. File saved locally: {outpath}")
-    print(f"Upload manually to: {OUTPUT_DIR}{FILENAME}")
+    # ---- TestPlan Sheet ----
+    ws_tp = wb.active
+    ws_tp.title = 'TestPlan'
+
+    tp_cols = [
+        'Index', 'SS / Module', 'Feature', 'Test Case Name', 'Speed', 'Mode',
+        'Memory Start Offset', 'Memory End Offset', 'Test Description',
+        'Test Steps / Procedure', 'Impacted Registers',
+        'Validation / Acceptance Criteria', 'Remarks',
+        'Code Generation (Required / Not)'
+    ]
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    wrap = Alignment(wrap_text=True, vertical='top')
+
+    for c, name in enumerate(tp_cols, 1):
+        cell = ws_tp.cell(row=1, column=c, value=name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = wrap
+
+    for r, rec in enumerate(tp, 2):
+        ws_tp.cell(row=r, column=1, value=rec.get('Index', '')).alignment = wrap
+        ws_tp.cell(row=r, column=2, value=rec.get('SS / Module', '')).alignment = wrap
+        ws_tp.cell(row=r, column=3, value=rec.get('Feature', '')).alignment = wrap
+        ws_tp.cell(row=r, column=4, value=rec.get('Test Case Name', '')).alignment = wrap
+        ws_tp.cell(row=r, column=5, value=rec.get('Speed', '')).alignment = wrap
+        ws_tp.cell(row=r, column=6, value=rec.get('Mode', '')).alignment = wrap
+        ws_tp.cell(row=r, column=7, value=rec.get('Memory Start Offset', '')).alignment = wrap
+        ws_tp.cell(row=r, column=8, value=rec.get('Memory End Offset', '')).alignment = wrap
+        ws_tp.cell(row=r, column=9, value=rec.get('Test Description', '')).alignment = wrap
+        ws_tp.cell(row=r, column=10, value=rec.get('Test Steps / Procedure', '')).alignment = wrap
+        ws_tp.cell(row=r, column=11, value=rec.get('Impacted Registers', '')).alignment = wrap
+        ws_tp.cell(row=r, column=12, value=rec.get('Validation / Acceptance Criteria', '')).alignment = wrap
+        ws_tp.cell(row=r, column=13, value=rec.get('Remarks', '')).alignment = wrap
+        # Column 14 intentionally left blank for user dropdown selection
+
+    # Data Validation dropdown for Code Generation column
+    dv = DataValidation(
+        type='list',
+        formula1='"Required,Not Required"',
+        allow_blank=True,
+        showDropDown=False
+    )
+    dv.error = 'Please select Required or Not Required'
+    dv.errorTitle = 'Invalid Entry'
+    dv.prompt = 'Select Code Generation status'
+    dv.promptTitle = 'Code Generation'
+    last_row = len(tp) + 1
+    dv.add(f'N2:N{last_row}')
+    ws_tp.add_data_validation(dv)
+
+    ws_tp.freeze_panes = 'A2'
+    auto_width(ws_tp)
+
+    # ---- MetaData Sheet (veryHidden) ----
+    ws_md = wb.create_sheet('MetaData')
+
+    md_cols = [
+        'Test Case Name', 'Meta Headers', 'Meta Macros', 'Meta Arrays',
+        'Meta Types', 'Meta Test Description', 'Meta Test Steps / Procedure',
+        'Meta Impacted Registers', 'Meta Validation / Acceptance Criteria'
+    ]
+
+    for c, name in enumerate(md_cols, 1):
+        cell = ws_md.cell(row=1, column=c, value=name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = wrap
+
+    for r, rec in enumerate(md, 2):
+        ws_md.cell(row=r, column=1, value=rec.get('Test Case Name', '')).alignment = wrap
+        ws_md.cell(row=r, column=2, value=rec.get('Meta Headers', '')).alignment = wrap
+        ws_md.cell(row=r, column=3, value=rec.get('Meta Macros', '')).alignment = wrap
+        ws_md.cell(row=r, column=4, value=rec.get('Meta Arrays', '')).alignment = wrap
+        ws_md.cell(row=r, column=5, value=rec.get('Meta Types', '')).alignment = wrap
+        ws_md.cell(row=r, column=6, value=rec.get('Meta Test Description', '')).alignment = wrap
+        ws_md.cell(row=r, column=7, value=rec.get('Meta Test Steps / Procedure', '')).alignment = wrap
+        ws_md.cell(row=r, column=8, value=rec.get('Meta Impacted Registers', '')).alignment = wrap
+        ws_md.cell(row=r, column=9, value=rec.get('Meta Validation / Acceptance Criteria', '')).alignment = wrap
+
+    ws_md.sheet_state = 'veryHidden'
+    ws_md.freeze_panes = 'A2'
+    auto_width(ws_md)
+
+    # Save locally
+    out_path = os.path.join(SCRIPT_DIR, filename)
+    wb.save(out_path)
+
+    # Validate
+    from openpyxl import load_workbook
+    wb2 = load_workbook(out_path)
+    assert 'TestPlan' in wb2.sheetnames
+    assert 'MetaData' in wb2.sheetnames
+    assert wb2['TestPlan'].max_row - 1 == len(tp)
+    assert wb2['MetaData'].max_row - 1 == len(md)
+    wb2.close()
+
+    print(f"Workbook generated: {filename}")
+    print(f"TestPlan rows: {len(tp)}")
+    print(f"MetaData rows: {len(md)}")
+    print("Post-save validation: PASSED")
+
+    return out_path, filename, len(tp), len(md)
+
+def upload_to_github(filepath, filename):
+    try:
+        import requests
+    except ImportError:
+        print("WARNING: requests not installed. Skipping GitHub upload.")
+        return None, None
+
+    token = os.environ.get('GITHUB_TOKEN')
+    if not token:
+        print("WARNING: GITHUB_TOKEN not set. Skipping GitHub upload.")
+        return None, None
+
+    with open(filepath, 'rb') as f:
+        content_b64 = base64.b64encode(f.read()).decode()
+
+    api_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_DIR}/{filename}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    payload = {
+        "message": "Generated TestPlan Excel Workbook",
+        "content": content_b64,
+        "branch": GITHUB_BRANCH
+    }
+
+    resp = requests.put(api_url, json=payload, headers=headers)
+    if resp.status_code in (200, 201):
+        data = resp.json()
+        html_url = data['content']['html_url']
+        sha = data['commit']['sha']
+        print(f"Uploaded to GitHub: {html_url}")
+        print(f"Commit SHA: {sha}")
+        return html_url, sha
+    else:
+        print(f"GitHub upload failed: {resp.status_code} {resp.text}")
+        return None, None
+
+if __name__ == '__main__':
+    result = generate_workbook()
+    if result[0]:
+        out_path, filename, tp_rows, md_rows = result
+        gh_url, commit_sha = upload_to_github(out_path, filename)
+        print(json.dumps({
+            "status": "SUCCESS" if gh_url else "IN_PROGRESS",
+            "output_file_path": out_path,
+            "github_url": gh_url or "",
+            "filename": filename,
+            "rows_testplan": tp_rows,
+            "rows_metadata": md_rows,
+            "commit_sha": commit_sha or "",
+            "validation": "PASSED"
+        }, indent=2))
+    else:
+        print(json.dumps({
+            "status": "FAILURE",
+            "output_file_path": "",
+            "github_url": "",
+            "filename": "",
+            "rows_testplan": 0,
+            "rows_metadata": 0,
+            "commit_sha": "",
+            "validation": "FAILED"
+        }, indent=2))
