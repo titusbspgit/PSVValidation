@@ -1,1 +1,0 @@
-WORKBOOK_PLACEHOLDER:This file must be regenerated using build_xlsx.py. Run: python build_xlsx.py from the Test_Output/Ethernet/Ethernet1/TestPlan/ directory. The script will generate a proper .xlsx workbook with TestPlan and MetaData sheets from testplan_data.json and metadata_data.json, then upload it to this location.
