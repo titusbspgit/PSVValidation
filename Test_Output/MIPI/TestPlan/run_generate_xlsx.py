@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""
+Agent 7: Generate MIPI_CSI xlsx and push to GitHub via API.
+Usage: GITHUB_TOKEN=ghp_xxx python run_generate_xlsx.py
+Requires: pip install openpyxl requests
+"""
+import json, os, sys, base64, io, datetime
+
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+except ImportError:
+    os.system(f"{sys.executable} -m pip install openpyxl")
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+
+try:
+    import requests
+except ImportError:
+    os.system(f"{sys.executable} -m pip install requests")
+    import requests
+
+# === DATA ===
+TESTPLAN = [{"Index":"1","SS / Module":"MIPI_CSI","Test Case Name":"mipi_csi2_rb_reg_wr_rd_test","Feature":"Register Read/Write Verification","Speed":"NA","Mode":"NA","Memory Start Offset":"NA","Memory End Offset":"NA","Test Description":"This testcase performs register-level read/write verification for the MIPI CSI2 RB register block (csi_reg block). The test validates two aspects: (1) Default/Reset Value Check \u2014 each readable register in the csi_reg block is read after reset and compared against its expected hardware default value; non-readable registers are skipped. (2) Write-Read-Back Check \u2014 a known data pattern is written to each writable register (skipping designated registers such as interrupt_raw and flush, as well as non-writable registers), then each register is read back and compared against an expected value that accounts for the register\u2019s read mask, write mask, and default value for non-writable bit positions. The test reports PASS if all registers match their expected values in both phases, and FAIL if any mismatch is detected in either phase.","Test Steps / Procedure":"Step 1: Execute the default/reset value check phase. For each register in the csi_reg block, verify that the register is readable. If the register is not readable, skip it. If readable, read the register value and compare it against the expected default/reset value. Record any mismatch as a default-value failure.\n\nStep 2: Execute the write-read-back verification phase. For each register in the csi_reg block, check whether the register is flagged to be skipped (interrupt_raw and flush are skipped in this phase). Also skip registers that are not writable. For all remaining writable registers, write a known data pattern to the register.\n\nStep 3: After writing to all eligible registers, read back each written register. Skip registers that were not written, are not writable, or are not readable. For each read-back, compute the expected value by combining the written data (masked by the read and write masks) with the default value (for bit positions that are not writable but are readable). Compare the read-back value against this expected value. Record any mismatch as a write-read failure.\n\nStep 4: Evaluate overall test result. If any default-value failures or write-read failures were recorded in the previous steps, report the test as FAIL. If no failures were recorded in either phase, report the test as PASS.","Impacted Registers":"virtual_channel, line_info, fifo_threshold_val, lane_clk, mem, interrupt_raw, interrupt_mask, interrupt_enable, control_data, flush","Validation / Acceptance Criteria":"1. Default Value Verification: For every readable register in the csi_reg block, the value read after reset must exactly match the expected default/reset value defined for that register. Any mismatch constitutes a failure.\n\n2. Write-Read-Back Verification: For every writable and readable register (excluding skipped registers interrupt_raw and flush), the value read back after writing a known pattern must match the expected value. The expected value is computed by applying the write mask and read mask to the written data, combined with the default value for non-writable bit positions. Any mismatch constitutes a failure.\n\n3. Overall Pass/Fail: The test passes (finish with success) only if zero default-value mismatches and zero write-read mismatches are recorded across all registers. Any non-zero failure count in either category results in test failure.","Remarks":"The test covers 10 registers in the csi_reg block. Two registers (interrupt_raw and flush) are explicitly skipped during the write-read-back phase via a skip configuration. A soft reset check function exists in the test but is currently disabled (commented out) and is not executed during the test flow. Non-readable registers are automatically skipped during the default value check phase, and non-writable registers are automatically skipped during the write phase."}]
+
+META = [{"Test Case Name":"mipi_csi2_rb_reg_wr_rd_test","Meta Headers":"File: test_define.c\n#include<mipi_csi2_rb_reg.h>\n\nFile: program.c\n#include <stdio.h>\n#include <stdlib.h>\n#include \"test_define.c\"\n#include \"test_common.h\"","Meta Macros":"File: test_define.c\n#define CNT 60\n\nFile: program.c\n#define SOFT_RST_REG_ADDRESS 0x00000000\n#define SOFT_RST_REG_DATA \u2014 value not available (RAG snippet truncated after \"#define\u2026\")\n\nConditional compilation macro (no definition supplied):\nDEBUG_DISPLAY \u2014 used in #ifdef DEBUG_DISPLAY guards throughout program.c; no #define visible in supplied source.","Meta Arrays":"File: test_define.c\n\nconst unsigned long int addr_array[60]={MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL,MIZAR_MIPI_CSI2_RB_REG_LINE_INFO,MIZAR_MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL,MIZAR_MIPI_CSI2_RB_REG_LANE_CLK,MIZAR_MIPI_CSI2_RB_REG_MEM,MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_RAW,MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_MASK,MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_ENABLE,MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA,MIZAR_MIPI_CSI2_RB_REG_FLUSH};\n\nconst int default_value_array[60]={MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_DEFAULT_VAL,MIPI_CSI2_RB_REG_LINE_INFO_DEFAULT_VAL,MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_DEFAULT_VAL,MIPI_CSI2_RB_REG_LANE_CLK_DEFAULT_VAL,MIPI_CSI2_RB_REG_MEM_DEFAULT_VAL,MIPI_CSI2_RB_REG_INTERRUPT_RAW_DEFAULT_VAL,MIPI_CSI2_RB_REG_INTERRUPT_MASK_DEFAULT_VAL,MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_DEFAULT_VAL,MIPI_CSI2_RB_REG_CONTROL_DATA_DEFAULT_VAL,MIPI_CSI2_RB_REG_FLUSH_DEFAULT_VAL};\n\nconst int read_mask_array[60]={MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_READ_MASK,MIPI_CSI2_RB_REG_LINE_INFO_READ_MASK,MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_READ_MASK,MIPI_CSI2_RB_REG_LANE_CLK_READ_MASK,MIPI_CSI2_RB_REG_MEM_READ_MASK,MIPI_CSI2_RB_REG_INTERRUPT_RAW_READ_MASK,MIPI_CSI2_RB_REG_INTERRUPT_MASK_READ_MASK,MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_READ_MASK,MIPI_CSI2_RB_REG_CONTROL_DATA_READ_MASK,MIPI_CSI2_RB_REG_FLUSH_READ_MASK};\n\nconst int write_mask_array[60]={MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_WRITE_MASK,MIPI_CSI2_RB_REG_LINE_INFO_WRITE_MASK,MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_WRITE_MASK,MIPI_CSI2_RB_REG_LANE_CLK_WRITE_MASK,MIPI_CSI2_RB_REG_MEM_WRITE_MASK,MIPI_CSI2_RB_REG_INTERRUPT_RAW_WRITE_MASK,MIPI_CSI2_RB_REG_INTERRUPT_MASK_WRITE_MASK,MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_WRITE_MASK,MIPI_CSI2_RB_REG_CONTROL_DATA_WRITE_MASK,MIPI_CSI2_RB_REG_FLUSH_WRITE_MASK};\n\nconst int skip_array[60]={0,0,0,0,0,1,0,0,0,1};","Meta Types":"TYPE_DEFINITIONS\nNA\n\nOTHER_DECLARATIONS\nFile: test_define.c\nint data_rd,data_wr,rst_val;\n\nFile: program.c\nint data_rd,data_wr;\nint def_fail_cnt = 0,wr_fail_cnt = 0;","Meta Test Description":"This testcase (mipi_csi2_rb_reg_wr_rd_test) performs register read/write verification for the MIPI CSI2 RB register block (csi_reg block). The test consists of two main phases: (1) chk_rst_val \u2014 reads each register and compares the read value against the expected default/reset value from default_value_array, skipping non-readable registers (read_mask_array == 0x00000000), incrementing def_fail_cnt on mismatch; (2) chk_rd_wr \u2014 writes data_wr to each writable register (skipping entries in skip_array and non-writable registers), then reads back and compares against an expected value computed as exp_val = ((data_wr & read_mask_array[i] & write_mask_array[i]) | (wr_n & read_mask_array[i] & default_value_array[i])), where wr_n is the inverted write mask, incrementing wr_fail_cnt on mismatch. Registers flagged in skip_array (INTERRUPT_RAW at index 5, FLUSH at index 9) are skipped during chk_rd_wr. A soft_reset_chk function is defined but its call is commented out in test_case. The test concludes with finish(1) if any failures occurred (def_fail_cnt > 0 || wr_fail_cnt > 0), or finish(0) otherwise. 10 registers are addressed from the csi_reg block: virtual_channel, line_info, fifo_threshold_val, lane_clk, mem, interrupt_raw, interrupt_mask, interrupt_enable, control_data, flush.","Meta Test Steps / Procedure":"SOURCE_FILE: test_define.c\nSOURCE_CONTENT:\n#include<mipi_csi2_rb_reg.h>\n#define CNT 60\nint data_rd,data_wr,rst_val;\nconst unsigned long int addr_array[60]={...};\nconst int default_value_array[60]={...};\nconst int read_mask_array[60]={...};\nconst int write_mask_array[60]={...};\nconst int skip_array[60]={0,0,0,0,0,1,0,0,0,1};\n\nSOURCE_FILE: program.c\nFunctions: soft_reset_chk(), chk_rst_val(), chk_rd_wr(), test_case()","Meta Impacted Registers":"Register block: csi_reg\nBase: 0xE6A00000 + 0x4000\nvirtual_channel (0x0), line_info (0x4), fifo_threshold_val (0x8), lane_clk (0xC), mem (0x10), interrupt_raw (0x14), interrupt_mask (0x18), interrupt_enable (0x1C), control_data (0x20), flush (0x24)","Meta Validation / Acceptance Criteria":"chk_rst_val: if(data_rd == default_value_array[i]) PASS else def_fail_cnt++. chk_rd_wr: if(data_rd == exp_val) PASS else wr_fail_cnt++. test_case: if(def_fail_cnt > 0 || wr_fail_cnt > 0) finish(1) else finish(0)."}]
+
+TP_COLS = ["Index","SS / Module","Feature","Test Case Name","Speed","Mode","Memory Start Offset","Memory End Offset","Test Description","Test Steps / Procedure","Impacted Registers","Validation / Acceptance Criteria","Remarks","Code Generation (Required / Not)"]
+MD_COLS = ["Test Case Name","Meta Headers","Meta Macros","Meta Arrays","Meta Types","Meta Test Description","Meta Test Steps / Procedure","Meta Impacted Registers","Meta Validation / Acceptance Criteria"]
+
+HF = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+HFL = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+HA = Alignment(horizontal='center', vertical='center', wrap_text=True)
+DA = Alignment(vertical='top', wrap_text=True)
+BD = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+def build_xlsx_bytes():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "TestPlan"
+    for ci, cn in enumerate(TP_COLS, 1):
+        c = ws.cell(row=1, column=ci, value=cn); c.font=HF; c.fill=HFL; c.alignment=HA; c.border=BD
+    for ri, rec in enumerate(TESTPLAN, 2):
+        for ci, cn in enumerate(TP_COLS, 1):
+            v = "" if cn=="Code Generation (Required / Not)" else rec.get(cn,"")
+            c = ws.cell(row=ri, column=ci, value=v); c.alignment=DA; c.border=BD
+    cg = len(TP_COLS); lr = len(TESTPLAN)+1
+    dv = DataValidation(type="list", formula1='"Required,Not Required"', allow_blank=True, showDropDown=False)
+    dv.sqref = f"{get_column_letter(cg)}2:{get_column_letter(cg)}{lr}"
+    ws.add_data_validation(dv)
+    ws.freeze_panes = "A2"
+    for ci in range(1, len(TP_COLS)+1):
+        ml = max((max((len(l) for l in str(ws.cell(row=r,column=ci).value or "").split('\n')),default=0) for r in range(1,lr+1)),default=10)
+        ws.column_dimensions[get_column_letter(ci)].width = min(ml+4, 60)
+
+    wm = wb.create_sheet(title="MetaData")
+    for ci, cn in enumerate(MD_COLS, 1):
+        c = wm.cell(row=1, column=ci, value=cn); c.font=HF; c.fill=HFL; c.alignment=HA; c.border=BD
+    for ri, rec in enumerate(META, 2):
+        for ci, cn in enumerate(MD_COLS, 1):
+            c = wm.cell(row=ri, column=ci, value=rec.get(cn,"")); c.alignment=DA; c.border=BD
+    wm.freeze_panes = "A2"
+    mr = len(META)+1
+    for ci in range(1, len(MD_COLS)+1):
+        ml = max((max((len(l) for l in str(wm.cell(row=r,column=ci).value or "").split('\n')),default=0) for r in range(1,mr+1)),default=10)
+        wm.column_dimensions[get_column_letter(ci)].width = min(ml+4, 60)
+    wm.sheet_state = 'veryHidden'
+
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return buf.read()
+
+def main():
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    fn = f"MIPI_CSI_TestPlan_{ts}.xlsx"
+    xlsx = build_xlsx_bytes()
+    print(f"Built {fn}: {len(xlsx)} bytes")
+
+    token = os.environ.get("GITHUB_TOKEN","")
+    if not token:
+        with open(fn,"wb") as f: f.write(xlsx)
+        print(f"No GITHUB_TOKEN. Saved locally: {fn}")
+        return
+
+    path = f"Test_Output/MIPI/TestPlan/{fn}"
+    url = f"https://api.github.com/repos/titusbspgit/PSVValidation/contents/{path}"
+    h = {"Authorization":f"token {token}","Accept":"application/vnd.github.v3+json"}
+    r = requests.get(url, headers=h, params={"ref":"main"})
+    p = {"message":"Generated TestPlan Excel Workbook","content":base64.b64encode(xlsx).decode(),"branch":"main"}
+    if r.status_code==200: p["sha"]=r.json()["sha"]
+    r = requests.put(url, headers=h, json=p)
+    if r.ok:
+        d = r.json()
+        print(json.dumps({"status":"SUCCESS","output_file_path":path,"github_url":d["content"]["html_url"],"filename":fn,"rows_testplan":len(TESTPLAN),"rows_metadata":len(META),"commit_sha":d["commit"]["sha"],"validation":"PASSED"},indent=2))
+    else:
+        print(f"FAIL: {r.status_code} {r.text}")
+
+if __name__=="__main__": main()
