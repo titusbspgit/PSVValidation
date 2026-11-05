@@ -1,36 +1,29 @@
 #!/usr/bin/env python3
 """
-Agent 7 - Excel Generation Script
+Agent 7 - Excel Workbook Generator & GitHub Publisher
 IP_NAME: MIPI_CSI
-Filename: MIPI_CSI_TestPlan_20261105_193000.xlsx
-Generated for: titusbspgit/PSVValidation
-Branch: main
-Output: Test_Output/MIPI/TestPlan/
+Output: MIPI_CSI_TestPlan_20261105_193000.xlsx
 
-Run this script locally to generate the genuine .xlsx workbook and push to GitHub.
-Requirements: pip install openpyxl requests
+This script generates a genuine .xlsx workbook with two sheets (TestPlan, MetaData),
+validates it, and pushes it to GitHub.
 
-Usage:
-  python generate_mipi_csi_testplan_20261105_193000.py
+Requirements: pip install openpyxl PyGithub
+Usage: GITHUB_TOKEN=<token> python generate_mipi_csi_testplan_20261105_193000.py
 """
 
-import json
-import os
-import sys
-import base64
-import datetime
+import json, os, sys, base64, io
 
 try:
-    from openpyxl import Workbook
+    from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.worksheet.datavalidation import DataValidation
     from openpyxl.utils import get_column_letter
 except ImportError:
-    print("ERROR: openpyxl not installed. Run: pip install openpyxl")
+    print("ERROR: openpyxl required. Install: pip install openpyxl")
     sys.exit(1)
 
 # ============================================================
-# TESTPLAN_JSON (from Agent 6B)
+# TESTPLAN_JSON (Agent 6B aggregated output - exact values)
 # ============================================================
 TESTPLAN_JSON = [
   {
@@ -51,7 +44,7 @@ TESTPLAN_JSON = [
 ]
 
 # ============================================================
-# META_JSON (from Agent 6A)
+# META_JSON (Agent 6A aggregated output - exact values)
 # ============================================================
 META_JSON = [
   {
@@ -60,6 +53,7 @@ META_JSON = [
     "Meta Macros": "File: test_define.c\n#define CNT 60\n\nFile: program.c\n#define SOFT_RST_REG_ADDRESS\t0x00000000\n#define SOFT_RST_REG_DATA\t0x00000000\n\nConditional compilation directive used in program.c:\n#ifdef DEBUG_DISPLAY\n(DEBUG_DISPLAY is not defined in the supplied source; used as a conditional guard around printf statements.)",
     "Meta Arrays": "File: test_define.c\n\nconst unsigned long int addr_array[60]={\n    MIZAR_MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL,\n    MIZAR_MIPI_CSI2_RB_REG_LINE_INFO,\n    MIZAR_MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL,\n    MIZAR_MIPI_CSI2_RB_REG_LANE_CLK,\n    MIZAR_MIPI_CSI2_RB_REG_MEM,\n    MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_RAW,\n    MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_MASK,\n    MIZAR_MIPI_CSI2_RB_REG_INTERRUPT_ENABLE,\n    MIZAR_MIPI_CSI2_RB_REG_CONTROL_DATA,\n    MIZAR_MIPI_CSI2_RB_REG_FLUSH\n};\n\nconst int default_value_array[60]={\n    MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_LINE_INFO_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_LANE_CLK_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_MEM_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_INTERRUPT_RAW_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_INTERRUPT_MASK_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_CONTROL_DATA_DEFAULT_VAL,\n    MIPI_CSI2_RB_REG_FLUSH_DEFAULT_VAL\n};\n\nconst int read_mask_array[60]={\n    MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_READ_MASK,\n    MIPI_CSI2_RB_REG_LINE_INFO_READ_MASK,\n    MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_READ_MASK,\n    MIPI_CSI2_RB_REG_LANE_CLK_READ_MASK,\n    MIPI_CSI2_RB_REG_MEM_READ_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_RAW_READ_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_MASK_READ_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_READ_MASK,\n    MIPI_CSI2_RB_REG_CONTROL_DATA_READ_MASK,\n    MIPI_CSI2_RB_REG_FLUSH_READ_MASK\n};\n\nconst int write_mask_array[60]={\n    MIPI_CSI2_RB_REG_VIRTUAL_CHANNEL_WRITE_MASK,\n    MIPI_CSI2_RB_REG_LINE_INFO_WRITE_MASK,\n    MIPI_CSI2_RB_REG_FIFO_THRESHOLD_VAL_WRITE_MASK,\n    MIPI_CSI2_RB_REG_LANE_CLK_WRITE_MASK,\n    MIPI_CSI2_RB_REG_MEM_WRITE_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_RAW_WRITE_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_MASK_WRITE_MASK,\n    MIPI_CSI2_RB_REG_INTERRUPT_ENABLE_WRITE_MASK,\n    MIPI_CSI2_RB_REG_CONTROL_DATA_WRITE_MASK,\n    MIPI_CSI2_RB_REG_FLUSH_WRITE_MASK\n};\n\nconst int skip_array[60]={0,0,0,0,0,1,0,0,0,1};",
     "Meta Types": "TYPE_DEFINITIONS\nNA\n\nOTHER_DECLARATIONS\nFile: test_define.c (file scope)\nint data_rd,data_wr,rst_val;\n\nFile: program.c (file scope)\nint data_rd,data_wr;\nint def_fail_cnt = 0,wr_fail_cnt = 0;",
+    "Meta Function Inventory": "File: program.c\n\n--- Function Definition: test_case ---\nSignature: int test_case()\nReturn type: int\nParameters: none\nBody supplied: yes (complete)\nCalls in source order:\n  1. chk_rst_val()\n  2. printf(\"********* Default value check end ************\\n\") [inside #ifdef DEBUG_DISPLAY]\n  3. chk_rd_wr()\n  4. printf(\"********* Write & Read from registers end ************\\n\") [inside #ifdef DEBUG_DISPLAY]\n  5. finish(1) [inside if(def_fail_cnt > 0 || wr_fail_cnt > 0)]\n  6. finish(0) [inside else branch]\nCommented-out calls: soft_reset_chk(), printf(\"********* Soft reset end ************\\n\"), chk_rst_val()\n\n--- Function Definition: chk_rd_wr ---\nSignature: void chk_rd_wr() [inferred from supplied excerpt]\nReturn type: void (inferred)\nParameters: none\nBody supplied: partial\n\n--- Function: chk_rst_val ---\nCalled from: test_case()\nBody supplied: no.\n\n--- Function: soft_reset_chk ---\nReferenced in: test_case() (commented out)\nBody supplied: no.\n\n--- Function: write_reg ---\nCalled as: write_reg(addr, data_wr)\nBody supplied: no.\n\n--- Function: read_reg ---\nCalled as: read_reg(addr)\nBody supplied: no.\n\n--- Function: finish ---\nCalled as: finish(1), finish(0)\nBody supplied: no.",
     "Meta Test Description": "This testcase (mipi_csi2_rb_reg_wr_rd_test) for the MIPI_CSI IP performs register read/write verification on 10 MIPI CSI2 RB registers: VIRTUAL_CHANNEL, LINE_INFO, FIFO_THRESHOLD_VAL, LANE_CLK, MEM, INTERRUPT_RAW, INTERRUPT_MASK, INTERRUPT_ENABLE, CONTROL_DATA, and FLUSH. The test has two main phases: (1) chk_rst_val() checks that all registers hold their expected default/reset values after reset, and (2) chk_rd_wr() writes a test pattern (data_wr) to each writable register (skipping registers flagged in skip_array or with zero write_mask), then reads back and compares against an expected value computed using read_mask, write_mask, and default_value arrays. Registers at index 5 (INTERRUPT_RAW) and 9 (FLUSH) are skipped via skip_array. A soft_reset_chk() function exists but is commented out. Pass/fail is determined by def_fail_cnt and wr_fail_cnt counters, calling finish(0) on success or finish(1) on failure.",
     "Meta Test Steps / Procedure": "SOURCE_FILE: test_define.c and program.c with full source content as extracted by Agent 5A.",
     "Meta Impacted Registers": "virtual_channel, line_info, fifo_threshold_val, lane_clk, mem, interrupt_raw, interrupt_mask, interrupt_enable, control_data, flush",
@@ -68,292 +62,194 @@ META_JSON = [
 ]
 
 # ============================================================
-# Configuration
-# ============================================================
-IP_NAME = "MIPI_CSI"
-FILENAME = "MIPI_CSI_TestPlan_20261105_193000.xlsx"
-OUTPUT_DIR = "Test_Output/MIPI/TestPlan"
-GITHUB_OWNER = "titusbspgit"
-GITHUB_REPO = "PSVValidation"
-GITHUB_BRANCH = "main"
-
-# ============================================================
-# TestPlan Sheet Columns
+# Column Definitions
 # ============================================================
 TESTPLAN_COLUMNS = [
-    "Index",
-    "SS / Module",
-    "Feature",
-    "Test Case Name",
-    "Speed",
-    "Mode",
-    "Memory Start Offset",
-    "Memory End Offset",
-    "Test Description",
-    "Test Steps / Procedure",
-    "Impacted Registers",
-    "Validation / Acceptance Criteria",
-    "Remarks",
+    "Index", "SS / Module", "Feature", "Test Case Name", "Speed", "Mode",
+    "Memory Start Offset", "Memory End Offset", "Test Description",
+    "Test Steps / Procedure", "Impacted Registers",
+    "Validation / Acceptance Criteria", "Remarks",
     "Code Generation (Required / Not)"
 ]
 
-# ============================================================
-# MetaData Sheet Columns
-# ============================================================
 METADATA_COLUMNS = [
-    "Test Case Name",
-    "Meta Headers",
-    "Meta Macros",
-    "Meta Arrays",
-    "Meta Types",
-    "Meta Test Description",
-    "Meta Test Steps / Procedure",
-    "Meta Impacted Registers",
+    "Test Case Name", "Meta Headers", "Meta Macros", "Meta Arrays",
+    "Meta Types", "Meta Function Inventory", "Meta Test Description",
+    "Meta Test Steps / Procedure", "Meta Impacted Registers",
     "Meta Validation / Acceptance Criteria"
 ]
 
-# ============================================================
-# Formatting
-# ============================================================
-HEADER_FONT = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
-HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center", wrap_text=True)
-CELL_ALIGNMENT = Alignment(vertical="top", wrap_text=True)
+TESTPLAN_FIELD_MAP = [
+    "Index", "SS / Module", "Feature", "Test Case Name", "Speed", "Mode",
+    "Memory Start Offset", "Memory End Offset", "Test Description",
+    "Test Steps / Procedure", "Impacted Registers",
+    "Validation / Acceptance Criteria", "Remarks"
+]
 
-def create_workbook():
+# ============================================================
+# Formatting Constants
+# ============================================================
+HDR_FONT = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+HDR_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+HDR_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
+CELL_ALIGN = Alignment(vertical="top", wrap_text=True)
+MAX_COL_WIDTH = 65
+
+FILENAME = "MIPI_CSI_TestPlan_20261105_193000.xlsx"
+OUTPUT_DIR = "Test_Output/MIPI/TestPlan"
+REPO_OWNER = "titusbspgit"
+REPO_NAME = "PSVValidation"
+BRANCH = "main"
+
+
+def auto_width(ws, num_cols, last_row):
+    for c in range(1, num_cols + 1):
+        mx = len(str(ws.cell(1, c).value or ""))
+        for r in range(2, last_row + 1):
+            v = str(ws.cell(r, c).value or "")
+            for ln in v.split("\n"):
+                mx = max(mx, len(ln))
+        ws.column_dimensions[get_column_letter(c)].width = min(mx + 2, MAX_COL_WIDTH)
+
+
+def build_workbook():
     wb = Workbook()
 
     # ---- TestPlan Sheet ----
-    ws_tp = wb.active
-    ws_tp.title = "TestPlan"
+    ws = wb.active
+    ws.title = "TestPlan"
+    for ci, cn in enumerate(TESTPLAN_COLUMNS, 1):
+        c = ws.cell(1, ci, cn)
+        c.font, c.fill, c.alignment = HDR_FONT, HDR_FILL, HDR_ALIGN
 
-    # Write headers
-    for col_idx, col_name in enumerate(TESTPLAN_COLUMNS, 1):
-        cell = ws_tp.cell(row=1, column=col_idx, value=col_name)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = HEADER_ALIGNMENT
+    for ri, tc in enumerate(TESTPLAN_JSON, 2):
+        for ci, fld in enumerate(TESTPLAN_FIELD_MAP, 1):
+            c = ws.cell(ri, ci, tc.get(fld, ""))
+            c.alignment = CELL_ALIGN
+        # Col 14 (Code Generation) left blank
 
-    # Write data rows
-    for row_idx, tc in enumerate(TESTPLAN_JSON, 2):
-        ws_tp.cell(row=row_idx, column=1, value=tc.get("Index", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=2, value=tc.get("SS / Module", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=3, value=tc.get("Feature", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=4, value=tc.get("Test Case Name", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=5, value=tc.get("Speed", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=6, value=tc.get("Mode", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=7, value=tc.get("Memory Start Offset", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=8, value=tc.get("Memory End Offset", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=9, value=tc.get("Test Description", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=10, value=tc.get("Test Steps / Procedure", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=11, value=tc.get("Impacted Registers", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=12, value=tc.get("Validation / Acceptance Criteria", "")).alignment = CELL_ALIGNMENT
-        ws_tp.cell(row=row_idx, column=13, value=tc.get("Remarks", "")).alignment = CELL_ALIGNMENT
-        # Column 14: Code Generation - leave blank (user selects via dropdown)
-
-    # Data Validation for Code Generation column
-    dv = DataValidation(
-        type="list",
-        formula1='"Required,Not Required"',
-        allow_blank=True,
-        showDropDown=False
-    )
-    dv.error = "Please select Required or Not Required"
-    dv.errorTitle = "Invalid Entry"
-    dv.prompt = "Select Code Generation status"
-    dv.promptTitle = "Code Generation"
-    last_data_row = 1 + len(TESTPLAN_JSON)
-    code_gen_col = get_column_letter(14)
-    dv.add(f"{code_gen_col}2:{code_gen_col}{last_data_row}")
-    ws_tp.add_data_validation(dv)
-
-    # Freeze first row
-    ws_tp.freeze_panes = "A2"
-
-    # Auto-size columns with max width
-    MAX_WIDTH = 60
-    for col_idx in range(1, len(TESTPLAN_COLUMNS) + 1):
-        max_len = len(str(ws_tp.cell(row=1, column=col_idx).value or ""))
-        for row_idx in range(2, last_data_row + 1):
-            val = str(ws_tp.cell(row=row_idx, column=col_idx).value or "")
-            lines = val.split("\n")
-            for line in lines:
-                if len(line) > max_len:
-                    max_len = len(line)
-        adjusted = min(max_len + 2, MAX_WIDTH)
-        ws_tp.column_dimensions[get_column_letter(col_idx)].width = adjusted
+    last = 1 + len(TESTPLAN_JSON)
+    dv = DataValidation(type="list", formula1='"Required,Not Required"',
+                        allow_blank=True, showDropDown=False)
+    dv.error = "Select Required or Not Required"
+    dv.errorTitle = "Invalid"
+    col_letter = get_column_letter(14)
+    dv.add(f"{col_letter}2:{col_letter}{last}")
+    ws.add_data_validation(dv)
+    ws.freeze_panes = "A2"
+    auto_width(ws, len(TESTPLAN_COLUMNS), last)
 
     # ---- MetaData Sheet ----
-    ws_md = wb.create_sheet("MetaData")
+    md = wb.create_sheet("MetaData")
+    for ci, cn in enumerate(METADATA_COLUMNS, 1):
+        c = md.cell(1, ci, cn)
+        c.font, c.fill, c.alignment = HDR_FONT, HDR_FILL, HDR_ALIGN
 
-    # Write headers
-    for col_idx, col_name in enumerate(METADATA_COLUMNS, 1):
-        cell = ws_md.cell(row=1, column=col_idx, value=col_name)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = HEADER_ALIGNMENT
+    for ri, m in enumerate(META_JSON, 2):
+        for ci, fld in enumerate(METADATA_COLUMNS, 1):
+            c = md.cell(ri, ci, m.get(fld, ""))
+            c.alignment = CELL_ALIGN
 
-    # Write data rows
-    for row_idx, meta in enumerate(META_JSON, 2):
-        ws_md.cell(row=row_idx, column=1, value=meta.get("Test Case Name", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=2, value=meta.get("Meta Headers", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=3, value=meta.get("Meta Macros", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=4, value=meta.get("Meta Arrays", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=5, value=meta.get("Meta Types", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=6, value=meta.get("Meta Test Description", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=7, value=meta.get("Meta Test Steps / Procedure", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=8, value=meta.get("Meta Impacted Registers", "")).alignment = CELL_ALIGNMENT
-        ws_md.cell(row=row_idx, column=9, value=meta.get("Meta Validation / Acceptance Criteria", "")).alignment = CELL_ALIGNMENT
-
-    # Freeze first row
-    ws_md.freeze_panes = "A2"
-
-    # Auto-size columns
-    md_last_row = 1 + len(META_JSON)
-    for col_idx in range(1, len(METADATA_COLUMNS) + 1):
-        max_len = len(str(ws_md.cell(row=1, column=col_idx).value or ""))
-        for row_idx in range(2, md_last_row + 1):
-            val = str(ws_md.cell(row=row_idx, column=col_idx).value or "")
-            lines = val.split("\n")
-            for line in lines:
-                if len(line) > max_len:
-                    max_len = len(line)
-        adjusted = min(max_len + 2, MAX_WIDTH)
-        ws_md.column_dimensions[get_column_letter(col_idx)].width = adjusted
-
-    # Set MetaData sheet to veryHidden
-    ws_md.sheet_state = "veryHidden"
+    md_last = 1 + len(META_JSON)
+    md.freeze_panes = "A2"
+    auto_width(md, len(METADATA_COLUMNS), md_last)
+    md.sheet_state = "veryHidden"
 
     return wb
 
 
-def validate_workbook(filepath):
-    from openpyxl import load_workbook
-    wb = load_workbook(filepath)
-    checks = {
-        "file_exists": os.path.exists(filepath),
-        "file_size_gt_0": os.path.getsize(filepath) > 0,
-        "reopens_ok": True,
-        "has_testplan": "TestPlan" in wb.sheetnames,
-        "has_metadata": "MetaData" in wb.sheetnames,
-        "testplan_rows": wb["TestPlan"].max_row - 1,
-        "metadata_rows": wb["MetaData"].max_row - 1,
-    }
-    wb.close()
-    return checks
+def validate(path):
+    ok = True
+    checks = {}
+    checks["file_exists"] = os.path.exists(path)
+    checks["file_size"] = os.path.getsize(path) if checks["file_exists"] else 0
+    checks["file_size_gt_0"] = checks["file_size"] > 0
+    try:
+        wb2 = load_workbook(path)
+        checks["reopens"] = True
+        checks["has_TestPlan"] = "TestPlan" in wb2.sheetnames
+        checks["has_MetaData"] = "MetaData" in wb2.sheetnames
+        checks["tp_rows"] = wb2["TestPlan"].max_row - 1
+        checks["md_rows"] = wb2["MetaData"].max_row - 1
+        checks["tp_match"] = checks["tp_rows"] == len(TESTPLAN_JSON)
+        checks["md_match"] = checks["md_rows"] == len(META_JSON)
+        # Check Code Generation column header
+        checks["code_gen_col"] = wb2["TestPlan"].cell(1, 14).value == "Code Generation (Required / Not)"
+        # Check Code Generation cells are blank
+        all_blank = all(wb2["TestPlan"].cell(r, 14).value is None for r in range(2, 2 + len(TESTPLAN_JSON)))
+        checks["code_gen_blank"] = all_blank
+        wb2.close()
+    except Exception as e:
+        checks["reopens"] = False
+        checks["error"] = str(e)
+        ok = False
+    ok = all([
+        checks.get("file_exists"), checks.get("file_size_gt_0"),
+        checks.get("reopens"), checks.get("has_TestPlan"),
+        checks.get("has_MetaData"), checks.get("tp_match"),
+        checks.get("md_match"), checks.get("code_gen_col"),
+        checks.get("code_gen_blank")
+    ])
+    return ok, checks
 
 
-def push_to_github(filepath, token):
+def push_github(path, token):
     import requests
-    with open(filepath, "rb") as f:
-        content_bytes = f.read()
-    content_b64 = base64.b64encode(content_bytes).decode("utf-8")
-
-    api_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{OUTPUT_DIR}/{FILENAME}"
-
-    # Check if file exists
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    resp = requests.get(api_url, headers=headers, params={"ref": GITHUB_BRANCH})
-    sha = None
-    if resp.status_code == 200:
-        sha = resp.json().get("sha")
-
-    payload = {
-        "message": "Generated TestPlan Excel Workbook",
-        "content": content_b64,
-        "branch": GITHUB_BRANCH
-    }
+    with open(path, "rb") as f:
+        raw = f.read()
+    b64 = base64.b64encode(raw).decode()
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{OUTPUT_DIR}/{FILENAME}"
+    hdrs = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+    r = requests.get(url, headers=hdrs, params={"ref": BRANCH})
+    sha = r.json().get("sha") if r.status_code == 200 else None
+    body = {"message": "Generated TestPlan Excel Workbook", "content": b64, "branch": BRANCH}
     if sha:
-        payload["sha"] = sha
-
-    resp = requests.put(api_url, headers=headers, json=payload)
-    if resp.status_code in (200, 201):
-        data = resp.json()
-        return {
-            "github_url": data["content"]["html_url"],
-            "commit_sha": data["commit"]["sha"]
-        }
-    else:
-        print(f"GitHub upload failed: {resp.status_code} {resp.text}")
-        return None
+        body["sha"] = sha
+    r = requests.put(url, headers=hdrs, json=body)
+    if r.status_code in (200, 201):
+        d = r.json()
+        return d["content"]["html_url"], d["commit"]["sha"]
+    print(f"Push failed: {r.status_code} {r.text}")
+    return None, None
 
 
 def main():
-    print(f"Generating workbook: {FILENAME}")
-    wb = create_workbook()
+    wb = build_workbook()
     wb.save(FILENAME)
-    print(f"Saved: {FILENAME}")
+    print(f"Saved: {FILENAME} ({os.path.getsize(FILENAME)} bytes)")
 
-    checks = validate_workbook(FILENAME)
-    print(f"Validation: {json.dumps(checks, indent=2)}")
+    ok, checks = validate(FILENAME)
+    print(f"Validation: {'PASSED' if ok else 'FAILED'}")
+    for k, v in checks.items():
+        print(f"  {k}: {v}")
 
-    all_pass = all([
-        checks["file_exists"],
-        checks["file_size_gt_0"],
-        checks["reopens_ok"],
-        checks["has_testplan"],
-        checks["has_metadata"],
-        checks["testplan_rows"] == len(TESTPLAN_JSON),
-        checks["metadata_rows"] == len(META_JSON),
-    ])
-
-    if not all_pass:
-        result = {
-            "status": "FAILURE",
-            "output_file_path": "",
-            "github_url": "",
-            "filename": FILENAME,
-            "rows_testplan": checks.get("testplan_rows", 0),
-            "rows_metadata": checks.get("metadata_rows", 0),
-            "commit_sha": "",
-            "validation": "FAILED"
-        }
-        print(json.dumps(result, indent=2))
-        return
+    if not ok:
+        print(json.dumps({"status":"FAILURE","validation":"FAILED","filename":FILENAME,
+                          "rows_testplan":checks.get("tp_rows",0),
+                          "rows_metadata":checks.get("md_rows",0)}, indent=2))
+        sys.exit(1)
 
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
-        print("No GITHUB_TOKEN set. Workbook generated locally but not pushed.")
-        result = {
-            "status": "IN_PROGRESS",
-            "output_file_path": os.path.abspath(FILENAME),
-            "github_url": "",
-            "filename": FILENAME,
-            "rows_testplan": checks["testplan_rows"],
-            "rows_metadata": checks["metadata_rows"],
-            "commit_sha": "",
-            "validation": "PASSED"
-        }
-        print(json.dumps(result, indent=2))
-        return
+        print("GITHUB_TOKEN not set. File generated locally only.")
+        print(json.dumps({"status":"IN_PROGRESS","validation":"PASSED",
+                          "filename":FILENAME,"output_file_path":os.path.abspath(FILENAME),
+                          "rows_testplan":checks["tp_rows"],
+                          "rows_metadata":checks["md_rows"]}, indent=2))
+        sys.exit(0)
 
-    gh = push_to_github(FILENAME, token)
-    if gh:
-        result = {
-            "status": "SUCCESS",
-            "output_file_path": f"{OUTPUT_DIR}/{FILENAME}",
-            "github_url": gh["github_url"],
-            "filename": FILENAME,
-            "rows_testplan": checks["testplan_rows"],
-            "rows_metadata": checks["metadata_rows"],
-            "commit_sha": gh["commit_sha"],
-            "validation": "PASSED"
-        }
+    gh_url, sha = push_github(FILENAME, token)
+    if gh_url:
+        print(json.dumps({"status":"SUCCESS","validation":"PASSED","filename":FILENAME,
+                          "output_file_path":f"{OUTPUT_DIR}/{FILENAME}",
+                          "github_url":gh_url,"commit_sha":sha,
+                          "rows_testplan":checks["tp_rows"],
+                          "rows_metadata":checks["md_rows"]}, indent=2))
     else:
-        result = {
-            "status": "FAILURE",
-            "output_file_path": os.path.abspath(FILENAME),
-            "github_url": "",
-            "filename": FILENAME,
-            "rows_testplan": checks["testplan_rows"],
-            "rows_metadata": checks["metadata_rows"],
-            "commit_sha": "",
-            "validation": "PASSED"
-        }
-    print(json.dumps(result, indent=2))
+        print(json.dumps({"status":"FAILURE","validation":"PASSED","filename":FILENAME,
+                          "rows_testplan":checks["tp_rows"],
+                          "rows_metadata":checks["md_rows"]}, indent=2))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
