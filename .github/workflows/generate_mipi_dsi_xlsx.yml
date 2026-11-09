@@ -1,7 +1,13 @@
 name: Generate MIPI_DSI TestPlan XLSX
 
 on:
+  push:
+    paths:
+      - '.github/workflows/generate_mipi_dsi_xlsx.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,71 +19,73 @@ jobs:
           python-version: '3.11'
       - run: pip install openpyxl
       - name: Generate XLSX
+        working-directory: Test_Output/MIPI/TestPlan
         run: |
-          cd Test_Output/MIPI/TestPlan
           python3 -c "
-import json, io, os
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.utils import get_column_letter
+          import json, os
+          from openpyxl import Workbook, load_workbook
+          from openpyxl.styles import Font, PatternFill, Alignment
+          from openpyxl.worksheet.datavalidation import DataValidation
+          from openpyxl.utils import get_column_letter
 
-TP_COLS=['Index','SS / Module','Feature','Test Case Name','Speed','Mode','Memory Start Offset','Memory End Offset','Test Description','Test Steps / Procedure','Impacted Registers','Validation / Acceptance Criteria','Remarks','Code Generation (Required / Not)']
-META_COLS=['Test Case Name','Meta Headers','Meta Macros','Meta Arrays','Meta Types','Meta Test Description','Meta Test Steps / Procedure','Meta Impacted Registers','Meta Validation / Acceptance Criteria']
+          TP_COLS=['Index','SS / Module','Feature','Test Case Name','Speed','Mode','Memory Start Offset','Memory End Offset','Test Description','Test Steps / Procedure','Impacted Registers','Validation / Acceptance Criteria','Remarks','Code Generation (Required / Not)']
+          META_COLS=['Test Case Name','Meta Headers','Meta Macros','Meta Arrays','Meta Types','Meta Test Description','Meta Test Steps / Procedure','Meta Impacted Registers','Meta Validation / Acceptance Criteria']
 
-with open('MIPI_DSI_TestPlan_20261109_180000_testplan.json') as f: tp=json.load(f)
-with open('MIPI_DSI_TestPlan_20261109_180000_metadata.json') as f: meta=json.load(f)
+          with open('MIPI_DSI_TestPlan_20261109_180000_testplan.json') as f: tp=json.load(f)
+          with open('MIPI_DSI_TestPlan_20261109_180000_metadata.json') as f: meta=json.load(f)
 
-HDR_FONT=Font(name='Calibri',bold=True,color='FFFFFF',size=11)
-HDR_FILL=PatternFill(start_color='4472C4',end_color='4472C4',fill_type='solid')
-WRAP=Alignment(wrap_text=True,vertical='top')
+          HDR_FONT=Font(name='Calibri',bold=True,color='FFFFFF',size=11)
+          HDR_FILL=PatternFill(start_color='4472C4',end_color='4472C4',fill_type='solid')
+          WRAP=Alignment(wrap_text=True,vertical='top')
 
-wb=Workbook()
-ws=wb.active; ws.title='TestPlan'; ws.freeze_panes='A2'
-for ci,h in enumerate(TP_COLS,1):
-    c=ws.cell(row=1,column=ci,value=h); c.font=HDR_FONT; c.fill=HDR_FILL; c.alignment=WRAP
-for ri,rec in enumerate(tp,2):
-    for ci,h in enumerate(TP_COLS,1):
-        if h=='Code Generation (Required / Not)': ws.cell(row=ri,column=ci).alignment=WRAP
-        else: c=ws.cell(row=ri,column=ci,value=rec.get(h,'')); c.alignment=WRAP
-dv=DataValidation(type='list',formula1='\"Required,Not Required\"',allow_blank=True,showDropDown=False)
-cl=get_column_letter(len(TP_COLS))
-dv.sqref=f'{cl}2:{cl}{len(tp)+1}'
-ws.add_data_validation(dv)
-for col in ws.columns:
-    mx=0; lt=get_column_letter(col[0].column)
-    for c in col:
-        if c.value:
-            for l in str(c.value).split('\n'): mx=max(mx,len(l))
-    ws.column_dimensions[lt].width=min(max(mx+2,12),60)
+          wb=Workbook()
+          ws=wb.active; ws.title='TestPlan'; ws.freeze_panes='A2'
+          for ci,h in enumerate(TP_COLS,1):
+              c=ws.cell(row=1,column=ci,value=h); c.font=HDR_FONT; c.fill=HDR_FILL; c.alignment=WRAP
+          for ri,rec in enumerate(tp,2):
+              for ci,h in enumerate(TP_COLS,1):
+                  if h=='Code Generation (Required / Not)': ws.cell(row=ri,column=ci).alignment=WRAP
+                  else:
+                      c=ws.cell(row=ri,column=ci,value=rec.get(h,''))
+                      c.alignment=WRAP
+          dv=DataValidation(type='list',formula1='\"Required,Not Required\"',allow_blank=True,showDropDown=False)
+          cl=get_column_letter(len(TP_COLS))
+          dv.sqref=f'{cl}2:{cl}{len(tp)+1}'
+          ws.add_data_validation(dv)
+          for col in ws.columns:
+              mx=0; lt=get_column_letter(col[0].column)
+              for c in col:
+                  if c.value:
+                      for l in str(c.value).split('\n'): mx=max(mx,len(l))
+              ws.column_dimensions[lt].width=min(max(mx+2,12),60)
 
-wm=wb.create_sheet('MetaData'); wm.sheet_state='veryHidden'; wm.freeze_panes='A2'
-for ci,h in enumerate(META_COLS,1):
-    c=wm.cell(row=1,column=ci,value=h); c.font=HDR_FONT; c.fill=HDR_FILL; c.alignment=WRAP
-for ri,rec in enumerate(meta,2):
-    for ci,h in enumerate(META_COLS,1):
-        c=wm.cell(row=ri,column=ci,value=rec.get(h,'')); c.alignment=WRAP
-for col in wm.columns:
-    mx=0; lt=get_column_letter(col[0].column)
-    for c in col:
-        if c.value:
-            for l in str(c.value).split('\n'): mx=max(mx,len(l))
-    wm.column_dimensions[lt].width=min(max(mx+2,12),60)
+          wm=wb.create_sheet('MetaData'); wm.sheet_state='veryHidden'; wm.freeze_panes='A2'
+          for ci,h in enumerate(META_COLS,1):
+              c=wm.cell(row=1,column=ci,value=h); c.font=HDR_FONT; c.fill=HDR_FILL; c.alignment=WRAP
+          for ri,rec in enumerate(meta,2):
+              for ci,h in enumerate(META_COLS,1):
+                  c=wm.cell(row=ri,column=ci,value=rec.get(h,''))
+                  c.alignment=WRAP
+          for col in wm.columns:
+              mx=0; lt=get_column_letter(col[0].column)
+              for c in col:
+                  if c.value:
+                      for l in str(c.value).split('\n'): mx=max(mx,len(l))
+              wm.column_dimensions[lt].width=min(max(mx+2,12),60)
 
-wb.save('MIPI_DSI_TestPlan_20261109_183000.xlsx')
-sz=os.path.getsize('MIPI_DSI_TestPlan_20261109_183000.xlsx')
-print(f'Generated {sz} bytes')
-vwb=load_workbook('MIPI_DSI_TestPlan_20261109_183000.xlsx')
-assert 'TestPlan' in vwb.sheetnames
-assert 'MetaData' in vwb.sheetnames
-assert vwb['TestPlan'].max_row-1==len(tp)
-assert vwb['MetaData'].max_row-1==len(meta)
-print('Validation PASSED')
-"
-      - name: Commit XLSX
+          wb.save('MIPI_DSI_TestPlan_20261109_183000.xlsx')
+          sz=os.path.getsize('MIPI_DSI_TestPlan_20261109_183000.xlsx')
+          print(f'Generated {sz} bytes')
+          vwb=load_workbook('MIPI_DSI_TestPlan_20261109_183000.xlsx')
+          assert 'TestPlan' in vwb.sheetnames
+          assert 'MetaData' in vwb.sheetnames
+          assert vwb['TestPlan'].max_row-1==len(tp)
+          assert vwb['MetaData'].max_row-1==len(meta)
+          print('Validation PASSED')
+          "
+      - name: Commit and Push XLSX
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Test_Output/MIPI/TestPlan/MIPI_DSI_TestPlan_20261109_183000.xlsx
-          git commit -m "Generated TestPlan Excel Workbook"
-          git push
+          git diff --cached --quiet && echo "No changes" || (git commit -m "Generated TestPlan Excel Workbook" && git push)
